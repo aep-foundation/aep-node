@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/enroll-request.schema.json",
+  "title": "AEP Enroll Request",
+  "type": "object",
+  "required": ["agent_did", "idempotency_key"],
+  "additionalProperties": true,
+  "properties": {
+    "agent_did": {
+      "type": "string",
+      "minLength": 1
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

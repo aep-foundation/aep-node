@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/grant-request.schema.json",
+  "title": "AEP Grant Request",
+  "type": "object",
+  "required": ["grant_type"],
+  "additionalProperties": true,
+  "properties": {
+    "grant_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "enroll-conflict",
+  "title": "Enroll idempotency conflict",
+  "description": "A repeated idempotency key with a different request body yields idempotency_conflict.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "idempotency",
+  "applies_to": ["service"],
+  "profile": "core-http",
+  "input": {
+    "agent_did": "did:web:agent.example.com:agents:123",
+    "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
+    "first_body_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "second_body_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "expected": {
+    "status": 409,
+    "content_type": "application/problem+json",
+    "body": {
+      "type": "urn:aep:error:idempotency_conflict",
+      "title": "Idempotency conflict",
+      "status": 409,
+      "code": "idempotency_conflict"
+    }
+  }
+}

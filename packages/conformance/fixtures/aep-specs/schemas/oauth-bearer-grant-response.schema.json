@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/oauth-bearer-grant-response.schema.json",
+  "title": "AEP OAuth Bearer Grant Response",
+  "type": "object",
+  "required": ["access_token", "credential_id", "expires_at", "scopes", "token_type"],
+  "additionalProperties": true,
+  "properties": {
+    "access_token": {
+      "type": "string",
+      "minLength": 1
+    },
+    "credential_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "token_type": {
+      "type": "string",
+      "enum": ["Bearer"]
+    }
+  }
+}

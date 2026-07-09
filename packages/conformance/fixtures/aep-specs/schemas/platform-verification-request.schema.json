@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/platform-verification-request.schema.json",
+  "title": "AEP Platform Verification Request",
+  "type": "object",
+  "required": ["client_assertion", "op", "service_did"],
+  "additionalProperties": false,
+  "properties": {
+    "client_assertion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "op": {
+      "type": "string",
+      "enum": ["enroll", "grant", "revoke", "status"]
+    },
+    "service_did": {
+      "type": "string",
+      "pattern": "^did:"
+    }
+  }
+}

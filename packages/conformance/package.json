@@ -1,0 +1,56 @@
+{
+  "name": "@aep-foundation/conformance",
+  "version": "0.0.0",
+  "description": "Conformance helpers for checking AEP SDK outputs against schemas and test vectors.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "node": {
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "fixtures",
+    "CHANGELOG.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "eslint src test --max-warnings 0",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "clean": "rm -rf dist .turbo coverage"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@aep-foundation/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@aep-foundation/service": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aep-foundation/aep-node.git",
+    "directory": "packages/conformance"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/platform-sign-request.schema.json",
+  "title": "AEP Platform Sign Request",
+  "type": "object",
+  "required": ["jti", "op", "service_did"],
+  "additionalProperties": false,
+  "properties": {
+    "jti": {
+      "type": "string",
+      "minLength": 1
+    },
+    "op": {
+      "type": "string",
+      "enum": ["enroll", "grant", "revoke", "status"]
+    },
+    "service_did": {
+      "type": "string",
+      "pattern": "^did:"
+    },
+    "lifetime_seconds": {
+      "type": "string",
+      "pattern": "^(?:[1-9][0-9]?|[12][0-9]{2}|300)$"
+    }
+  }
+}

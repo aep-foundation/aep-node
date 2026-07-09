@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/platform-discovery.schema.json",
+  "title": "AEP Platform Discovery Document",
+  "type": "object",
+  "required": ["aep_version", "endpoints", "http", "identity", "platform", "signing"],
+  "additionalProperties": true,
+  "properties": {
+    "aep_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$"
+    },
+    "endpoints": {
+      "type": "object",
+      "required": ["lifecycle", "provision", "sign", "list"],
+      "additionalProperties": true,
+      "properties": {
+        "hosted_verification": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "lifecycle": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "provision": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "sign": {
+          "type": "string",
+          "pattern": "^/"
+        },
+        "list": {
+          "type": "string",
+          "pattern": "^/"
+        }
+      }
+    },
+    "http": {
+      "type": "object",
+      "required": ["endpoint_base"],
+      "additionalProperties": true,
+      "properties": {
+        "endpoint_base": {
+          "type": "string",
+          "pattern": "^/"
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "required": ["did_methods", "did_url_template"],
+      "additionalProperties": true,
+      "properties": {
+        "did_methods": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "did_url_template": {
+          "type": "string",
+          "pattern": "^https://"
+        }
+      }
+    },
+    "platform": {
+      "type": "object",
+      "required": ["hosted_verification", "name"],
+      "additionalProperties": true,
+      "properties": {
+        "did": {
+          "type": "string",
+          "pattern": "^did:"
+        },
+        "hosted_verification": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "signing": {
+      "type": "object",
+      "required": ["algorithms", "default_lifetime_seconds"],
+      "additionalProperties": true,
+      "properties": {
+        "algorithms": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": ["EdDSA", "ES256"]
+          }
+        },
+        "default_lifetime_seconds": {
+          "type": "string",
+          "pattern": "^(?:[1-9][0-9]?|[12][0-9]{2}|300)$"
+        }
+      }
+    }
+  }
+}

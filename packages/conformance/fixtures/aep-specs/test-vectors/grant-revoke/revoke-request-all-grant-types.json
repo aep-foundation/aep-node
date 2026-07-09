@@ -1,0 +1,23 @@
+{
+  "id": "revoke-request-all-grant-types",
+  "title": "Revoke all grant types request",
+  "description": "A core Revoke request invalidating all session credentials of every grant type issued to the authenticated Agent.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "grant-revoke",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "all_grant_types": "true"
+  },
+  "expected": {
+    "method": "POST",
+    "path": "/aep/revoke",
+    "content_type": "application/aep+json",
+    "authorization_scheme": "AEP",
+    "client_assertion_op": "revoke",
+    "body": {
+      "all_grant_types": "true"
+    },
+    "must_not_contain": ["grant_type", "credential_id"]
+  }
+}

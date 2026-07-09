@@ -1,0 +1,45 @@
+{
+  "id": "minimal-http",
+  "title": "Minimal HTTP Inspect document",
+  "description": "A Service advertising the baseline HTTP binding, did:web identity, and the three published credential profiles.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-01",
+    "draft-kavian-aep-oauth-session-credential-01",
+    "draft-kavian-aep-api-key-session-credential-01",
+    "draft-kavian-aep-basic-session-credential-01"
+  ],
+  "category": "inspect",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {},
+  "expected": {
+    "aep_version": "1.0",
+    "bindings": {
+      "supported": ["http"]
+    },
+    "claims": {
+      "optional": [],
+      "preferred": [],
+      "required": ["contact.email"]
+    },
+    "commands": {
+      "grant_types": ["oauth-bearer", "api-key", "basic"],
+      "supported": ["enroll", "grant", "inspect", "revoke", "status"]
+    },
+    "core": {
+      "signing_algorithms": ["EdDSA", "ES256"]
+    },
+    "extensions": {
+      "supported": []
+    },
+    "http": {
+      "endpoint_base": "/aep/"
+    },
+    "identity": {
+      "methods": ["did:web"]
+    },
+    "service": {
+      "did": "did:web:api.example.com"
+    }
+  }
+}

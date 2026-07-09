@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/problem.schema.json",
+  "title": "AEP Problem Details",
+  "type": "object",
+  "required": ["type", "title", "status", "code"],
+  "additionalProperties": true,
+  "properties": {
+    "type": {
+      "type": "string",
+      "pattern": "^urn:aep:error:"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "integer"
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

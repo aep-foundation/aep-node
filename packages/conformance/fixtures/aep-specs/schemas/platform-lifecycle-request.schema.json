@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/platform-lifecycle-request.schema.json",
+  "title": "AEP Platform Lifecycle Request",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["active", "revoked", "suspended", "terminated"]
+    }
+  }
+}

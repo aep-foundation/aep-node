@@ -1,0 +1,26 @@
+{
+  "id": "enroll-claims",
+  "title": "Client assertion claims for Enroll",
+  "description": "A valid baseline AEP client assertion claim set for an Enroll command.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "client-assertion",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "service_did": "did:web:api.example.com",
+    "agent_did": "did:web:agent.example.com:agents:123",
+    "command": "enroll",
+    "issued_at": 1748428800,
+    "expires_at": 1748429100,
+    "jti": "01J0AEPVECTORENROLL0000000001"
+  },
+  "expected": {
+    "iss": "did:web:agent.example.com:agents:123",
+    "sub": "did:web:agent.example.com:agents:123",
+    "aud": "did:web:api.example.com",
+    "op": "enroll",
+    "iat": 1748428800,
+    "exp": 1748429100,
+    "jti": "01J0AEPVECTORENROLL0000000001"
+  }
+}

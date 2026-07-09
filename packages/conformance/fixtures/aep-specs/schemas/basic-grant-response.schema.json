@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/basic-grant-response.schema.json",
+  "title": "AEP Basic Grant Response",
+  "type": "object",
+  "required": ["credential_id", "expires_at", "password", "scopes", "username"],
+  "additionalProperties": true,
+  "properties": {
+    "credential_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "password": {
+      "type": "string",
+      "minLength": 1
+    },
+    "realm": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "username": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

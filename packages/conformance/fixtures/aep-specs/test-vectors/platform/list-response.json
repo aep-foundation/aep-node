@@ -1,0 +1,35 @@
+{
+  "applies_to": ["agent", "platform"],
+  "category": "platform",
+  "description": "A Platform returns the authenticated caller's Service-scoped Agent identities filtered by Service DID and lifecycle state.",
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "expected": {
+    "count": "1",
+    "data": [
+      {
+        "agent_did": "did:web:p.example:a:4Yf7p2xQd9",
+        "agent_identity_id": "pai_01J0AEPPLATFORM000000000001",
+        "created_at": "2026-07-06T12:00:00Z",
+        "did_document_url": "https://p.example/a/4Yf7p2xQd9/did.json",
+        "key_id": "did:web:p.example:a:4Yf7p2xQd9",
+        "service_did": "did:web:api.service.example",
+        "signing_algorithms": ["ES256"],
+        "status": "active",
+        "updated_at": "2026-07-06T12:00:00Z"
+      }
+    ],
+    "total": "1"
+  },
+  "id": "list-response",
+  "input": {
+    "query": {
+      "descending": true,
+      "limit": 10,
+      "offset": 0,
+      "service_did": "did:web:api.service.example",
+      "status": "active"
+    }
+  },
+  "profile": "platform-hosted-identity",
+  "title": "Platform Agent identity listing response"
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/enroll-response.schema.json",
+  "title": "AEP Enroll Response",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": true,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["active", "pending", "rejected"]
+    },
+    "owner_action_required": {
+      "type": "string",
+      "enum": ["true", "false"]
+    },
+    "requirements_pending": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
