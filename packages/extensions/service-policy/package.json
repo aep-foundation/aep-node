@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/service-policy",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Service Policy extension package for AEP.",
   "type": "module",
   "main": "./dist/index.cjs",
