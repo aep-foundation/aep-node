@@ -1,0 +1,24 @@
+{
+  "id": "request-minimal",
+  "title": "Minimal Enroll request",
+  "description": "A minimal Enroll request body with the required Agent DID, required claim, and body-carried idempotency key.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "enroll",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "agent_did": "did:web:agent.example.com:agents:123",
+    "claims": {
+      "contact.email": "ops@example.com"
+    },
+    "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
+  },
+  "expected": {
+    "method": "POST",
+    "path": "/aep/enroll",
+    "content_type": "application/aep+json",
+    "authorization_scheme": "AEP",
+    "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
+    "client_assertion_op": "enroll"
+  }
+}

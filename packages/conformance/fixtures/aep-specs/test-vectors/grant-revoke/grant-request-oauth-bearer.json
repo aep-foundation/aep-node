@@ -1,0 +1,25 @@
+{
+  "id": "grant-request-oauth-bearer",
+  "title": "OAuth Bearer Grant request",
+  "description": "A core Grant request selecting the OAuth Bearer credential profile.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-01",
+    "draft-kavian-aep-oauth-session-credential-01"
+  ],
+  "category": "grant-revoke",
+  "applies_to": ["agent", "service"],
+  "profile": "oauth-bearer",
+  "input": {
+    "grant_type": "oauth-bearer"
+  },
+  "expected": {
+    "method": "POST",
+    "path": "/aep/grant",
+    "content_type": "application/aep+json",
+    "authorization_scheme": "AEP",
+    "client_assertion_op": "grant",
+    "body": {
+      "grant_type": "oauth-bearer"
+    }
+  }
+}

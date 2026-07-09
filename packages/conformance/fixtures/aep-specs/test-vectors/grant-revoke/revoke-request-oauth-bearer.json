@@ -1,0 +1,25 @@
+{
+  "id": "revoke-request-oauth-bearer",
+  "title": "OAuth Bearer Revoke request",
+  "description": "A core Revoke request targeting all OAuth Bearer credentials issued to the authenticated Agent.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-01",
+    "draft-kavian-aep-oauth-session-credential-01"
+  ],
+  "category": "grant-revoke",
+  "applies_to": ["agent", "service"],
+  "profile": "oauth-bearer",
+  "input": {
+    "grant_type": "oauth-bearer"
+  },
+  "expected": {
+    "method": "POST",
+    "path": "/aep/revoke",
+    "content_type": "application/aep+json",
+    "authorization_scheme": "AEP",
+    "client_assertion_op": "revoke",
+    "body": {
+      "grant_type": "oauth-bearer"
+    }
+  }
+}

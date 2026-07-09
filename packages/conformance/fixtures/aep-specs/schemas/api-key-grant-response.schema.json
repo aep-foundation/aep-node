@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/api-key-grant-response.schema.json",
+  "title": "AEP API-key Grant Response",
+  "type": "object",
+  "required": ["api_key", "credential_id", "expires_at", "header", "scopes"],
+  "additionalProperties": true,
+  "properties": {
+    "api_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "credential_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "header": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

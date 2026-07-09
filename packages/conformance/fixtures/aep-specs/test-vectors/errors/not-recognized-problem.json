@@ -1,0 +1,22 @@
+{
+  "id": "not-recognized-problem",
+  "title": "not_recognized Problem Details response",
+  "description": "A uniform authentication-recognition failure represented as an AEP Problem Details response.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "errors",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "failure_class": "bad_signature"
+  },
+  "expected": {
+    "status": 401,
+    "content_type": "application/problem+json",
+    "body": {
+      "type": "urn:aep:error:not_recognized",
+      "title": "Not recognized",
+      "status": 401,
+      "code": "not_recognized"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@aep-foundation/example-aep-service-fastify",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --sourcemap",
+    "lint": "eslint src --max-warnings 0",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aep-foundation/core": "workspace:^",
+    "@aep-foundation/fastify": "workspace:^",
+    "@aep-foundation/service": "workspace:^",
+    "fastify": "^5.8.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

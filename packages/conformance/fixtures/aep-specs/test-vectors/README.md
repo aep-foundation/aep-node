@@ -1,0 +1,100 @@
+# AEP Test Vectors
+
+This directory contains deterministic test vectors for the currently published
+AEP Internet-Draft set.
+
+The initial vector set should cover:
+
+| Category                | Purpose                                                                                                                                                             | Draft Coverage                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Inspect document        | Validate required fields, command advertisement, grant type advertisement, `did:web`, HTTP binding configuration, and extension discovery shape.                    | Core                          |
+| Client assertion JWT    | Validate JOSE header fields, JWT claim fields, `aud`, `op`, `iat`, `exp`, and `jti` requirements.                                                                   | Core                          |
+| Error response          | Validate AEP Problem Details shape and stable error codes.                                                                                                          | Core                          |
+| Idempotency             | Validate safe retry shape and idempotency conflict behavior.                                                                                                        | Core                          |
+| Enroll request/response | Validate minimal enrollment request and response shape.                                                                                                             | Core                          |
+| Status response         | Validate enrolled identity status response shape.                                                                                                                   | Core                          |
+| Grant/Revoke request    | Validate shared Grant and Revoke request fields, including revoke-all behavior.                                                                                     | Core plus credential profiles |
+| OAuth Bearer credential | Validate OAuth Bearer Grant response, presentation syntax, expiry, scopes, and Revoke shape.                                                                        | OAuth Bearer                  |
+| API-key credential      | Validate API-key Grant response, API-key value syntax, header selection, expiry, scopes, and Revoke shape.                                                          | API-key                       |
+| Basic credential        | Validate Basic Grant response, generated username/password constraints, Basic presentation syntax, expiry, scopes, and Revoke shape.                                | Basic                         |
+| Platform specification  | Validate Platform discovery, Service-scoped Agent DID provisioning, distinct opaque DIDs per Service, delegated signing, lifecycle, and hosted verification shapes. | Platform Hosted Identity      |
+
+## File Layout
+
+Vectors use one directory per category:
+
+```text
+test-vectors/
+  inspect/
+  client-assertion/
+  errors/
+  idempotency/
+  enroll/
+  status/
+  grant-revoke/
+  platform/
+  credentials/
+    oauth-bearer/
+    api-key/
+    basic/
+```
+
+Each vector file is JSON. File names use lowercase hyphenated identifiers:
+
+```text
+<category>/<vector-id>.json
+```
+
+## Vector Format
+
+Each vector has this top-level shape:
+
+```json
+{
+  "id": "inspect-minimal-http",
+  "title": "Minimal HTTP Inspect document",
+  "description": "A Service advertising the baseline HTTP binding and current credential profiles.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "inspect",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {},
+  "expected": {}
+}
+```
+
+Required fields:
+
+| Field         | Requirement                                                                     |
+| ------------- | ------------------------------------------------------------------------------- |
+| `id`          | Lowercase hyphenated vector identifier.                                         |
+| `title`       | Short human-readable name.                                                      |
+| `description` | One- or two-sentence explanation of the behavior under test.                    |
+| `drafts`      | Draft identifiers covered by the vector.                                        |
+| `category`    | Vector category.                                                                |
+| `applies_to`  | Array containing `agent`, `service`, or both.                                   |
+| `profile`     | `core-http`, `platform-hosted-identity`, `oauth-bearer`, `api-key`, or `basic`. |
+| `input`       | Test input object.                                                              |
+| `expected`    | Expected output or validation result object.                                    |
+
+## Validation Rules
+
+A vector validator should check at least:
+
+- JSON parseability.
+- File path matches `category` and `id`.
+- `id` uses lowercase hyphenated syntax.
+- `drafts` contains only published AEP draft identifiers.
+- `category` is one of the known vector categories.
+- `applies_to` contains only known roles.
+- `profile` is one of the known profiles.
+- `input` and `expected` are JSON objects.
+
+The validator should not require live network access. Network-dependent checks
+belong in the future conformance harness, not in static vector validation.
+
+Run static vector validation with:
+
+```sh
+make -C ietf check-vectors
+```

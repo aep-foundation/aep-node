@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/platform-lifecycle-response.schema.json",
+  "title": "AEP Platform Lifecycle Response",
+  "type": "object",
+  "required": [
+    "agent_did",
+    "agent_identity_id",
+    "created_at",
+    "did_document_url",
+    "key_id",
+    "service_did",
+    "signing_algorithms",
+    "status",
+    "updated_at"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "agent_did": {
+      "type": "string",
+      "pattern": "^did:"
+    },
+    "agent_identity_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "did_document_url": {
+      "type": "string",
+      "pattern": "^https://"
+    },
+    "key_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "service_did": {
+      "type": "string",
+      "pattern": "^did:"
+    },
+    "signing_algorithms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["EdDSA", "ES256"]
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "revoked", "suspended", "terminated"]
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

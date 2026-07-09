@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/revoke-request.schema.json",
+  "title": "AEP Revoke Request",
+  "type": "object",
+  "additionalProperties": true,
+  "oneOf": [
+    {
+      "required": ["grant_type"]
+    },
+    {
+      "required": ["credential_id"]
+    },
+    {
+      "required": ["all_grant_types"]
+    }
+  ],
+  "properties": {
+    "grant_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "credential_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "all_grant_types": {
+      "type": "string",
+      "enum": ["true"]
+    }
+  }
+}

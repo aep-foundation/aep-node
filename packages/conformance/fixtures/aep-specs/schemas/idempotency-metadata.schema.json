@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/idempotency-metadata.schema.json",
+  "title": "AEP Idempotency Metadata",
+  "type": "object",
+  "required": ["idempotency_key"],
+  "additionalProperties": true,
+  "properties": {
+    "agent_did": {
+      "type": "string",
+      "minLength": 1
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "first_body_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "second_body_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/status-response.schema.json",
+  "title": "AEP Status Response",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": true,
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["active", "pending", "unavailable", "suspended", "terminated", "rejected"]
+    },
+    "owner_action_required": {
+      "type": "string",
+      "enum": ["true", "false"]
+    },
+    "requirements_pending": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "since": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

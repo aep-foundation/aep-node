@@ -1,0 +1,36 @@
+{
+  "applies_to": ["agent", "platform", "service"],
+  "category": "platform",
+  "description": "A Platform advertising hosted identity provisioning, DID publication, delegated signing, custody, and hosted verification capabilities.",
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "expected": {
+    "aep_version": "1.0",
+    "endpoints": {
+      "hosted_verification": "/v1/aep/verifications",
+      "lifecycle": "/v1/aep/agent-identities/{agent_identity_id}",
+      "provision": "/v1/aep/agent-identities",
+      "sign": "/v1/aep/agent-identities/{agent_identity_id}/sign",
+      "list": "/v1/aep/agent-identities"
+    },
+    "http": {
+      "endpoint_base": "/v1/aep"
+    },
+    "identity": {
+      "did_methods": ["did:web"],
+      "did_url_template": "https://p.example/a/{agent_did_id}/did.json"
+    },
+    "platform": {
+      "did": "did:web:p.example",
+      "hosted_verification": true,
+      "name": "Example Platform"
+    },
+    "signing": {
+      "algorithms": ["ES256"],
+      "default_lifetime_seconds": "300"
+    }
+  },
+  "id": "discovery",
+  "input": {},
+  "profile": "platform-hosted-identity",
+  "title": "Platform discovery document"
+}

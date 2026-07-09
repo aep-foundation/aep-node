@@ -1,0 +1,19 @@
+{
+  "id": "response-active",
+  "title": "Synchronous active Enroll response",
+  "description": "A successful synchronous Enroll response for an immediately active Agent identity.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "enroll",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "enrollment_mode": "synchronous"
+  },
+  "expected": {
+    "status": 200,
+    "content_type": "application/aep+json",
+    "body": {
+      "status": "active"
+    }
+  }
+}

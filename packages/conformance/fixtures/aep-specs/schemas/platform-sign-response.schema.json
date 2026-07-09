@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/platform-sign-response.schema.json",
+  "title": "AEP Platform Sign Response",
+  "type": "object",
+  "required": ["agent_did", "client_assertion", "expires_at", "issued_at", "jti", "service_did"],
+  "additionalProperties": true,
+  "properties": {
+    "agent_did": {
+      "type": "string",
+      "pattern": "^did:"
+    },
+    "client_assertion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "jti": {
+      "type": "string",
+      "minLength": 1
+    },
+    "service_did": {
+      "type": "string",
+      "pattern": "^did:"
+    }
+  }
+}

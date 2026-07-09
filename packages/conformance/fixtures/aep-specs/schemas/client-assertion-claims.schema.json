@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/client-assertion-claims.schema.json",
+  "title": "AEP Client Assertion Claims",
+  "type": "object",
+  "required": ["iss", "sub", "aud", "op", "iat", "exp", "jti"],
+  "additionalProperties": true,
+  "properties": {
+    "iss": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sub": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aud": {
+      "type": "string",
+      "minLength": 1
+    },
+    "op": {
+      "type": "string",
+      "enum": ["enroll", "grant", "revoke", "status"]
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer"
+    },
+    "jti": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
