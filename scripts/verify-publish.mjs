@@ -52,8 +52,19 @@ async function dryRunPack(dir) {
   const record = Array.isArray(parsed) ? parsed[0] : parsed;
   const files = Array.isArray(record?.files) ? record.files : [];
   const entries = files.map((file) => file.path);
-  const size = typeof record?.size === 'number' ? record.size : 0;
+  const size = await sumEntrySizes(dir, entries);
   return { entries, size };
+}
+
+async function sumEntrySizes(dir, entries) {
+  let size = 0;
+  for (const entry of entries) {
+    const stat = await fs.stat(path.join(dir, entry));
+    if (stat.isFile()) {
+      size += stat.size;
+    }
+  }
+  return size;
 }
 
 function checkEntries(entries) {
