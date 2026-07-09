@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write # Codecov OIDC upload authentication
 
 jobs:
   ci:
@@ -44,6 +45,15 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Upload coverage to Codecov
+        if: matrix.node == 22
+        uses: codecov/codecov-action@v7
+        with:
+          directory: ./packages
+          fail_ci_if_error: true
+          flags: unit
+          use_oidc: true
 
       - name: TypeDoc
         run: pnpm typedoc

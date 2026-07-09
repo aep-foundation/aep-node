@@ -39,3 +39,28 @@ For a single focused task, call Turbo directly:
 pnpm turbo run test --filter=@aep-foundation/agent
 pnpm turbo run typecheck --filter=@aep-foundation/service
 ```
+
+## Coverage
+
+Vitest writes coverage for each publishable package under that package's
+`coverage/` directory. CI uploads the Node 22 coverage run to Codecov using
+OIDC, so the repository must be enabled in Codecov before the upload step can
+pass.
+
+## Publishing
+
+Publishing is handled by the `release` workflow through Changesets. The workflow
+uses npm Trusted Publishing, so configure each published package on npmjs.com
+with this trusted publisher:
+
+- Organization or user: `aep-foundation`
+- Repository: `aep-node`
+- Workflow filename: `release.yml`
+- Allowed action: `npm publish`
+
+The package manifests already set `publishConfig.access` to `public` and
+`publishConfig.provenance` to `true`. Before the first release, run:
+
+```sh
+pnpm check-publish
+```

@@ -4,7 +4,8 @@ export default defineConfig({
   test: {
     environment: "node",
     coverage: {
-      provider: "v8"
+      provider: "v8",
+      reporter: ["text", "json", "html", "lcov"]
     }
   }
 });
