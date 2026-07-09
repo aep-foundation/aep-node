@@ -1,0 +1,22 @@
+{
+  "name": "@aep-foundation/example-aep-service-next",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --sourcemap",
+    "lint": "eslint src --max-warnings 0",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aep-foundation/core": "workspace:^",
+    "@aep-foundation/next": "workspace:^",
+    "@aep-foundation/service": "workspace:^",
+    "next": "^15.5.19",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

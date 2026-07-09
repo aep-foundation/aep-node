@@ -1,0 +1,9 @@
+{
+  "name": "@aep-foundation/example-shared",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@aep-foundation/core": "workspace:^",
+    "@aep-foundation/service": "workspace:^"
+  }
+}
