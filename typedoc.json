@@ -1,0 +1,26 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "packages/agent/src/index.ts",
+    "packages/conformance/src/index.ts",
+    "packages/core/src/index.ts",
+    "packages/platform/src/index.ts",
+    "packages/service/src/index.ts"
+  ],
+  "categorizeByGroup": true,
+  "excludeInternal": true,
+  "excludeNotDocumented": false,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "githubPages": false,
+  "logLevel": "Info",
+  "out": "docs/api",
+  "readme": "README.md",
+  "treatWarningsAsErrors": true,
+  "tsconfig": "tsconfig.docs.json",
+  "validation": {
+    "invalidLink": true,
+    "notDocumented": false,
+    "notExported": true
+  }
+}

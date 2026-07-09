@@ -1,0 +1,77 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write # push tags + commits for Changesets version PRs
+  pull-requests: write # open/update the Changesets version PR
+  id-token: write # npm Trusted Publishing and provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install --global npm@^11.5.1
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: pnpm verify
+
+      - name: Check publish artifacts
+        run: pnpm check-publish
+
+      - name: Create release PR or publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: pnpm release
+          version: pnpm version-packages
+          commit: "chore(release): version packages"
+          title: "chore(release): version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Verify provenance attestations
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          published='${{ steps.changesets.outputs.publishedPackages }}'
+          echo "$published" | jq -c '.[]' | while read -r entry; do
+            name=$(echo "$entry" | jq -r '.name')
+            version=$(echo "$entry" | jq -r '.version')
+            attestations=""
+            for delay in 0 10 20 30 45 60; do
+              if [[ $delay -gt 0 ]]; then
+                echo "waiting ${delay}s for $name@$version to propagate to the read CDN..."
+                sleep "$delay"
+              fi
+              attestations=$(npm view "$name@$version" --json 2>/dev/null | jq -r '.dist.attestations // empty')
+              [[ -n "$attestations" ]] && break
+            done
+            if [[ -z "$attestations" ]]; then
+              echo "::error::No provenance attestations on $name@$version after retries"
+              exit 1
+            fi
+            echo "ok: $name@$version has attestations"
+          done

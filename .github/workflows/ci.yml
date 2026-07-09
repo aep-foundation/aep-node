@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node:
+          - 22
+          - 24
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: TypeDoc
+        run: pnpm typedoc
+
+      - name: Build
+        run: pnpm build
+
+      - name: Check exports map
+        run: pnpm check-exports
+
+      - name: Verify publish tarballs
+        run: pnpm verify-publish
+
+      - name: Changeset check
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main' && matrix.node == 22
+        run: pnpm changeset status --since=origin/main
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-report-node${{ matrix.node }}
+          path: |
+            packages/*/coverage
+            packages/*/*/coverage
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,0 +1,19 @@
+packages:
+  - "packages/*"
+  - "packages/adapters/*"
+  - "packages/extensions/*"
+  - "examples/*"
+
+engineStrict: true
+strictPeerDependencies: false
+autoInstallPeers: false
+confirmModulesPurge: false
+
+publicHoistPattern:
+  - "*eslint*"
+  - "*prettier*"
+  - "*types*"
+
+allowBuilds:
+  esbuild: true
+  sharp: true
