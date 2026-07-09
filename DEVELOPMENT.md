@@ -44,8 +44,9 @@ pnpm turbo run typecheck --filter=@aep-foundation/service
 
 Vitest writes coverage for each publishable package under that package's
 `coverage/` directory. CI uploads the Node 22 coverage run to Codecov using
-OIDC, so the repository must be enabled in Codecov before the upload step can
-pass.
+OIDC. The upload is intentionally non-blocking while the repository is being
+bootstrapped in Codecov; use the uploaded GitHub coverage artifact as the local
+fallback if Codecov is not ready yet.
 
 ## Publishing
 
