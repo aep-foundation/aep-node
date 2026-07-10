@@ -1,5 +1,15 @@
 # @aep-foundation/agent
 
+## 0.1.1
+
+### Patch Changes
+
+- [#5](https://github.com/aep-foundation/aep-node/pull/5) [`8b61426`](https://github.com/aep-foundation/aep-node/commit/8b614264648d29fb6c687d71477d1795d64f31f6) Thanks [@nkavian](https://github.com/nkavian)! - Publish consistent package homepage and repository metadata.
+
+- Updated dependencies [[`8b61426`](https://github.com/aep-foundation/aep-node/commit/8b614264648d29fb6c687d71477d1795d64f31f6)]:
+  - @aep-foundation/core@0.1.1
+  - @aep-foundation/platform@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes

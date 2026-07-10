@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/service",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Service-side workflows for the Agent Enrollment Protocol.",
   "homepage": "https://www.aep.foundation/",
   "type": "module",
