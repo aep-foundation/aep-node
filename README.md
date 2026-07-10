@@ -1,9 +1,18 @@
-# AEP Node
+# Agent Enrollment Protocol
 
-Public Node.js SDK packages for the Agent Enrollment Protocol.
+[![ci](https://github.com/aep-foundation/aep-node/actions/workflows/ci.yml/badge.svg)](https://github.com/aep-foundation/aep-node/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/aep-foundation/aep-node/graph/badge.svg)](https://codecov.io/gh/aep-foundation/aep-node)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-This repository is a TypeScript monorepo for implementing the current AEP
-Internet-Draft set:
+Public TypeScript SDK packages for the
+[Agent Enrollment Protocol](https://www.aep.foundation/).
+
+Agent Enrollment Protocol helps Agents enroll with Services, authenticate their
+identity, receive scoped credentials, and manage the lifecycle of that access
+through protocol-defined HTTP flows.
+
+This repository is the AEP Foundation's TypeScript implementation of the
+current AEP Internet-Draft set:
 
 - Core AEP HTTP binding: Inspect, Enroll, Grant, Revoke, and Status.
 - Baseline client assertion authentication.
@@ -11,12 +20,27 @@ Internet-Draft set:
 - Optional grant types: OAuth Bearer, API-key, and HTTP Basic.
 - Agent, Service, Platform, adapter, and conformance-facing package surfaces.
 
+## Who This Is For
+
+- Agent builders integrating AEP enrollment into clients, CLIs, workers, or
+  automation runtimes.
+- Service builders exposing AEP enrollment and credential issuance beside their
+  own protected APIs.
+- Platform builders hosting `did:web` Agent identity provisioning and signing
+  workflows.
+- Implementers validating behavior against published schemas, examples, and
+  test vectors.
+
 ## Status
 
 This repository contains the initial public SDK package surfaces for AEP core
 wire types, Agent workflows, Service workflows, Platform-hosted identity
 workflows, framework adapters, and conformance fixtures synced from
 `aep-specs`.
+
+The packages are published under the `@aep-foundation/*` npm scope and are
+designed so production persistence, key custody, authorization policy, and
+multi-tenant boundaries remain explicit integrator concerns.
 
 ## Packages
 
@@ -35,6 +59,23 @@ packages/
   platform/
   service/
 ```
+
+Primary package surfaces:
+
+- `@aep-foundation/core` - protocol types, validators, signing helpers, and HTTP
+  binding primitives.
+- `@aep-foundation/agent` - Agent-side inspect, enrollment, status, grant,
+  revoke, and decommission workflows.
+- `@aep-foundation/service` - Service-side protocol handling and extension
+  registration.
+- `@aep-foundation/platform` - Platform-hosted `did:web` identity provisioning
+  and signing helpers.
+- `@aep-foundation/conformance` - schema and test-vector helpers for SDKs and
+  downstream implementations.
+- `@aep-foundation/express`, `@aep-foundation/fastify`,
+  `@aep-foundation/hono`, and `@aep-foundation/next` - framework adapters for
+  mounting Service routes.
+- `@aep-foundation/service-policy` - Service policy extension helpers.
 
 ## Development
 
