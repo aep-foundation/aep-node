@@ -2,6 +2,7 @@
   "name": "@aep-foundation/service-policy",
   "version": "0.1.0",
   "description": "Service Policy extension package for AEP.",
+  "homepage": "https://www.aep.foundation/",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -43,5 +44,10 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aep-foundation/aep-node.git",
+    "directory": "packages/extensions/service-policy"
   }
 }
