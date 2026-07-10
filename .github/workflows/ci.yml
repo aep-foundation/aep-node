@@ -51,8 +51,9 @@ jobs:
         uses: codecov/codecov-action@v7
         with:
           directory: ./packages
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           flags: unit
+          name: node-22-unit
           use_oidc: true
 
       - name: TypeDoc
