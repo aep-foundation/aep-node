@@ -2,6 +2,7 @@
   "name": "@aep-foundation/platform",
   "version": "0.1.0",
   "description": "Platform-side helpers for managed Agent identity support in AEP.",
+  "homepage": "https://www.aep.foundation/",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

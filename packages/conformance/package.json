@@ -2,6 +2,7 @@
   "name": "@aep-foundation/conformance",
   "version": "0.1.0",
   "description": "Conformance helpers for checking AEP SDK outputs against schemas and test vectors.",
+  "homepage": "https://www.aep.foundation/",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
