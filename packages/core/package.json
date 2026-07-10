@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core Agent Enrollment Protocol types, constants, validation, and HTTP binding primitives.",
   "homepage": "https://www.aep.foundation/",
   "type": "module",
