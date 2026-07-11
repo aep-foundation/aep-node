@@ -142,6 +142,11 @@ are not listed in `commands.supported`.
 - `replayStore` prevents client assertion `jti` replay.
 - `enrollmentPolicy` decides the lifecycle state returned by Enroll.
 
+Enroll and Status responses may independently include non-empty
+`verification_pending` and `requirements_pending` arrays. Service responses
+omit empty pending arrays and omit `owner_action_required` unless Owner action
+is required.
+
 In-memory implementations are provided for examples and tests. Production
 Services should provide durable stores for enrollment state and command
 idempotency, and an atomic replay store appropriate for the Service's

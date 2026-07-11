@@ -55,13 +55,17 @@ const platform = createAepPlatform({
 const discovery = platform.discovery();
 const provision = await platform.provision(
   {
-    idempotency_key: "01J0AEPPLATFORM000000000001",
     service_did: "did:web:api.service.example"
   },
   {
-    authorization: "Bearer platform-api-token"
+    authorization: "Bearer platform-api-token",
+    idempotencyKey: "01J0AEPPLATFORM000000000001"
   }
 );
+
+if ("code" in provision.body) {
+  throw new Error(provision.body.code);
+}
 
 const assertion = await platform.sign(
   provision.body.agent_identity_id,
@@ -76,21 +80,38 @@ const assertion = await platform.sign(
   }
 );
 
-const verification = await platform.verify({
-  client_assertion: assertion.body.client_assertion,
-  op: "enroll",
-  service_did: provision.body.service_did
-});
+if ("code" in assertion.body || assertion.body.status !== "completed") {
+  throw new Error("Delegated Sign did not complete.");
+}
+
+const verification = await platform.verify(
+  {
+    client_assertion: assertion.body.client_assertion,
+    op: "enroll",
+    service_did: provision.body.service_did
+  },
+  {
+    authorization: "Bearer platform-api-token"
+  }
+);
 
 console.log(discovery.body, provision.body, assertion.body, verification.body);
 ```
 
+Sign callers handle the `status` discriminant and preserve optional
+`platform_context` when continuing a pending Platform authorization flow.
+
 The package does not implement databases, caches, HTTP routing, or key custody.
 Callers provide those through `PlatformIdentityStore`,
-`PlatformProvisionIdempotencyStore`, `PlatformReplayStore`, `PlatformKeyStore`,
+`PlatformIdempotencyStore`, `PlatformReplayStore`, `PlatformKeyStore`,
 `PlatformServiceDidResolver`, `PlatformAuthorizer`, and
 `PlatformLifecyclePolicy`. The example Platform in this repository uses
 in-memory implementations for those interfaces.
+
+Provision, Sign, and hosted Verification require both an `idempotencyKey` and
+stable authorization `subject` in `PlatformRequestContext`. Idempotency records
+are scoped by subject and key and preserve the operation, canonical request
+fingerprint, complete HTTP response, and expiry.
 
 Low-level helpers remain available when an implementation needs to assemble
 individual protocol objects:

@@ -63,7 +63,8 @@ export function validateEnrollResponse(value: unknown): ValidationResult<EnrollR
   optionalString(value["owner_action_required"], "$.owner_action_required", issues, {
     allowedValues: OWNER_ACTION_REQUIRED_VALUES
   });
-  optionalStringArray(value["requirements_pending"], "$.requirements_pending", issues);
+  optionalNonEmptyStringArray(value["verification_pending"], "$.verification_pending", issues);
+  optionalNonEmptyStringArray(value["requirements_pending"], "$.requirements_pending", issues);
   return result(value as EnrollResponse, issues);
 }
 
@@ -81,7 +82,8 @@ export function validateStatusResponse(value: unknown): ValidationResult<StatusR
   optionalString(value["owner_action_required"], "$.owner_action_required", issues, {
     allowedValues: OWNER_ACTION_REQUIRED_VALUES
   });
-  optionalStringArray(value["requirements_pending"], "$.requirements_pending", issues);
+  optionalNonEmptyStringArray(value["verification_pending"], "$.verification_pending", issues);
+  optionalNonEmptyStringArray(value["requirements_pending"], "$.requirements_pending", issues);
   optionalString(value["since"], "$.since", issues);
   return result(value as StatusResponse, issues);
 }
@@ -193,6 +195,20 @@ export function validateProblemDetails(value: unknown): ValidationResult<AepProb
   requireString(value, "code", issues, { minLength: 1 });
   optionalString(value["detail"], "$.detail", issues);
   optionalString(value["instance"], "$.instance", issues);
+  optionalString(value["owner_action_required"], "$.owner_action_required", issues, {
+    allowedValues: new Set(["true"])
+  });
+  optionalNonEmptyStringArray(value["verification_pending"], "$.verification_pending", issues);
+  optionalNonEmptyStringArray(value["requirements_pending"], "$.requirements_pending", issues);
+  if (
+    value["code"] === "not_recognized" &&
+    (value["verification_pending"] !== undefined || value["requirements_pending"] !== undefined)
+  ) {
+    issues.push({
+      path: "$",
+      message: "not_recognized must not expose pending-name metadata."
+    });
+  }
   return result(value as AepProblemDetails, issues);
 }
 
@@ -211,6 +227,7 @@ export function validateOAuthBearerGrantResponse(
   requireString(value, "access_token", issues, { minLength: 1 });
   requireString(value, "credential_id", issues, { minLength: 1 });
   requireString(value, "expires_at", issues, { minLength: 1 });
+  requireDateTime(value["expires_at"], "$.expires_at", issues);
   requireStringArray(value["scopes"], "$.scopes", issues);
   requireString(value, "token_type", issues, { allowedValues: new Set(["Bearer"]) });
   return result(value as OAuthBearerGrantResponse, issues);
@@ -225,6 +242,7 @@ export function validateApiKeyGrantResponse(value: unknown): ValidationResult<Ap
   requireString(value, "api_key", issues, { minLength: 1 });
   requireString(value, "credential_id", issues, { minLength: 1 });
   requireString(value, "expires_at", issues, { minLength: 1 });
+  requireDateTime(value["expires_at"], "$.expires_at", issues);
   requireString(value, "header", issues, { minLength: 1 });
   requireStringArray(value["scopes"], "$.scopes", issues);
   return result(value as ApiKeyGrantResponse, issues);
@@ -238,6 +256,7 @@ export function validateBasicGrantResponse(value: unknown): ValidationResult<Bas
   const issues: ValidationIssue[] = [];
   requireString(value, "credential_id", issues, { minLength: 1 });
   requireString(value, "expires_at", issues, { minLength: 1 });
+  requireDateTime(value["expires_at"], "$.expires_at", issues);
   requireString(value, "password", issues, { minLength: 1 });
   optionalString(value["realm"], "$.realm", issues, { minLength: 1 });
   requireStringArray(value["scopes"], "$.scopes", issues);
@@ -365,12 +384,30 @@ function requireInteger(value: unknown, path: string, issues: ValidationIssue[])
   }
 }
 
+function requireDateTime(value: unknown, path: string, issues: ValidationIssue[]): void {
+  if (typeof value === "string" && Number.isNaN(Date.parse(value))) {
+    issues.push({ path, message: "Expected a valid date-time string." });
+  }
+}
+
 function optionalStringArray(value: unknown, path: string, issues: ValidationIssue[]): void {
   if (value === undefined) {
     return;
   }
 
   requireStringArray(value, path, issues);
+}
+
+function optionalNonEmptyStringArray(
+  value: unknown,
+  path: string,
+  issues: ValidationIssue[]
+): void {
+  if (value === undefined) return;
+  requireStringArray(value, path, issues);
+  if (Array.isArray(value) && value.length === 0) {
+    issues.push({ path, message: "Expected at least 1 item(s)." });
+  }
 }
 
 function requireStringArray(value: unknown, path: string, issues: ValidationIssue[]): void {

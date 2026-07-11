@@ -13,6 +13,7 @@ import {
   createPlatformLifecycleRequest,
   createPlatformProvisionRequest,
   createPlatformSignRequest,
+  createPlatformSignPendingResponse,
   createPlatformSignResponse,
   createPlatformVerificationRequest,
   createPlatformVerificationResponse,
@@ -30,8 +31,8 @@ import {
 import type {
   PlatformIdentityRecord,
   PlatformIdentityStore,
-  PlatformProvisionIdempotencyRecord,
-  PlatformProvisionIdempotencyStore,
+  PlatformIdempotencyRecord,
+  PlatformIdempotencyStore,
   PlatformReplayStore
 } from "../src/index.js";
 
@@ -255,7 +256,6 @@ describe("@aep-foundation/platform", () => {
         serviceDid: "did:web:api.service.example"
       })
     ).toEqual({
-      idempotency_key: "01J0AEPPLATFORM000000000001",
       service_did: "did:web:api.service.example"
     });
   });
@@ -342,13 +342,40 @@ describe("@aep-foundation/platform", () => {
           return serviceDid === "did:web:api.service.example";
         }
       },
+      signHandler({ request }) {
+        if (request.platform_context?.["stage"] !== "pending") return undefined;
+        return {
+          body: createPlatformSignPendingResponse({
+            platformContext: { continuation: "opaque" },
+            retryAfterSeconds: 5
+          }),
+          contentType: "application/aep+json",
+          status: 202
+        };
+      },
       signingAlgorithms: ["ES256"]
     });
 
-    const provisioned = await platform.provision({
-      idempotency_key: "01J0AEPIDEMPOTENCY0000000001",
-      service_did: "did:web:api.service.example"
-    });
+    await expect(
+      platform.provision({ service_did: "did:web:api.service.example" })
+    ).resolves.toMatchObject({ body: { code: "invalid_request" }, status: 400 });
+    await expect(
+      platform.provision(
+        { service_did: "did:web:api.service.example" },
+        { idempotencyKey: "missing-principal" }
+      )
+    ).resolves.toMatchObject({ body: { code: "invalid_request" }, status: 400 });
+    await expect(
+      platform.provision(
+        { service_did: "did:web:unknown.service.example" },
+        { idempotencyKey: "unresolved-service", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "invalid_request" }, status: 400 });
+
+    const provisioned = await platform.provision(
+      { service_did: "did:web:api.service.example" },
+      { idempotencyKey: "01J0AEPIDEMPOTENCY0000000001", subject: "owner-1" }
+    );
 
     expect(provisioned.status).toBe(200);
     expect(provisioned.body).toMatchObject({
@@ -358,6 +385,19 @@ describe("@aep-foundation/platform", () => {
       service_did: "did:web:api.service.example"
     });
 
+    await expect(
+      platform.provision(
+        { service_did: "did:web:api.service.example" },
+        { idempotencyKey: "01J0AEPIDEMPOTENCY0000000001", subject: "owner-1" }
+      )
+    ).resolves.toEqual(provisioned);
+    await expect(
+      platform.provision(
+        { service_did: "did:web:other.service.example" },
+        { idempotencyKey: "01J0AEPIDEMPOTENCY0000000001", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "idempotency_conflict" }, status: 409 });
+
     const listed = await platform.list();
 
     expect(listed.body).toMatchObject({
@@ -365,12 +405,16 @@ describe("@aep-foundation/platform", () => {
       total: "1"
     });
 
-    const signed = await platform.sign("pai_01J0AEPPLATFORM000000000001", {
-      jti: "01J0AEPASSERTION0000000001",
-      lifetime_seconds: "300",
-      op: "enroll",
-      service_did: "did:web:api.service.example"
-    });
+    const signed = await platform.sign(
+      "pai_01J0AEPPLATFORM000000000001",
+      {
+        jti: "01J0AEPASSERTION0000000001",
+        lifetime_seconds: "300",
+        op: "enroll",
+        service_did: "did:web:api.service.example"
+      },
+      { idempotencyKey: "01J0AEPSIGN000000000000000001", subject: "owner-1" }
+    );
 
     expect(signed.status).toBe(200);
     expect(signed.body).toMatchObject({
@@ -378,15 +422,80 @@ describe("@aep-foundation/platform", () => {
       jti: "01J0AEPASSERTION0000000001"
     });
 
+    await expect(
+      platform.sign(
+        "pai_01J0AEPPLATFORM000000000001",
+        {
+          jti: "01J0AEPASSERTION0000000001",
+          lifetime_seconds: "300",
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "01J0AEPSIGN000000000000000001", subject: "owner-1" }
+      )
+    ).resolves.toEqual(signed);
+    await expect(
+      platform.sign(
+        "pai_01J0AEPPLATFORM000000000001",
+        {
+          jti: "changed",
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "01J0AEPSIGN000000000000000001", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "idempotency_conflict" }, status: 409 });
+
+    const pending = await platform.sign(
+      "pai_01J0AEPPLATFORM000000000001",
+      {
+        jti: "01J0AEPPENDING000000000000001",
+        op: "enroll",
+        platform_context: { stage: "pending" },
+        service_did: "did:web:api.service.example"
+      },
+      { idempotencyKey: "01J0AEPSIGNINITIAL0000000001", subject: "owner-1" }
+    );
+    expect(pending).toMatchObject({
+      body: { status: "pending", retry_after_seconds: "5" },
+      status: 202
+    });
+    await expect(
+      platform.sign(
+        "pai_01J0AEPPLATFORM000000000001",
+        {
+          jti: "01J0AEPPENDING000000000000001",
+          op: "enroll",
+          platform_context: { stage: "pending" },
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "01J0AEPSIGNINITIAL0000000001", subject: "owner-1" }
+      )
+    ).resolves.toEqual(pending);
+    await expect(
+      platform.sign(
+        "pai_01J0AEPPLATFORM000000000001",
+        {
+          jti: "01J0AEPASSERTION0000000001",
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "01J0AEPIDEMPOTENCY0000000001", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "idempotency_conflict" }, status: 409 });
+
     if (!("client_assertion" in signed.body)) {
       throw new Error("Expected Platform sign response.");
     }
 
-    const verified = await platform.verify({
-      client_assertion: signed.body.client_assertion,
-      op: "enroll",
-      service_did: "did:web:api.service.example"
-    });
+    const verified = await platform.verify(
+      {
+        client_assertion: signed.body.client_assertion,
+        op: "enroll",
+        service_did: "did:web:api.service.example"
+      },
+      { idempotencyKey: "01J0AEPVERIFY000000000000001", subject: "owner-1" }
+    );
 
     expect(verified.body).toMatchObject({
       agent_did: "did:web:platform.example.com:agents:01J0AEPPLATFORM000000000001",
@@ -395,6 +504,59 @@ describe("@aep-foundation/platform", () => {
       reason: "verified",
       verified: true
     });
+    await expect(
+      platform.verify(
+        {
+          client_assertion: signed.body.client_assertion,
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "01J0AEPVERIFY000000000000001", subject: "owner-1" }
+      )
+    ).resolves.toEqual(verified);
+    await expect(
+      platform.verify(
+        {
+          client_assertion: signed.body.client_assertion,
+          op: "status",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "01J0AEPVERIFY000000000000001", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "idempotency_conflict" }, status: 409 });
+    await expect(
+      platform.verify(
+        {
+          client_assertion: signed.body.client_assertion,
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "01J0AEPVERIFY000000000000001", subject: "owner-2" }
+      )
+    ).resolves.toMatchObject({ body: { verified: false }, status: 200 });
+
+    await expect(
+      platform.sign(
+        "pai_missing",
+        {
+          jti: "missing-identity",
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "missing-identity-key", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "not_recognized" }, status: 404 });
+    await expect(
+      platform.sign(
+        "pai_01J0AEPPLATFORM000000000001",
+        {
+          jti: "wrong-service",
+          op: "enroll",
+          service_did: "did:web:other.service.example"
+        },
+        { idempotencyKey: "wrong-service-key", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "not_recognized" }, status: 404 });
   });
 
   it("builds DID documents for managed Agent identities", () => {
@@ -552,6 +714,7 @@ describe("@aep-foundation/platform", () => {
         lifetimeSeconds: 300
       })
     ).toEqual({
+      status: "completed",
       agent_did: "did:web:platform.example.com:agents:4Yf7p2xQd9",
       client_assertion: "signed.jwt",
       expires_at: "2026-07-06T12:05:00.000Z",
@@ -604,6 +767,29 @@ describe("@aep-foundation/platform", () => {
       status: "active",
       verified: true
     });
+  });
+
+  it("validates pending Sign retry bounds and preserves opaque context", () => {
+    expect(
+      createPlatformSignPendingResponse({
+        platformContext: { continuation: "opaque" },
+        retryAfterSeconds: 300
+      })
+    ).toEqual({
+      status: "pending",
+      platform_context: { continuation: "opaque" },
+      retry_after_seconds: "300"
+    });
+    expect(createPlatformSignPendingResponse({ retryAfterSeconds: 1 })).toEqual({
+      status: "pending",
+      retry_after_seconds: "1"
+    });
+    expect(() => createPlatformSignPendingResponse({ retryAfterSeconds: 0 })).toThrow(
+      "integer from 1 through 300"
+    );
+    expect(() => createPlatformSignPendingResponse({ retryAfterSeconds: 1.5 })).toThrow(
+      "integer from 1 through 300"
+    );
   });
 
   it("rejects suspended identities for request builders", () => {
@@ -666,17 +852,17 @@ function createMemoryIdentityStore(): PlatformIdentityStore {
   };
 }
 
-function createMemoryIdempotencyStore(): PlatformProvisionIdempotencyStore {
-  const records = new Map<string, PlatformProvisionIdempotencyRecord>();
+function createMemoryIdempotencyStore(): PlatformIdempotencyStore {
+  const records = new Map<string, PlatformIdempotencyRecord>();
 
   return {
-    get(idempotencyKey) {
-      const record = records.get(idempotencyKey);
+    get(principal, idempotencyKey) {
+      const record = records.get(`${principal}\u001f${idempotencyKey}`);
 
       return record === undefined ? undefined : structuredClone(record);
     },
     set(record) {
-      records.set(record.idempotencyKey, structuredClone(record));
+      records.set(`${record.principal}\u001f${record.idempotencyKey}`, structuredClone(record));
     }
   };
 }

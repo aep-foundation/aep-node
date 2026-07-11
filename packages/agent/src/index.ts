@@ -47,16 +47,27 @@ import type {
 
 export type Awaitable<T> = T | Promise<T>;
 
+export type PlatformAuthenticationHeaders = Record<string, string>;
+export type PlatformAuthenticationHeadersProvider = () => Awaitable<PlatformAuthenticationHeaders>;
+export type PlatformAuthenticationHeadersInput =
+  PlatformAuthenticationHeaders | PlatformAuthenticationHeadersProvider;
+
 export interface AepClientAssertionSignerContext {
   command: AepAuthenticatedCommand;
   serviceDid: string;
   signingAlgorithms: AepSigningAlgorithm[];
+  platformContext?: Record<string, unknown>;
+  idempotencyKey?: string;
 }
+
+export type AepClientAssertionSignResult =
+  | { status: "completed"; clientAssertion: string; platformContext?: Record<string, unknown> }
+  | { status: "pending"; platformContext?: Record<string, unknown>; retryAfterSeconds: number };
 
 export type AepClientAssertionSigner = (
   claims: AepClientAssertionClaims,
   context: AepClientAssertionSignerContext
-) => Awaitable<string>;
+) => Awaitable<string | AepClientAssertionSignResult>;
 
 export interface AepAgentOptions {
   assertionClock?: () => Date;
@@ -71,11 +82,14 @@ export interface AepAgentOptions {
 
 export interface InspectServiceOptions {
   serviceUrl: string | URL;
+  signal?: AbortSignal;
+  maxResponseBytes?: number;
 }
 
 export interface InspectServiceResult {
   document: InspectDocument;
   inspectUrl: URL;
+  finalUrl?: URL;
   commandUrl(command: AepHttpCommand): URL;
   cacheControl?: string;
   etag?: string;
@@ -92,6 +106,7 @@ export interface DiscoverPlatformResult {
 }
 
 export interface ProvisionPlatformIdentityOptions {
+  authenticationHeaders?: PlatformAuthenticationHeadersInput;
   authorization?: string;
   discovery?: DiscoverPlatformResult;
   idempotencyKey: string;
@@ -102,10 +117,12 @@ export interface ProvisionPlatformIdentityOptions {
 export type ProvisionPlatformIdentityResult = AepCommandResult<PlatformAgentIdentity>;
 
 export interface PlatformDelegatedSignerOptions {
+  authenticationHeaders?: PlatformAuthenticationHeadersInput;
   authorization?: string;
   discovery?: DiscoverPlatformResult;
   identity: PlatformAgentIdentity;
   platformUrl: string | URL;
+  idempotencyKey?: string | (() => string);
 }
 
 export interface AepCommandResult<TBody> {
@@ -290,6 +307,7 @@ export interface AgentInspectCache {
 }
 
 export interface CreatePlatformIdentityProviderOptions {
+  authenticationHeaders?: PlatformAuthenticationHeadersInput;
   authorization?: string;
   idempotencyKey?: string | ((input: AgentIdentityProviderGetOrCreateInput) => string);
   platformUrl: string | URL;
@@ -341,23 +359,72 @@ export interface ResponseLike {
   statusText?: string;
   headers: HeadersLike;
   json(): Promise<unknown>;
+  text?(): Promise<string>;
+  body?: ReadableStream<Uint8Array> | null;
+  url?: string;
 }
 
 export interface HeadersLike {
   get(name: string): string | null;
 }
 
+export type AepInspectErrorCode =
+  | "aborted"
+  | "http_error"
+  | "invalid_json"
+  | "invalid_media_type"
+  | "invalid_redirect"
+  | "response_too_large"
+  | "validation_failed";
 export class AepInspectError extends Error {
+  readonly code: AepInspectErrorCode;
   readonly status?: number;
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, code: AepInspectErrorCode = "http_error", status?: number) {
     super(message);
     this.name = "AepInspectError";
+    this.code = code;
 
     if (status !== undefined) {
       this.status = status;
     }
   }
+}
+
+export class AepServiceReferenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AepServiceReferenceError";
+  }
+}
+
+export function resolveServiceReference(reference: string | URL): URL {
+  const raw = String(reference).trim();
+  let url: URL;
+  try {
+    if (raw.startsWith("did:web:")) {
+      const method = raw.slice("did:web:".length).split(":");
+      if (method.length === 0 || method[0] === "") throw new Error();
+      const host = decodeURIComponent(method[0] ?? "");
+      url = new URL(`https://${host}`);
+    } else {
+      url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+    }
+  } catch {
+    throw new AepServiceReferenceError("Invalid AEP Service reference.");
+  }
+  if (url.username || url.password)
+    throw new AepServiceReferenceError("Service references must not contain credentials.");
+  const loopback =
+    url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "[::1]" ||
+    url.hostname === "::1";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
+    throw new AepServiceReferenceError(
+      "Service references require HTTPS except for exact loopback hosts."
+    );
+  return new URL(url.origin);
 }
 
 export class AepCommandError extends Error {
@@ -659,12 +726,23 @@ export function buildClientAssertionClaims(
 
 export async function signClientAssertion(options: SignClientAssertionOptions): Promise<string> {
   const claims = buildClientAssertionClaims(options);
-
-  return options.signer(claims, {
+  const result = await options.signer(claims, {
     command: options.command,
     serviceDid: options.serviceDid,
     signingAlgorithms: [...(options.signingAlgorithms ?? AEP_SIGNING_ALGORITHMS)]
   });
+  if (typeof result === "string") return result;
+  if (result.status === "completed") return result.clientAssertion;
+  throw new AepPendingSignError(result);
+}
+
+export class AepPendingSignError extends Error {
+  readonly result: Extract<AepClientAssertionSignResult, { status: "pending" }>;
+  constructor(result: Extract<AepClientAssertionSignResult, { status: "pending" }>) {
+    super("Platform signing is pending.");
+    this.name = "AepPendingSignError";
+    this.result = result;
+  }
 }
 
 export function createJwtClientAssertionSigner(
@@ -716,11 +794,12 @@ export async function provisionPlatformIdentity(
     idempotencyKey: options.idempotencyKey,
     serviceDid: options.serviceDid
   });
+  const authenticationHeaders = await resolvePlatformAuthenticationHeaders(options);
   const response = await fetchImpl(commandUrl, {
     body: JSON.stringify(body),
     headers: {
+      ...authenticationHeaders,
       Accept: AEP_MEDIA_TYPE,
-      ...(options.authorization === undefined ? {} : { Authorization: options.authorization }),
       "Content-Type": AEP_MEDIA_TYPE,
       "Idempotency-Key": options.idempotencyKey
     },
@@ -739,7 +818,7 @@ export async function provisionPlatformIdentity(
 export function createPlatformDelegatedSigner(
   options: PlatformDelegatedSignerOptions
 ): AepClientAssertionSigner {
-  return async (claims) => {
+  return async (claims, context) => {
     const fetchImpl = requireFetch();
     const discovery =
       options.discovery ??
@@ -756,22 +835,72 @@ export function createPlatformDelegatedSigner(
       command: claims.op,
       jti: claims.jti,
       lifetimeSeconds,
+      ...(context.platformContext === undefined
+        ? {}
+        : { platformContext: context.platformContext }),
       serviceDid: claims.aud
     });
+    const idempotencyKey =
+      context.idempotencyKey ??
+      (typeof options.idempotencyKey === "function"
+        ? options.idempotencyKey()
+        : options.idempotencyKey) ??
+      randomJti();
+    const authenticationHeaders = await resolvePlatformAuthenticationHeaders(options);
     const response = await fetchImpl(commandUrl, {
       body: JSON.stringify(request),
       headers: {
+        ...authenticationHeaders,
         Accept: AEP_MEDIA_TYPE,
-        ...(options.authorization === undefined ? {} : { Authorization: options.authorization }),
-        "Content-Type": AEP_MEDIA_TYPE
+        "Content-Type": AEP_MEDIA_TYPE,
+        "Idempotency-Key": idempotencyKey
       },
       method: "POST"
     });
 
     await throwCommandError(response, "Platform sign");
 
-    return parsePlatformSignResponse(await response.json()).client_assertion;
+    const parsed = parsePlatformSignResponse(await response.json());
+    if (parsed.status === "pending") {
+      return {
+        status: "pending",
+        ...(parsed.platform_context === undefined
+          ? {}
+          : { platformContext: parsed.platform_context }),
+        retryAfterSeconds: Number(parsed.retry_after_seconds)
+      };
+    }
+    return {
+      status: "completed",
+      clientAssertion: parsed.client_assertion,
+      ...(parsed.platform_context === undefined ? {} : { platformContext: parsed.platform_context })
+    };
   };
+}
+
+async function resolvePlatformAuthenticationHeaders(options: {
+  authenticationHeaders?: PlatformAuthenticationHeadersInput;
+  authorization?: string;
+}): Promise<PlatformAuthenticationHeaders> {
+  const supplied =
+    typeof options.authenticationHeaders === "function"
+      ? await options.authenticationHeaders()
+      : (options.authenticationHeaders ?? {});
+  const headers: PlatformAuthenticationHeaders = {
+    ...(options.authorization === undefined ? {} : { Authorization: options.authorization })
+  };
+  for (const [name, value] of Object.entries(supplied)) {
+    const normalized = name.toLowerCase();
+    if (
+      normalized === "accept" ||
+      normalized === "content-type" ||
+      normalized === "idempotency-key"
+    ) {
+      continue;
+    }
+    headers[name] = value;
+  }
+  return headers;
 }
 
 export function createPlatformIdentityProvider(
@@ -792,6 +921,9 @@ export function createPlatformIdentityProvider(
           ? options.idempotencyKey(input)
           : (options.idempotencyKey ?? randomJti());
       const result = await provisionPlatformIdentity({
+        ...(options.authenticationHeaders === undefined
+          ? {}
+          : { authenticationHeaders: options.authenticationHeaders }),
         ...(options.authorization === undefined ? {} : { authorization: options.authorization }),
         discovery: platformDiscovery,
         idempotencyKey,
@@ -809,6 +941,9 @@ export function createPlatformIdentityProvider(
       const platformDiscovery = await discovery();
 
       return createPlatformDelegatedSigner({
+        ...(options.authenticationHeaders === undefined
+          ? {}
+          : { authenticationHeaders: options.authenticationHeaders }),
         ...(options.authorization === undefined ? {} : { authorization: options.authorization }),
         discovery: platformDiscovery,
         identity: platformAgentIdentityFromAgentIdentity(identity),
@@ -908,8 +1043,9 @@ export function createInMemorySessionCredentialStore(
           continue;
         }
 
-        if (record.expiresAt !== undefined && Date.parse(record.expiresAt) <= nowMs) {
-          continue;
+        if (record.expiresAt !== undefined) {
+          const expiry = Date.parse(record.expiresAt);
+          if (Number.isNaN(expiry) || expiry <= nowMs) continue;
         }
 
         return cloneCredential(record);
@@ -1070,22 +1206,67 @@ export async function inspectService(
 ): Promise<InspectServiceResult> {
   const fetchImpl = requireFetch();
 
-  const serviceUrl = normalizeServiceUrl(options.serviceUrl);
+  const serviceUrl = resolveServiceReference(options.serviceUrl);
   const inspectUrl = new URL(AEP_WELL_KNOWN_PATH, serviceUrl);
-  const response = await fetchImpl(inspectUrl, {
-    headers: {
-      Accept: AEP_MEDIA_TYPE
+  const maxBytes = options.maxResponseBytes ?? 1024 * 1024;
+  let current = inspectUrl;
+  let response: ResponseLike;
+  try {
+    for (let redirects = 0; ; redirects += 1) {
+      response = await fetchImpl(current, {
+        headers: { Accept: AEP_MEDIA_TYPE },
+        redirect: "manual",
+        ...(options.signal === undefined ? {} : { signal: options.signal })
+      });
+      if (![301, 302, 303, 307, 308].includes(response.status)) break;
+      if (redirects >= 5)
+        throw new AepInspectError("AEP Inspect exceeded five redirects.", "invalid_redirect");
+      const location = response.headers.get("location");
+      if (location === null)
+        throw new AepInspectError("AEP Inspect redirect omitted Location.", "invalid_redirect");
+      const next = new URL(location, current);
+      if (next.origin !== current.origin || next.protocol !== current.protocol)
+        throw new AepInspectError(
+          "AEP Inspect redirect changed origin or scheme.",
+          "invalid_redirect"
+        );
+      current = next;
     }
-  });
+  } catch (error) {
+    if (error instanceof AepInspectError) throw error;
+    throw new AepInspectError("AEP Inspect was aborted or could not be fetched.", "aborted");
+  }
 
   if (!response.ok) {
     throw new AepInspectError(
       `AEP Inspect failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}.`,
+      "http_error",
       response.status
     );
   }
 
-  const document = parseInspectDocument(await response.json());
+  const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  if (mediaType !== AEP_MEDIA_TYPE)
+    throw new AepInspectError("AEP Inspect response media type is invalid.", "invalid_media_type");
+  let raw: string;
+  try {
+    raw = await readBoundedResponse(response, maxBytes);
+  } catch (error) {
+    if (error instanceof AepInspectError) throw error;
+    throw new AepInspectError("AEP Inspect response could not be read.", "invalid_json");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new AepInspectError("AEP Inspect response contains malformed JSON.", "invalid_json");
+  }
+  let document: InspectDocument;
+  try {
+    document = parseInspectDocument(value);
+  } catch {
+    throw new AepInspectError("AEP Inspect document failed validation.", "validation_failed");
+  }
 
   const cacheControl = response.headers.get("cache-control") ?? undefined;
   const etag = response.headers.get("etag") ?? undefined;
@@ -1093,10 +1274,43 @@ export async function inspectService(
   return {
     document,
     inspectUrl,
+    finalUrl: current,
     commandUrl: (command) => new URL(commandPathFromInspect(document, command), serviceUrl),
     ...(cacheControl === undefined ? {} : { cacheControl }),
     ...(etag === undefined ? {} : { etag })
   };
+}
+
+async function readBoundedResponse(response: ResponseLike, maxBytes: number): Promise<string> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1)
+    throw new RangeError("maxResponseBytes must be positive.");
+  if (response.body !== undefined && response.body !== null) {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      size += part.value.byteLength;
+      if (size > maxBytes) {
+        await reader.cancel();
+        throw new AepInspectError("AEP Inspect response is too large.", "response_too_large");
+      }
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return new TextDecoder().decode(bytes);
+  }
+  const text =
+    response.text === undefined ? JSON.stringify(await response.json()) : await response.text();
+  if (new TextEncoder().encode(text).byteLength > maxBytes)
+    throw new AepInspectError("AEP Inspect response is too large.", "response_too_large");
+  return text;
 }
 
 export async function enrollService(options: EnrollServiceOptions): Promise<EnrollServiceResult> {
@@ -1225,15 +1439,7 @@ function normalizePlatformUrl(platformUrl: string | URL): URL {
 }
 
 function normalizeServiceUrl(serviceUrl: string | URL): URL {
-  const url = serviceUrl instanceof URL ? new URL(serviceUrl) : new URL(serviceUrl);
-
-  if (url.pathname !== "/" || url.search || url.hash) {
-    url.pathname = "/";
-    url.search = "";
-    url.hash = "";
-  }
-
-  return url;
+  return resolveServiceReference(serviceUrl);
 }
 
 function parsePlatformDiscoveryDocument(value: unknown): PlatformDiscoveryDocument {
@@ -1300,13 +1506,40 @@ function parsePlatformAgentIdentity(value: unknown): PlatformAgentIdentity {
 
 function parsePlatformSignResponse(value: unknown): PlatformSignResponse {
   const body = requireRecord(value, "Platform sign response");
+  const status = requireString(body, "status");
+  const platformContext =
+    body["platform_context"] === undefined
+      ? undefined
+      : requireRecord(body["platform_context"], "platform_context");
+
+  if (status === "pending") {
+    const retry = requireString(body, "retry_after_seconds");
+    const retryNumber = Number(retry);
+    if (
+      !/^(?:[1-9]|[1-9][0-9]|[12][0-9]{2}|300)$/.test(retry) ||
+      retryNumber < 1 ||
+      retryNumber > 300
+    ) {
+      throw new TypeError("retry_after_seconds must be from 1 through 300.");
+    }
+    return {
+      status,
+      ...(platformContext === undefined ? {} : { platform_context: platformContext }),
+      retry_after_seconds: retry
+    };
+  }
+  if (status !== "completed") {
+    throw new TypeError("Platform sign response status must be completed or pending.");
+  }
 
   return {
+    status,
     agent_did: requireString(body, "agent_did"),
     client_assertion: requireString(body, "client_assertion"),
     expires_at: requireString(body, "expires_at"),
     issued_at: requireString(body, "issued_at"),
     jti: requireString(body, "jti"),
+    ...(platformContext === undefined ? {} : { platform_context: platformContext }),
     service_did: requireString(body, "service_did")
   };
 }

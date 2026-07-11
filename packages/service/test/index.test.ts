@@ -185,8 +185,6 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
       handleStatusRequest("did:web:agent.example.com:agents:123", { store })
     ).resolves.toEqual({
       body: {
-        owner_action_required: "false",
-        requirements_pending: [],
         since: "2026-05-28T12:00:00.000Z",
         status: "active"
       },
@@ -208,6 +206,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           policy: createStaticEnrollmentPolicy({
             ownerActionRequired: true,
             requirementsPending: ["owner-approval"],
+            verificationPending: ["contact.email"],
             status: "pending"
           }),
           store
@@ -217,6 +216,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
       body: {
         owner_action_required: "true",
         requirements_pending: ["owner-approval"],
+        verification_pending: ["contact.email"],
         status: "pending"
       },
       contentType: "application/aep+json",

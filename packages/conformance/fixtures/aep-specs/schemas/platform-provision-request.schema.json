@@ -3,13 +3,9 @@
   "$id": "https://www.aep.foundation/schemas/platform-provision-request.schema.json",
   "title": "AEP Platform Provision Request",
   "type": "object",
-  "required": ["idempotency_key", "service_did"],
+  "required": ["service_did"],
   "additionalProperties": false,
   "properties": {
-    "idempotency_key": {
-      "type": "string",
-      "minLength": 1
-    },
     "service_did": {
       "type": "string",
       "pattern": "^did:"

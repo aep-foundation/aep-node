@@ -7,10 +7,10 @@ The initial vector set should cover:
 
 | Category                | Purpose                                                                                                                                                             | Draft Coverage                |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
-| Inspect document        | Validate required fields, command advertisement, grant type advertisement, `did:web`, HTTP binding configuration, and extension discovery shape.                    | Core                          |
+| Inspect document        | Validate required fields, command advertisement, grant type advertisement, `did:web`, HTTP binding configuration, transport trust, and extension discovery shape.   | Core                          |
 | Client assertion JWT    | Validate JOSE header fields, JWT claim fields, `aud`, `op`, `iat`, `exp`, and `jti` requirements.                                                                   | Core                          |
 | Error response          | Validate AEP Problem Details shape and stable error codes.                                                                                                          | Core                          |
-| Idempotency             | Validate safe retry shape and idempotency conflict behavior.                                                                                                        | Core                          |
+| Idempotency             | Validate safe retry shape, replay retention, header placement, staged Sign keys, and conflict behavior.                                                             | Core and Platform             |
 | Enroll request/response | Validate minimal enrollment request and response shape.                                                                                                             | Core                          |
 | Status response         | Validate enrolled identity status response shape.                                                                                                                   | Core                          |
 | Grant/Revoke request    | Validate shared Grant and Revoke request fields, including revoke-all behavior.                                                                                     | Core plus credential profiles |
@@ -54,7 +54,7 @@ Each vector has this top-level shape:
   "id": "inspect-minimal-http",
   "title": "Minimal HTTP Inspect document",
   "description": "A Service advertising the baseline HTTP binding and current credential profiles.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
   "category": "inspect",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

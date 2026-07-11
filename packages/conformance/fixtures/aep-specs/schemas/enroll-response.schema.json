@@ -14,11 +14,17 @@
       "type": "string",
       "enum": ["true", "false"]
     },
+    "verification_pending": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
     "requirements_pending": {
       "type": "array",
-      "items": {
-        "type": "string"
-      }
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
     }
   }
 }

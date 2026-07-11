@@ -142,6 +142,7 @@ export interface AepServiceOptions {
 
 export interface AepEnrollmentDecision {
   ownerActionRequired?: boolean;
+  verificationPending?: string[];
   requirementsPending?: string[];
   status?: AepEnrollmentStatus;
 }
@@ -229,6 +230,7 @@ export interface AepEnrollmentRecord {
   createdAt: string;
   ownerActionRequired: boolean;
   requirementsPending: string[];
+  verificationPending?: string[];
   since: string;
   status: AepEnrollmentStatus;
   updatedAt: string;
@@ -654,6 +656,7 @@ export function createStaticEnrollmentPolicy(
     decideEnrollment: () => ({
       ownerActionRequired: decision.ownerActionRequired ?? false,
       requirementsPending: [...(decision.requirementsPending ?? [])],
+      verificationPending: [...(decision.verificationPending ?? [])],
       status: decision.status ?? "active"
     })
   };
@@ -853,6 +856,7 @@ export async function handleEnrollRequest(
         createdAt: nowIso,
         ownerActionRequired: decision.ownerActionRequired ?? false,
         requirementsPending: [...(decision.requirementsPending ?? [])],
+        verificationPending: [...(decision.verificationPending ?? [])],
         since: nowIso,
         status: decision.status ?? "active",
         updatedAt: nowIso
@@ -868,8 +872,9 @@ export interface HandleStatusRequestOptions {
 }
 
 export type StatusResponseBody = {
-  owner_action_required: "true" | "false";
-  requirements_pending: string[];
+  owner_action_required?: "true" | "false";
+  requirements_pending?: string[];
+  verification_pending?: string[];
   since: string;
   status: AepEnrollmentRecord["status"];
 };
@@ -1218,14 +1223,22 @@ function enrollmentResponseFromRecord(record: AepEnrollmentRecord): EnrollRespon
       ? {
           requirements_pending: [...record.requirementsPending]
         }
+      : {}),
+    ...((record.verificationPending?.length ?? 0) > 0
+      ? { verification_pending: [...(record.verificationPending ?? [])] }
       : {})
   };
 }
 
 function statusResponseFromRecord(record: AepEnrollmentRecord): StatusResponseBody {
   return {
-    owner_action_required: record.ownerActionRequired ? "true" : "false",
-    requirements_pending: [...record.requirementsPending],
+    ...(record.ownerActionRequired ? { owner_action_required: "true" as const } : {}),
+    ...(record.requirementsPending.length > 0
+      ? { requirements_pending: [...record.requirementsPending] }
+      : {}),
+    ...((record.verificationPending?.length ?? 0) > 0
+      ? { verification_pending: [...(record.verificationPending ?? [])] }
+      : {}),
     since: record.since,
     status: record.status
   };
@@ -1318,7 +1331,8 @@ function cloneEnrollmentRecord(record: AepEnrollmentRecord): AepEnrollmentRecord
   return {
     ...record,
     claims: structuredClone(record.claims),
-    requirementsPending: [...record.requirementsPending]
+    requirementsPending: [...record.requirementsPending],
+    verificationPending: [...(record.verificationPending ?? [])]
   };
 }
 

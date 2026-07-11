@@ -1,0 +1,22 @@
+{
+  "id": "verification-pending-problem",
+  "title": "verification_pending Problem Details response",
+  "description": "A recognized identity receives a blocking verification error with names but no claim values.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "errors",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": { "failure_class": "submitted_claim_verification" },
+  "expected": {
+    "status": 403,
+    "content_type": "application/problem+json",
+    "body": {
+      "type": "urn:aep:error:verification_pending",
+      "title": "Verification pending",
+      "status": 403,
+      "code": "verification_pending",
+      "owner_action_required": "true",
+      "verification_pending": ["contact.email"]
+    }
+  }
+}

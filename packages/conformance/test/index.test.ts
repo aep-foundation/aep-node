@@ -127,7 +127,6 @@ describe("@aep-foundation/conformance Platform checks", () => {
       }
     });
     expect(provision.input).toEqual({
-      idempotency_key: "01J0AEPPLATFORM000000000001",
       service_did: "did:web:api.service.example"
     });
     expect(list.expected).toMatchObject({
@@ -268,8 +267,6 @@ describe("@aep-foundation/conformance Enroll and Status checks", () => {
 
     expect(vector.id).toBe("response-active");
     expect(assertStatusResponseConformance(vector.expected.body)).toEqual({
-      owner_action_required: "false",
-      requirements_pending: [],
       since: "2026-05-28T12:00:00Z",
       status: "active"
     });

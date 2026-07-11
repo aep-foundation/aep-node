@@ -238,13 +238,15 @@ describe("Protocol message validation", () => {
     expect(
       parseStatusResponse({
         owner_action_required: "false",
-        requirements_pending: [],
+        requirements_pending: ["company.registration"],
+        verification_pending: ["contact.email"],
         since: "2026-05-28T12:00:00Z",
         status: "active"
       })
     ).toEqual({
       owner_action_required: "false",
-      requirements_pending: [],
+      requirements_pending: ["company.registration"],
+      verification_pending: ["contact.email"],
       since: "2026-05-28T12:00:00Z",
       status: "active"
     });
@@ -335,6 +337,18 @@ describe("Protocol message validation", () => {
       title: "Identity not recognized",
       type: "urn:aep:error:not_recognized"
     });
+  });
+
+  it("rejects pending metadata on not_recognized Problem Details", () => {
+    expect(() =>
+      parseProblemDetails({
+        code: "not_recognized",
+        status: 404,
+        title: "Identity not recognized",
+        type: "urn:aep:error:not_recognized",
+        verification_pending: ["contact.email"]
+      })
+    ).toThrow(AepValidationError);
   });
 
   it("accepts built-in Grant response profiles", () => {

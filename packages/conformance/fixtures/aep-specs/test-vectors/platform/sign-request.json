@@ -3,12 +3,13 @@
   "category": "platform",
   "description": "An authenticated caller asks the Platform to sign an AEP client assertion for a Service-scoped Agent DID.",
   "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
-  "expected": {},
+  "expected": { "idempotency_key_header": "01J0AEPSIGNINITIAL0000000001" },
   "id": "sign-request",
   "input": {
     "jti": "01J0AEPASSERTION0000000001",
     "lifetime_seconds": "300",
     "op": "enroll",
+    "platform_context": { "authorization_handle": "opaque-value" },
     "service_did": "did:web:api.service.example"
   },
   "profile": "platform-hosted-identity",

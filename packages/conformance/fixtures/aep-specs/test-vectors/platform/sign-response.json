@@ -9,7 +9,9 @@
     "expires_at": "2026-07-06T12:05:00Z",
     "issued_at": "2026-07-06T12:00:00Z",
     "jti": "01J0AEPASSERTION0000000001",
-    "service_did": "did:web:api.service.example"
+    "platform_context": { "authorization_handle": "opaque-value" },
+    "service_did": "did:web:api.service.example",
+    "status": "completed"
   },
   "id": "sign-response",
   "input": {},
