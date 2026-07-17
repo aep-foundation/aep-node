@@ -13,6 +13,7 @@ import {
 import {
   exampleListenUrl,
   exampleServicePorts,
+  logExampleServiceUrls,
   logExampleServiceInteraction,
   requiredExampleConfig
 } from "../../_shared/aep-examples.js";
@@ -24,6 +25,7 @@ const listenUrl = exampleListenUrl(host, port);
 const serviceDid = requiredExampleConfig("SERVICE_DID", process.env["SERVICE_DID"]);
 
 const service = createAepService({
+  authenticationMethods: ["aep-jwt"],
   ...exampleServicePorts(),
   clientAssertionVerifier: createDidWebClientAssertionVerifier(),
   identityMethods: [didWebIdentityMethod()],
@@ -46,8 +48,7 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`AEP ${adapterName} service listening on ${listenUrl}`);
-  console.log(`Service DID: ${serviceDid}`);
+  logExampleServiceUrls(adapterName, listenUrl, serviceDid);
 });
 
 async function handleNodeRequest(
@@ -100,24 +101,29 @@ async function routeResponse(request: Request): Promise<Response> {
       return denied;
     }
 
-    return jsonResponse(200, profileBody(await request.json()));
+    return jsonResponse(200, profileBody());
   }
 
   return jsonResponse(404, { error: "not_found" });
 }
 
 async function deniedProtectedResponse(request: Request): Promise<Response | undefined> {
-  const status = await authenticateProtectedResource(service, request.headers.get("authorization"));
+  const status = await authenticateProtectedResource(service, {
+    headers: request.headers,
+    method: request.method,
+    url: request.url
+  });
 
-  if (status.status === 200 && isActiveProtectedResourceAuthentication(status)) {
+  if (isActiveProtectedResourceAuthentication(status)) {
     return undefined;
   }
 
-  return new Response(JSON.stringify(status.body), {
+  return new Response(JSON.stringify(status.response.body), {
     headers: {
-      "content-type": status.contentType
+      ...status.response.headers,
+      "content-type": status.response.contentType
     },
-    status: status.status
+    status: status.response.status
   });
 }
 
@@ -174,17 +180,13 @@ function requireHandler<THandler>(handler: THandler | undefined): Exclude<THandl
 
 function resourceBody(): Record<string, unknown> {
   return {
-    adapter: adapterName,
-    message: "This resource was returned after AEP JWT authentication.",
-    resource: "example-resource"
+    widgets: [1, 2, 3]
   };
 }
 
-function profileBody(profile: unknown): Record<string, unknown> {
+function profileBody(): Record<string, unknown> {
   return {
-    adapter: adapterName,
-    profile,
-    updated: true
+    status: "received"
   };
 }
 

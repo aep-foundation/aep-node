@@ -198,6 +198,7 @@ describe("@aep-foundation/conformance error and idempotency checks", () => {
     expect(response).toEqual({
       body: vector.expected.body,
       contentType: vector.expected.content_type,
+      headers: { "WWW-Authenticate": 'AEP reason="not_recognized"' },
       status: vector.expected.status
     });
   });

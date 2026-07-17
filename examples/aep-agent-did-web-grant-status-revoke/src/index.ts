@@ -2,13 +2,18 @@ import { randomUUID } from "node:crypto";
 
 import { createAepAgent, createPlatformIdentityProvider } from "@aep-foundation/agent";
 import { parseBuiltInGrantResponse } from "@aep-foundation/core";
-import type { AepBuiltInGrantType } from "@aep-foundation/core";
+import type {
+  AepBuiltInGrantType,
+  AepProtectedResourceAuthorizationCarrier
+} from "@aep-foundation/core";
 
 import { isBuiltInGrantType } from "../../_shared/aep-examples.js";
 
 const platformUrl = process.env["PLATFORM_URL"] ?? "http://127.0.0.1:4100";
 const serviceUrl = process.env["SERVICE_URL"] ?? "http://127.0.0.1:3000";
 const platformAuthorization = process.env["PLATFORM_AUTHORIZATION"] ?? "Bearer demo-agent";
+const protectedResourceCarrier: AepProtectedResourceAuthorizationCarrier =
+  process.env["AEP_AUTHORIZATION_CARRIER"] === "dedicated" ? "dedicated" : "standard";
 
 const agent = createAepAgent({
   assertionJti: randomUUID,
@@ -38,12 +43,18 @@ const credential =
   grantType === undefined || grant === undefined
     ? undefined
     : parseBuiltInGrantResponse(grantType, grant.body);
-const protectedHeaders = (): Promise<Record<string, string>> =>
+const protectedHeaders = (url: URL): Promise<Record<string, string>> =>
   credential === undefined || grantType === undefined
-    ? session.authenticationHeaders({ preferCredential: false })
+    ? session.authenticationHeaders({
+        carrier: protectedResourceCarrier,
+        preferCredential: false,
+        resource: String(url)
+      })
     : session.authenticationHeaders({
+        carrier: protectedResourceCarrier,
         credentialId: credential.credential_id,
-        grantType
+        grantType,
+        resource: String(url)
       });
 const resource = await fetchProtectedJson(
   new URL("/api/resource", serviceUrl),
@@ -94,11 +105,11 @@ console.log(
 async function fetchProtectedJson(
   url: URL,
   init: RequestInit = {},
-  authenticationHeaders: () => Promise<Record<string, string>>
+  authenticationHeaders: (url: URL) => Promise<Record<string, string>>
 ): Promise<unknown> {
   const headers = new Headers(init.headers);
 
-  for (const [name, value] of Object.entries(await authenticationHeaders())) {
+  for (const [name, value] of Object.entries(await authenticationHeaders(url))) {
     headers.set(name, value);
   }
 

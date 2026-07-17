@@ -24,6 +24,26 @@ export function createNextAepRouteHandler(input: NextAepServiceInput): NextAepRo
     });
 }
 
+export function createNextAepProtectedResourceHandler(
+  input: NextAepServiceInput,
+  onAuthenticated: (request: Request) => Promise<Response> | Response
+): NextAepRouteHandler {
+  const service = resolveService(input);
+  return async (request) => {
+    if (request === undefined) throw new TypeError("A protected-resource request is required.");
+    const result = await service.authenticateProtectedResource({
+      headers: request.headers,
+      method: request.method,
+      url: request.url
+    });
+    if (result.authenticated) return onAuthenticated(request);
+    return new Response(JSON.stringify(result.response.body), {
+      headers: { ...result.response.headers, "Content-Type": result.response.contentType },
+      status: result.response.status
+    });
+  };
+}
+
 export function createNextAepCommandRouteHandler(
   input: NextAepServiceInput,
   command: Exclude<NextAepCommand, "inspect">
@@ -48,6 +68,7 @@ export function createNextAepCommandRouteHandler(
 
     return new Response(JSON.stringify(result.body), {
       headers: {
+        ...result.headers,
         "Content-Type": result.contentType
       },
       status: result.status

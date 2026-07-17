@@ -1,5 +1,6 @@
 import {
   AEP_AUTH_SCHEME,
+  AEP_AUTHORIZATION_HEADER,
   AEP_BINDINGS,
   AEP_BUILT_IN_GRANT_TYPES,
   AEP_IDENTITY_METHOD_DID_WEB,
@@ -15,12 +16,15 @@ import {
   parseEnrollRequest,
   parseGrantRequest,
   parseInspectDocument,
+  parseProtectedResourceAuthorization,
   parseRevokeRequest,
   resolveDidWebPublicKey,
   verifyClientAssertionJwt
 } from "@aep-foundation/core";
 import type {
   AepCommand,
+  AepAuthenticationMethod,
+  AepAssertionOperation,
   AepClientAssertionClaims,
   AepEnrollmentStatus,
   AepBuiltInGrantResponse,
@@ -69,7 +73,35 @@ export interface AepRevokeContext {
 export interface AepGrantTypeHandler {
   grant(request: GrantRequest, context: AepGrantContext): Awaitable<Record<string, unknown>>;
   revoke(request: RevokeRequest, context: AepRevokeContext): Awaitable<void>;
+  authenticate?(
+    input: AepCredentialAuthenticationInput
+  ): Awaitable<AepAuthenticatedPrincipal | undefined>;
+  hasCredentialPresentation?(input: AepCredentialAuthenticationInput): Awaitable<boolean>;
 }
+
+export interface AepCredentialAuthenticationInput {
+  headers: Readonly<Record<string, string>>;
+  now: Date;
+}
+
+export interface AepAuthenticatedPrincipal {
+  agentDid: string;
+  authenticationKind: "aep-jwt" | "session-credential";
+  authenticationMethod: AepAuthenticationMethod;
+  credentialId?: string;
+  grantType?: AepGrantType;
+  scopes?: string[];
+}
+
+export interface AuthenticateProtectedResourceOptions {
+  headers: Headers | Readonly<Record<string, string | string[] | undefined>>;
+  method: string;
+  url: string | URL;
+}
+
+export type AuthenticateProtectedResourceResult =
+  | { authenticated: true; principal: AepAuthenticatedPrincipal }
+  | { authenticated: false; response: AepServiceResponse<AepProblemDetails> };
 
 export interface AepServiceCredentialRecord {
   agentDid: string;
@@ -88,7 +120,7 @@ export interface AepServiceCredentialStore {
     credentialId: string
   ): Awaitable<AepServiceCredentialRecord | undefined>;
   listCredentials(
-    agentDid: string,
+    agentDid?: string,
     grantType?: AepBuiltInGrantType
   ): Awaitable<AepServiceCredentialRecord[]>;
   revokeCredential(
@@ -132,12 +164,18 @@ export interface AepServiceOptions {
   endpointBase?: string;
   identityMethods: AepIdentityMethodDefinition[];
   grantTypes?: AepGrantTypeDefinition[];
+  authenticationMethods?: AepAuthenticationMethod[];
+  inspectUrl?: string | URL;
   claims?: AepServiceClaimsConfig;
   enrollmentPolicy?: AepEnrollmentPolicy;
   enrollmentStore?: AepEnrollmentStore;
   replayStore?: AepClientAssertionReplayStore;
   signingAlgorithms?: AepSigningAlgorithm[];
   extensions?: string[];
+  openapi?: {
+    url: string;
+    pathMatching: { trailingSlash: "strict" | "equivalent" };
+  };
 }
 
 export interface AepEnrollmentDecision {
@@ -166,7 +204,8 @@ export interface AepClientAssertionConfig {
 
 export interface AepClientAssertionVerificationContext {
   clientAssertion: string;
-  command: AuthenticatedServiceCommand;
+  command: AepAssertionOperation;
+  resource?: string;
   serviceDid: string;
   signingAlgorithms: AepSigningAlgorithm[];
 }
@@ -246,6 +285,7 @@ export interface AepCommandIdempotencyRecord<TBody = unknown> {
   body: TBody;
   command: AuthenticatedServiceCommand;
   contentType: string;
+  headers?: Record<string, string>;
   createdAt: string;
   idempotencyKey: string;
   requestHash: string;
@@ -282,6 +322,7 @@ export interface AepCommandIdempotencyStore {
 export interface AepServiceResponse<TBody = unknown> {
   body: TBody;
   contentType: string;
+  headers?: Record<string, string>;
   status: number;
 }
 
@@ -293,6 +334,9 @@ export interface AepAuthenticatedServiceOptions {
 export type AuthenticatedServiceCommand = Exclude<AepCommand, "inspect">;
 
 export interface AepService {
+  authenticateProtectedResource(
+    options: AuthenticateProtectedResourceOptions
+  ): Promise<AuthenticateProtectedResourceResult>;
   enroll(
     request: unknown,
     options: AepAuthenticatedServiceOptions
@@ -331,6 +375,13 @@ export function createAepService(options: AepServiceOptions): AepService {
   });
 
   return {
+    authenticateProtectedResource: (request) =>
+      authenticateProtectedResourceRequest(request, {
+        authenticationMethods: options.authenticationMethods ?? [],
+        grantHandlers,
+        ...(options.inspectUrl === undefined ? {} : { inspectUrl: options.inspectUrl }),
+        ...authenticationOptions()
+      }),
     enroll: async (request, commandOptions) => {
       const authentication = await authenticateClientAssertion(
         "enroll",
@@ -443,6 +494,9 @@ export function buildInspectDocument(options: AepServiceOptions): InspectDocumen
 
   const document: InspectDocument = {
     aep_version: AEP_VERSION,
+    ...((options.authenticationMethods?.length ?? 0) > 0
+      ? { authentication: { methods: [...(options.authenticationMethods ?? [])] } }
+      : {}),
     bindings: {
       supported: [...AEP_BINDINGS]
     },
@@ -471,7 +525,15 @@ export function buildInspectDocument(options: AepServiceOptions): InspectDocumen
       supported: [...(options.extensions ?? [])]
     },
     http: {
-      endpoint_base: options.endpointBase ?? DEFAULT_HTTP_ENDPOINT_BASE
+      endpoint_base: options.endpointBase ?? DEFAULT_HTTP_ENDPOINT_BASE,
+      ...(options.openapi === undefined
+        ? {}
+        : {
+            openapi: {
+              url: options.openapi.url,
+              path_matching: { trailing_slash: options.openapi.pathMatching.trailingSlash }
+            }
+          })
     },
     identity: {
       methods: identityMethods
@@ -629,6 +691,7 @@ export function createInMemoryCommandIdempotencyStore(
           body: structuredClone(response.body),
           command: input.command,
           contentType: response.contentType,
+          ...(response.headers === undefined ? {} : { headers: { ...response.headers } }),
           createdAt: new Date().toISOString(),
           idempotencyKey: input.idempotencyKey,
           requestHash: input.requestHash,
@@ -705,6 +768,7 @@ export function createHostedPlatformClientAssertionVerifier(
       body: JSON.stringify({
         client_assertion: clientAssertion,
         op: context.command,
+        ...(context.resource === undefined ? {} : { resource: context.resource }),
         service_did: context.serviceDid
       }),
       headers: {
@@ -748,16 +812,16 @@ export function clientAssertionFromAepAuthorization(
 }
 
 export async function authenticateProtectedResource(
-  service: Pick<AepService, "status">,
-  authorization: string | null | undefined
-): Promise<AepServiceResponse<StatusResponseBody | AepProblemDetails>> {
-  return service.status({
-    clientAssertion: clientAssertionFromAepAuthorization(authorization)
-  });
+  service: Pick<AepService, "authenticateProtectedResource">,
+  options: AuthenticateProtectedResourceOptions
+): Promise<AuthenticateProtectedResourceResult> {
+  return service.authenticateProtectedResource(options);
 }
 
-export function isActiveProtectedResourceAuthentication(result: AepServiceResponse): boolean {
-  return isRecord(result.body) && result.body["status"] === "active";
+export function isActiveProtectedResourceAuthentication(
+  result: AuthenticateProtectedResourceResult
+): result is Extract<AuthenticateProtectedResourceResult, { authenticated: true }> {
+  return result.authenticated;
 }
 
 export function createInMemoryServiceCredentialStore(
@@ -781,7 +845,7 @@ export function createInMemoryServiceCredentialStore(
       return [...credentials.values()]
         .filter(
           (record) =>
-            record.agentDid === agentDid &&
+            (agentDid === undefined || record.agentDid === agentDid) &&
             (grantTypeName === undefined || record.grantType === grantTypeName)
         )
         .map(cloneCredential);
@@ -846,6 +910,10 @@ export async function handleEnrollRequest(
     parsed,
     options.commandIdempotencyStore,
     async () => {
+      const existing = await options.store.findEnrollment(parsed.agent_did);
+      if (existing !== undefined) {
+        return aepResponse(200, enrollmentResponseFromRecord(existing));
+      }
       const now = options.clock ?? (() => new Date());
       const nowDate = now();
       const nowIso = nowDate.toISOString();
@@ -1017,6 +1085,133 @@ export async function handleRevokeRequest(
   );
 }
 
+interface AuthenticateProtectedResourceRequestOptions extends AuthenticateClientAssertionOptions {
+  authenticationMethods: AepAuthenticationMethod[];
+  grantHandlers: ReadonlyMap<AepGrantType, AepGrantTypeHandler>;
+  inspectUrl?: string | URL;
+}
+
+async function authenticateProtectedResourceRequest(
+  request: AuthenticateProtectedResourceOptions,
+  options: AuthenticateProtectedResourceRequestOptions
+): Promise<AuthenticateProtectedResourceResult> {
+  const normalized = normalizedHeaders(request.headers);
+  const selected = selectProtectedResourceAuthorization(request.headers, normalized);
+  if (!selected.ok) {
+    return protectedResourceFailure("not_recognized", options, request.url);
+  }
+  const headers =
+    selected.authorization === undefined
+      ? normalized
+      : { ...normalized, authorization: selected.authorization };
+  const authorization = selected.authorization ?? normalized["authorization"];
+  if (authorization?.toLowerCase().startsWith(`${AEP_AUTH_SCHEME.toLowerCase()} `)) {
+    if (!options.authenticationMethods.includes("aep-jwt")) {
+      return protectedResourceFailure("unsupported_authentication_method", options, request.url);
+    }
+    const authentication = await authenticateClientAssertion(
+      "authenticate",
+      { clientAssertion: authorization.slice(AEP_AUTH_SCHEME.length + 1) },
+      options,
+      new URL(request.url).toString()
+    );
+    return authentication.ok
+      ? {
+          authenticated: true,
+          principal: {
+            agentDid: authentication.agentDid,
+            authenticationKind: "aep-jwt",
+            authenticationMethod: "aep-jwt"
+          }
+        }
+      : { authenticated: false, response: authentication.response };
+  }
+
+  const now = options.config?.clock?.() ?? new Date();
+  let presented = authorization !== undefined;
+  for (const method of options.authenticationMethods) {
+    if (method === "aep-jwt") continue;
+    const handler = options.grantHandlers.get(method);
+    if (handler?.authenticate === undefined) continue;
+    const input = { headers, now };
+    presented ||= (await handler.hasCredentialPresentation?.(input)) ?? false;
+    const principal = await handler.authenticate(input);
+    if (principal !== undefined) return { authenticated: true, principal };
+  }
+  return protectedResourceFailure(
+    presented ? "not_recognized" : "authentication_required",
+    options,
+    request.url
+  );
+}
+
+function selectProtectedResourceAuthorization(
+  source: AuthenticateProtectedResourceOptions["headers"],
+  headers: Readonly<Record<string, string>>
+): { ok: true; authorization?: string } | { ok: false } {
+  const dedicated = headers[AEP_AUTHORIZATION_HEADER.toLowerCase()];
+  if (dedicated === undefined) return { ok: true };
+  if (hasDuplicateHeader(source, AEP_AUTHORIZATION_HEADER)) return { ok: false };
+  try {
+    parseProtectedResourceAuthorization(dedicated, "dedicated");
+  } catch {
+    return { ok: false };
+  }
+  const standard = headers["authorization"];
+  if (standard !== undefined) {
+    try {
+      parseProtectedResourceAuthorization(standard, "standard");
+      return { ok: false };
+    } catch {
+      // An unrelated Authorization scheme composes with the dedicated AEP field.
+    }
+  }
+  return { ok: true, authorization: dedicated };
+}
+
+function hasDuplicateHeader(
+  headers: AuthenticateProtectedResourceOptions["headers"],
+  name: string
+): boolean {
+  if (isHeaders(headers)) return (headers.get(name) ?? "").includes(",");
+  const values = Object.entries(headers).filter(
+    ([candidate]) => candidate.toLowerCase() === name.toLowerCase()
+  );
+  return values.length !== 1 || Array.isArray(values[0]?.[1]);
+}
+
+function protectedResourceFailure(
+  code: "authentication_required" | "not_recognized" | "unsupported_authentication_method",
+  options: AuthenticateProtectedResourceRequestOptions,
+  resource: string | URL
+): AuthenticateProtectedResourceResult {
+  const response = problem(code, code.replaceAll("_", " "), 401);
+  const inspect = options.inspectUrl ?? new URL("/.well-known/aep", new URL(resource).origin);
+  response.headers = {
+    "WWW-Authenticate": `${AEP_AUTH_SCHEME} service_did="${options.serviceDid}", inspect="${String(inspect)}", reason="${code}"`
+  };
+  return { authenticated: false, response };
+}
+
+function normalizedHeaders(
+  headers: AuthenticateProtectedResourceOptions["headers"]
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (isHeaders(headers)) {
+    headers.forEach((value, name) => (result[name.toLowerCase()] = value));
+    return result;
+  }
+  for (const [name, value] of Object.entries(headers)) {
+    const selected = Array.isArray(value) ? value.join(", ") : value;
+    if (selected !== undefined) result[name.toLowerCase()] = selected;
+  }
+  return result;
+}
+
+function isHeaders(value: AuthenticateProtectedResourceOptions["headers"]): value is Headers {
+  return typeof Headers !== "undefined" && value instanceof Headers;
+}
+
 interface AuthenticateClientAssertionOptions {
   config?: AepClientAssertionConfig;
   replayStore: AepClientAssertionReplayStore;
@@ -1037,9 +1232,10 @@ type AuthenticateClientAssertionResult =
     };
 
 async function authenticateClientAssertion(
-  command: AuthenticatedServiceCommand,
+  command: AepAssertionOperation,
   commandOptions: AepAuthenticatedServiceOptions,
-  options: AuthenticateClientAssertionOptions
+  options: AuthenticateClientAssertionOptions,
+  resource?: string
 ): Promise<AuthenticateClientAssertionResult> {
   if (options.verifier === undefined) {
     return notRecognized();
@@ -1052,6 +1248,7 @@ async function authenticateClientAssertion(
       await options.verifier(commandOptions.clientAssertion, {
         clientAssertion: commandOptions.clientAssertion,
         command,
+        ...(resource === undefined ? {} : { resource }),
         serviceDid: options.serviceDid,
         signingAlgorithms: options.signingAlgorithms
       })
@@ -1060,7 +1257,7 @@ async function authenticateClientAssertion(
     return notRecognized();
   }
 
-  if (!validateClientAssertionClaimsForCommand(claims, command, options)) {
+  if (!validateClientAssertionClaimsForCommand(claims, command, options, resource)) {
     return notRecognized();
   }
 
@@ -1088,8 +1285,9 @@ async function authenticateClientAssertion(
 
 function validateClientAssertionClaimsForCommand(
   claims: AepClientAssertionClaims,
-  command: AuthenticatedServiceCommand,
-  options: AuthenticateClientAssertionOptions
+  command: AepAssertionOperation,
+  options: AuthenticateClientAssertionOptions,
+  resource?: string
 ): boolean {
   const clock = options.config?.clock ?? (() => new Date());
   const clockSkewSeconds = options.config?.clockSkewSeconds ?? 30;
@@ -1100,6 +1298,7 @@ function validateClientAssertionClaimsForCommand(
     claims.iss === claims.sub &&
     claims.aud === options.serviceDid &&
     claims.op === command &&
+    (command === "authenticate" ? claims.resource === resource : claims.resource === undefined) &&
     claims.exp > claims.iat &&
     claims.exp - claims.iat <= maxTtlSeconds &&
     claims.iat <= now + clockSkewSeconds &&
@@ -1207,8 +1406,76 @@ function storedBuiltInGrantType<TCredential extends AepBuiltInGrantResponse>(
       }
 
       await options.store.revokeGrantType(context.agentDid, grantTypeName, revokedAt);
+    },
+    async authenticate(input) {
+      const records = await options.store.listCredentials(undefined, grantTypeName);
+      for (const record of records) {
+        if (record.revokedAt !== undefined || Date.parse(record.expiresAt) <= input.now.getTime()) {
+          continue;
+        }
+        if (!credentialMatchesHeaders(record.credential, input.headers)) continue;
+        return {
+          agentDid: record.agentDid,
+          authenticationKind: "session-credential",
+          authenticationMethod: grantTypeName,
+          credentialId: record.credentialId,
+          grantType: grantTypeName,
+          scopes: [...record.credential.scopes]
+        };
+      }
+      return undefined;
+    },
+    async hasCredentialPresentation(input) {
+      if (grantTypeName !== AEP_BUILT_IN_GRANT_TYPES[1]) {
+        return input.headers["authorization"] !== undefined;
+      }
+      const records = await options.store.listCredentials(undefined, grantTypeName);
+      return records.some(
+        (record) =>
+          "header" in record.credential &&
+          typeof record.credential.header === "string" &&
+          input.headers[record.credential.header.toLowerCase()] !== undefined
+      );
     }
   });
+}
+
+function credentialMatchesHeaders(
+  credential: AepBuiltInGrantResponse,
+  headers: Readonly<Record<string, string>>
+): boolean {
+  if (typeof credential.access_token === "string") {
+    return matchesAuthorizationCredential(
+      headers["authorization"],
+      "Bearer",
+      credential.access_token
+    );
+  }
+  if (typeof credential.api_key === "string" && typeof credential.header === "string") {
+    return headers[credential.header.toLowerCase()] === credential.api_key;
+  }
+  const username = credential.username;
+  const password = credential.password;
+  if (typeof username !== "string" || typeof password !== "string") return false;
+  return matchesAuthorizationCredential(
+    headers["authorization"],
+    "Basic",
+    Buffer.from(`${username}:${password}`).toString("base64")
+  );
+}
+
+function matchesAuthorizationCredential(
+  value: string | undefined,
+  scheme: "Bearer" | "Basic",
+  credentials: string
+): boolean {
+  if (value === undefined) return false;
+  try {
+    const parsed = parseProtectedResourceAuthorization(value);
+    return parsed.scheme === scheme && parsed.credentials === credentials;
+  } catch {
+    return false;
+  }
 }
 
 function enrollmentResponseFromRecord(record: AepEnrollmentRecord): EnrollResponse {
@@ -1264,6 +1531,7 @@ function problem(
       title
     }),
     contentType: AEP_PROBLEM_MEDIA_TYPE,
+    ...(status === 401 ? { headers: { "WWW-Authenticate": `AEP reason="${code}"` } } : {}),
     status
   };
 }
@@ -1302,6 +1570,7 @@ async function withIdempotency<TBody>(
     return {
       body: structuredClone(result.record.body) as TBody,
       contentType: result.record.contentType,
+      ...(result.record.headers === undefined ? {} : { headers: { ...result.record.headers } }),
       status: result.record.status
     };
   }
@@ -1341,7 +1610,8 @@ function cloneIdempotencyResponseRecord(
 ): AepCommandIdempotencyRecord {
   return {
     ...record,
-    body: structuredClone(record.body)
+    body: structuredClone(record.body),
+    ...(record.headers === undefined ? {} : { headers: { ...record.headers } })
   };
 }
 

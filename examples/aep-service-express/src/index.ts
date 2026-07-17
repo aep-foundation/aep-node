@@ -12,6 +12,7 @@ import type { Request, RequestHandler, Response } from "express";
 import {
   exampleListenUrl,
   exampleServicePorts,
+  logExampleServiceUrls,
   logExampleServiceInteraction,
   requiredExampleConfig
 } from "../../_shared/aep-examples.js";
@@ -23,6 +24,7 @@ const listenUrl = exampleListenUrl(host, port);
 const serviceDid = requiredExampleConfig("SERVICE_DID", process.env["SERVICE_DID"]);
 
 const service = createAepService({
+  authenticationMethods: ["aep-jwt"],
   ...exampleServicePorts(),
   clientAssertionVerifier: createDidWebClientAssertionVerifier(),
   identityMethods: [didWebIdentityMethod()],
@@ -52,42 +54,42 @@ app.get("/api/resource", requireAepJwt, (_request, response) => {
   response.json(resourceBody());
 });
 app.post("/api/profile", requireAepJwt, (request, response) => {
-  response.json(profileBody(requestBody(request)));
+  response.json(profileBody());
 });
 
 app.listen(port, host, () => {
-  console.log(`AEP ${adapterName} service listening on ${listenUrl}`);
-  console.log(`Service DID: ${serviceDid}`);
+  logExampleServiceUrls(adapterName, listenUrl, serviceDid);
 });
 
 async function authenticateProtectedRoute(request: Request, response: Response): Promise<boolean> {
-  const status = await authenticateProtectedResource(service, request.header("authorization"));
+  const status = await authenticateProtectedResource(service, {
+    headers: request.headers,
+    method: request.method,
+    url: new URL(request.originalUrl, listenUrl)
+  });
 
-  if (status.status !== 200 || !isActiveProtectedResourceAuthentication(status)) {
-    response.type(status.contentType).status(status.status).json(status.body);
+  if (!isActiveProtectedResourceAuthentication(status)) {
+    for (const [name, value] of Object.entries(status.response.headers ?? {}))
+      response.set(name, value);
+    response
+      .type(status.response.contentType)
+      .status(status.response.status)
+      .json(status.response.body);
     return false;
   }
 
   return true;
 }
 
-function requestBody(request: Request): unknown {
-  return request.body as unknown;
-}
-
 function resourceBody(): Record<string, unknown> {
   return {
-    adapter: adapterName,
-    message: "This resource was returned after AEP JWT authentication.",
-    resource: "example-resource"
+    widgets: [1, 2, 3]
   };
 }
 
-function profileBody(profile: unknown): Record<string, unknown> {
+function profileBody(): Record<string, unknown> {
   return {
-    adapter: adapterName,
-    profile,
-    updated: true
+    status: "received"
   };
 }
 

@@ -2,6 +2,11 @@
 
 Service-side workflows for AEP.
 
+Protected-resource authentication selects `AEP-Authorization` when present and
+otherwise accepts `Authorization`. Invalid dedicated fields and recognizable
+AEP credentials in both fields fail closed as `not_recognized`; unrelated
+`Authorization` schemes remain available to the application.
+
 For production storage, idempotency, replay, and key-custody guidance, see the
 repository [Integration Guide](../../INTEGRATION.md).
 
@@ -165,11 +170,20 @@ and verifies baseline AEP client assertion JWTs against the Service DID.
 Platform hosted verification endpoint and lets the existing Service command
 path enforce AEP audience, command, time window, TTL, and replay checks against
 the returned claims.
-`authenticateProtectedResource()` applies the same Status authentication path to
-non-AEP resource endpoints that use AEP JWT Authorization.
+`service.authenticateProtectedResource({ headers, method, url })` (or the
+equivalent exported helper) authenticates protected resources independently of
+authorization. Configure `authenticationMethods` in Service preference order.
+Configure `openapi` to advertise a protected-resource OpenAPI 3.1 document and
+its strict or equivalent trailing-slash matching mode through Inspect.
+The result is either a normalized principal or an SDK-generated AEP challenge.
+`aep-jwt` assertions must use `op: "authenticate"` and bind the exact resource
+URL; command assertions are rejected. Built-in OAuth Bearer, Service-selected
+API-key header, and Basic credentials are validated by their registered stored
+grant handlers without returning credential secrets.
 
 `storedOAuthBearerGrantType()`, `storedApiKeyGrantType()`, and
 `storedBasicGrantType()` wrap issuer callbacks with built-in credential response
 validation and persistence. Their Revoke handlers mark credentials revoked in
 the configured `AepServiceCredentialStore`; `createInMemoryServiceCredentialStore()`
-is provided for examples and tests.
+is provided for examples and tests. Custom grant handlers can implement the
+same bounded `authenticate()` hook.

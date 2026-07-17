@@ -16,6 +16,8 @@ export interface ExpressAepRequest {
   header?(field: string): string | undefined;
   headers?: Record<string, string | string[] | undefined>;
   method?: string;
+  originalUrl?: string;
+  protocol?: string;
 }
 
 export interface ExpressAepResponse {
@@ -80,6 +82,25 @@ export function createExpressAepHandlers(input: ExpressAepServiceInput): Express
   };
 }
 
+export function createExpressAepProtectedResourceHandler(
+  input: ExpressAepServiceInput,
+  resourceBaseUrl: string | URL
+): ExpressAepHandler {
+  const service = resolveService(input);
+  return async (request, response, next) => {
+    const result = await service.authenticateProtectedResource({
+      headers: request.headers ?? {},
+      method: request.method ?? "GET",
+      url: new URL(request.originalUrl ?? "/", resourceBaseUrl)
+    });
+    if (result.authenticated) return next?.();
+    response.type?.(result.response.contentType);
+    for (const [name, value] of Object.entries(result.response.headers ?? {}))
+      response.set?.(name, value);
+    return response.status(result.response.status).json(result.response.body);
+  };
+}
+
 export function registerExpressAepRoute(
   router: ExpressAepInspectRouterLike,
   input: ExpressAepServiceInput,
@@ -124,6 +145,7 @@ function createExpressCommandHandler(
             : await service.revoke(request.body, commandOptions);
 
     response.type?.(result.contentType);
+    for (const [name, value] of Object.entries(result.headers ?? {})) response.set?.(name, value);
     return response.status(result.status).json(result.body);
   };
 }

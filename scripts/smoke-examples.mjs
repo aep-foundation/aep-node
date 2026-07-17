@@ -283,11 +283,13 @@ function assertProtectedBody(value, serviceName, field) {
   assertRecord(value, serviceName, field);
 
   if (field === "resource") {
-    assertEqual(value["resource"], "example-resource", serviceName, field);
+    if (!Array.isArray(value["widgets"]) || value["widgets"].join(",") !== "1,2,3") {
+      throw new Error(`${serviceName}: expected resource widgets to be [1,2,3].`);
+    }
     return;
   }
 
-  assertEqual(value["updated"], true, serviceName, field);
+  assertEqual(value["status"], "received", serviceName, field);
 }
 
 function assertRecord(value, serviceName, field) {

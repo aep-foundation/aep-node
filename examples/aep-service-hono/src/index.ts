@@ -14,6 +14,7 @@ import { Hono } from "hono";
 import {
   exampleListenUrl,
   exampleServicePorts,
+  logExampleServiceUrls,
   logExampleServiceInteraction,
   requiredExampleConfig
 } from "../../_shared/aep-examples.js";
@@ -25,6 +26,7 @@ const listenUrl = exampleListenUrl(host, port);
 const serviceDid = requiredExampleConfig("SERVICE_DID", process.env["SERVICE_DID"]);
 
 const service = createAepService({
+  authenticationMethods: ["aep-jwt"],
   ...exampleServicePorts(),
   clientAssertionVerifier: createDidWebClientAssertionVerifier(),
   identityMethods: [didWebIdentityMethod()],
@@ -34,7 +36,7 @@ const app = new Hono();
 
 registerHonoAepRoutes(app, service);
 app.get("/api/resource", async (context) => {
-  const denied = await deniedProtectedResponse(context.req.header("Authorization"));
+  const denied = await deniedProtectedResponse(context.req.raw);
 
   if (denied !== undefined) {
     return denied;
@@ -43,13 +45,13 @@ app.get("/api/resource", async (context) => {
   return context.json(resourceBody());
 });
 app.post("/api/profile", async (context) => {
-  const denied = await deniedProtectedResponse(context.req.header("Authorization"));
+  const denied = await deniedProtectedResponse(context.req.raw);
 
   if (denied !== undefined) {
     return denied;
   }
 
-  return context.json(profileBody(await context.req.json()));
+  return context.json(profileBody());
 });
 
 const server = createServer((request, response) => {
@@ -62,8 +64,7 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`AEP ${adapterName} service listening on ${listenUrl}`);
-  console.log(`Service DID: ${serviceDid}`);
+  logExampleServiceUrls(adapterName, listenUrl, serviceDid);
 });
 
 async function handleNodeRequest(
@@ -79,20 +80,23 @@ async function handleNodeRequest(
   logExampleServiceInteraction(adapterName, request.method, request.url, webResponse.status);
 }
 
-async function deniedProtectedResponse(
-  authorization: string | undefined
-): Promise<Response | undefined> {
-  const status = await authenticateProtectedResource(service, authorization);
+async function deniedProtectedResponse(request: Request): Promise<Response | undefined> {
+  const status = await authenticateProtectedResource(service, {
+    headers: request.headers,
+    method: request.method,
+    url: request.url
+  });
 
-  if (status.status === 200 && isActiveProtectedResourceAuthentication(status)) {
+  if (isActiveProtectedResourceAuthentication(status)) {
     return undefined;
   }
 
-  return new Response(JSON.stringify(status.body), {
+  return new Response(JSON.stringify(status.response.body), {
     headers: {
-      "content-type": status.contentType
+      ...status.response.headers,
+      "content-type": status.response.contentType
     },
-    status: status.status
+    status: status.response.status
   });
 }
 
@@ -141,17 +145,13 @@ function readRequestBody(request: IncomingMessage): Promise<string> {
 
 function resourceBody(): Record<string, unknown> {
   return {
-    adapter: adapterName,
-    message: "This resource was returned after AEP JWT authentication.",
-    resource: "example-resource"
+    widgets: [1, 2, 3]
   };
 }
 
-function profileBody(profile: unknown): Record<string, unknown> {
+function profileBody(): Record<string, unknown> {
   return {
-    adapter: adapterName,
-    profile,
-    updated: true
+    status: "received"
   };
 }
 

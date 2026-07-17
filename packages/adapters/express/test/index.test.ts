@@ -9,6 +9,7 @@ import {
   AEP_EXPRESS_WELL_KNOWN_PATH,
   createExpressAepHandler,
   createExpressAepHandlers,
+  createExpressAepProtectedResourceHandler,
   packageName,
   registerExpressAepRoute,
   registerExpressAepRoutes
@@ -197,6 +198,35 @@ describe("@aep-foundation/express", () => {
       title: "Method Not Allowed"
     });
   });
+
+  it("adapts protected-resource failures and authenticated continuations", async () => {
+    const response = createResponse();
+    const denied = createExpressAepProtectedResourceHandler(mockService(), "https://api.example");
+    await denied({ headers: {}, method: "GET", originalUrl: "/orders" }, response);
+    expect(response.statusCode).toBe(401);
+    expect(response.contentType).toBe("application/problem+json");
+
+    let continued = false;
+    const allowed = createExpressAepProtectedResourceHandler(
+      {
+        ...mockService(),
+        authenticateProtectedResource: () =>
+          Promise.resolve({
+            authenticated: true,
+            principal: {
+              agentDid: "did:web:agent.example",
+              authenticationKind: "aep-jwt",
+              authenticationMethod: "aep-jwt"
+            }
+          })
+      },
+      "https://api.example"
+    );
+    await allowed({}, createResponse(), () => {
+      continued = true;
+    });
+    expect(continued).toBe(true);
+  });
 });
 
 interface CapturedResponse extends ExpressAepResponse {
@@ -208,6 +238,20 @@ interface CapturedResponse extends ExpressAepResponse {
 
 function mockService(): AepService {
   return {
+    authenticateProtectedResource: () =>
+      Promise.resolve({
+        authenticated: false,
+        response: {
+          body: {
+            type: "urn:aep:error:authentication_required",
+            title: "Authentication required",
+            status: 401,
+            code: "authentication_required"
+          },
+          contentType: "application/problem+json",
+          status: 401
+        }
+      }),
     enroll: () =>
       Promise.resolve({
         body: { status: "active" },

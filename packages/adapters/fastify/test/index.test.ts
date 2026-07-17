@@ -9,6 +9,7 @@ import {
   AEP_FASTIFY_WELL_KNOWN_PATH,
   createFastifyAepHandler,
   createFastifyAepHandlers,
+  createFastifyAepProtectedResourceHandler,
   createFastifyAepPlugin,
   createFastifyAepRoutesPlugin,
   packageName
@@ -17,6 +18,33 @@ import type { FastifyAepHandler, FastifyAepReply } from "../src/index.js";
 import type { AepService } from "@aep-foundation/service";
 
 describe("@aep-foundation/fastify", () => {
+  it("adapts protected-resource authentication", async () => {
+    const reply = createReply();
+    await createFastifyAepProtectedResourceHandler(mockService(), "https://api.example")(
+      { headers: {}, method: "GET", url: "/orders" },
+      reply
+    );
+    expect(reply.statusCode).toBe(401);
+    expect(reply.contentType).toBe("application/problem+json");
+
+    const allowed = createFastifyAepProtectedResourceHandler(
+      {
+        ...mockService(),
+        authenticateProtectedResource: () =>
+          Promise.resolve({
+            authenticated: true,
+            principal: {
+              agentDid: "did:web:agent.example",
+              authenticationKind: "aep-jwt",
+              authenticationMethod: "aep-jwt"
+            }
+          })
+      },
+      "https://api.example"
+    );
+    await expect(allowed({}, createReply())).resolves.toBeUndefined();
+  });
+
   it("exports the package name", () => {
     expect(packageName).toBe("@aep-foundation/fastify");
   });
@@ -198,6 +226,20 @@ interface CapturedReply extends FastifyAepReply {
 
 function mockService(): AepService {
   return {
+    authenticateProtectedResource: () =>
+      Promise.resolve({
+        authenticated: false,
+        response: {
+          body: {
+            type: "urn:aep:error:authentication_required",
+            title: "Authentication required",
+            status: 401,
+            code: "authentication_required"
+          },
+          contentType: "application/problem+json",
+          status: 401
+        }
+      }),
     enroll: () =>
       Promise.resolve({
         body: { status: "active" },

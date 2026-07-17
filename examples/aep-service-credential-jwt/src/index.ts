@@ -11,7 +11,10 @@ import type { Request, RequestHandler, Response } from "express";
 
 import {
   exampleListenUrl,
+  exampleOpenApi,
+  exampleOpenApiAdvertisement,
   exampleServicePorts,
+  logExampleServiceUrls,
   logExampleServiceInteraction,
   requiredExampleConfig
 } from "../../_shared/aep-examples.js";
@@ -23,6 +26,8 @@ const listenUrl = exampleListenUrl(host, port);
 const serviceDid = requiredExampleConfig("SERVICE_DID", process.env["SERVICE_DID"]);
 
 const service = createAepService({
+  authenticationMethods: ["aep-jwt"],
+  ...exampleOpenApiAdvertisement(),
   ...exampleServicePorts(),
   clientAssertionVerifier: createDidWebClientAssertionVerifier(),
   identityMethods: [didWebIdentityMethod()],
@@ -48,37 +53,40 @@ app.use((request, response, next) => {
   next();
 });
 registerExpressAepRoutes(app, service);
+app.get("/openapi.json", (_request, response) => response.json(exampleOpenApi("aep-jwt")));
 app.get("/api/resource", requireAepJwt, (_request, response) => {
   response.json({
-    message: "This resource was returned after AEP JWT authentication.",
-    resource: "example-resource"
+    widgets: [1, 2, 3]
   });
 });
-app.post("/api/profile", requireAepJwt, (request, response) => {
+app.post("/api/profile", requireAepJwt, (_request, response) => {
   response.json({
-    profile: requestBody(request),
-    updated: true
+    status: "received"
   });
 });
 
 app.listen(port, host, () => {
-  console.log(`AEP JWT service listening on ${listenUrl}`);
-  console.log(`Service DID: ${serviceDid}`);
+  logExampleServiceUrls(`${serviceName} credential`, listenUrl, serviceDid);
 });
 
 async function authenticateProtectedRoute(request: Request, response: Response): Promise<boolean> {
-  const status = await authenticateProtectedResource(service, request.header("authorization"));
+  const status = await authenticateProtectedResource(service, {
+    headers: request.headers,
+    method: request.method,
+    url: new URL(request.originalUrl, listenUrl)
+  });
 
-  if (status.status !== 200 || !isActiveProtectedResourceAuthentication(status)) {
-    response.type(status.contentType).status(status.status).json(status.body);
+  if (!isActiveProtectedResourceAuthentication(status)) {
+    for (const [name, value] of Object.entries(status.response.headers ?? {}))
+      response.set(name, value);
+    response
+      .type(status.response.contentType)
+      .status(status.response.status)
+      .json(status.response.body);
     return false;
   }
 
   return true;
-}
-
-function requestBody(request: Request): unknown {
-  return request.body as unknown;
 }
 
 function parsePort(value: string): number {

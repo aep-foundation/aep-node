@@ -9,6 +9,7 @@ import {
   AEP_HONO_WELL_KNOWN_PATH,
   createHonoAepHandler,
   createHonoAepHandlers,
+  createHonoAepProtectedResourceHandler,
   packageName,
   registerHonoAepRoute,
   registerHonoAepRoutes
@@ -17,6 +18,30 @@ import type { HonoAepContext, HonoAepHandler } from "../src/index.js";
 import type { AepService } from "@aep-foundation/service";
 
 describe("@aep-foundation/hono", () => {
+  it("adapts protected-resource authentication", async () => {
+    const context = createContext({ raw: new Request("https://api.example/orders") });
+    await createHonoAepProtectedResourceHandler(mockService())(context);
+    expect(context.statusCode).toBe(401);
+    expect(context.headers?.["Content-Type"]).toBe("application/problem+json");
+
+    const allowed = createHonoAepProtectedResourceHandler({
+      ...mockService(),
+      authenticateProtectedResource: () =>
+        Promise.resolve({
+          authenticated: true,
+          principal: {
+            agentDid: "did:web:agent.example",
+            authenticationKind: "aep-jwt",
+            authenticationMethod: "aep-jwt"
+          }
+        })
+    });
+    await expect(
+      allowed(createContext({ raw: new Request("https://api.example/") }))
+    ).resolves.toBeUndefined();
+    await expect(allowed(createContext())).rejects.toThrow("requires req.raw");
+  });
+
   it("exports the package name", () => {
     expect(packageName).toBe("@aep-foundation/hono");
   });
@@ -175,7 +200,9 @@ interface CapturedContext extends HonoAepContext {
   statusCode?: number;
 }
 
-function createContext(options: { authorization?: string; body?: unknown } = {}): CapturedContext {
+function createContext(
+  options: { authorization?: string; body?: unknown; raw?: Request } = {}
+): CapturedContext {
   return {
     json(body: unknown, status?: number, headers?: Record<string, string>) {
       this.body = body;
@@ -197,13 +224,28 @@ function createContext(options: { authorization?: string; body?: unknown } = {})
       header(name: string) {
         return name.toLowerCase() === "authorization" ? options.authorization : undefined;
       },
-      json: () => Promise.resolve(options.body)
+      json: () => Promise.resolve(options.body),
+      ...(options.raw === undefined ? {} : { raw: options.raw })
     }
   };
 }
 
 function mockService(): AepService {
   return {
+    authenticateProtectedResource: () =>
+      Promise.resolve({
+        authenticated: false,
+        response: {
+          body: {
+            type: "urn:aep:error:authentication_required",
+            title: "Authentication required",
+            status: 401,
+            code: "authentication_required"
+          },
+          contentType: "application/problem+json",
+          status: 401
+        }
+      }),
     enroll: () =>
       Promise.resolve({
         body: { status: "active" },
