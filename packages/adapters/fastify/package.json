@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/fastify",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Fastify adapter for AEP Service handlers.",
   "homepage": "https://www.aep.foundation/",
   "type": "module",
