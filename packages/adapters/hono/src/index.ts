@@ -15,6 +15,26 @@ export interface HonoAepContext {
   req?: {
     header(name: string): string | undefined;
     json(): Promise<unknown>;
+    raw?: Request;
+  };
+}
+
+export function createHonoAepProtectedResourceHandler(input: HonoAepServiceInput): HonoAepHandler {
+  const service = resolveService(input);
+  return async (context) => {
+    const request = context.req?.raw;
+    if (request === undefined)
+      throw new TypeError("Hono protected-resource authentication requires req.raw.");
+    const result = await service.authenticateProtectedResource({
+      headers: request.headers,
+      method: request.method,
+      url: request.url
+    });
+    if (result.authenticated) return undefined;
+    return context.json(result.response.body, result.response.status, {
+      ...result.response.headers,
+      "Content-Type": result.response.contentType
+    });
   };
 }
 
@@ -104,6 +124,7 @@ function createHonoCommandHandler(
             : await service.revoke(body, commandOptions);
 
     return context.json(result.body, result.status, {
+      ...result.headers,
       "Content-Type": result.contentType
     });
   };

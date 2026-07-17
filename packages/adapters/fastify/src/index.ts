@@ -11,6 +11,7 @@ export const AEP_FASTIFY_WELL_KNOWN_PATH = "/.well-known/aep";
 export const AEP_FASTIFY_MEDIA_TYPE = "application/aep+json";
 
 export interface FastifyAepReply {
+  header?(name: string, value: string): FastifyAepReply;
   send(body: unknown): unknown;
   status?(code: number): FastifyAepReply;
   type(contentType: string): FastifyAepReply;
@@ -19,6 +20,27 @@ export interface FastifyAepReply {
 export interface FastifyAepRequest {
   body?: unknown;
   headers?: Record<string, string | string[] | undefined>;
+  method?: string;
+  url?: string;
+}
+
+export function createFastifyAepProtectedResourceHandler(
+  input: FastifyAepServiceInput,
+  resourceBaseUrl: string | URL
+): FastifyAepHandler {
+  const service = resolveService(input);
+  return async (request, reply) => {
+    const result = await service.authenticateProtectedResource({
+      headers: request.headers ?? {},
+      method: request.method ?? "GET",
+      url: new URL(request.url ?? "/", resourceBaseUrl)
+    });
+    if (result.authenticated) return;
+    for (const [name, value] of Object.entries(result.response.headers ?? {}))
+      reply.header?.(name, value);
+    reply.status?.(result.response.status);
+    return reply.type(result.response.contentType).send(result.response.body);
+  };
 }
 
 export type FastifyAepHandler = (request: FastifyAepRequest, reply: FastifyAepReply) => unknown;
@@ -110,6 +132,7 @@ function createFastifyCommandHandler(
             : await service.revoke(request.body, commandOptions);
 
     reply.status?.(result.status);
+    for (const [name, value] of Object.entries(result.headers ?? {})) reply.header?.(name, value);
     return reply.type(result.contentType).send(result.body);
   };
 }

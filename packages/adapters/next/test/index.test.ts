@@ -7,6 +7,7 @@ import { didWebIdentityMethod } from "@aep-foundation/service";
 import {
   AEP_NEXT_MEDIA_TYPE,
   createNextAepCommandRouteHandler,
+  createNextAepProtectedResourceHandler,
   createNextAepRoute,
   createNextAepRouteHandler,
   packageName
@@ -147,10 +148,51 @@ describe("@aep-foundation/next", () => {
       }
     ]);
   });
+
+  it("adapts protected-resource failures and authenticated responses", async () => {
+    const request = new Request("https://api.example.com/orders");
+    const denied = await createNextAepProtectedResourceHandler(mockService(), () =>
+      Promise.resolve(new Response("allowed"))
+    )(request);
+    expect(denied.status).toBe(401);
+    await expect(denied.json()).resolves.toMatchObject({ code: "authentication_required" });
+
+    const allowed = createNextAepProtectedResourceHandler(
+      {
+        ...mockService(),
+        authenticateProtectedResource: () =>
+          Promise.resolve({
+            authenticated: true,
+            principal: {
+              agentDid: "did:web:agent.example",
+              authenticationKind: "aep-jwt",
+              authenticationMethod: "aep-jwt"
+            }
+          })
+      },
+      () => new Response("allowed", { status: 202 })
+    );
+    expect((await allowed(request)).status).toBe(202);
+    await expect(allowed()).rejects.toThrow("request is required");
+  });
 });
 
 function mockService(): AepService {
   return {
+    authenticateProtectedResource: () =>
+      Promise.resolve({
+        authenticated: false,
+        response: {
+          body: {
+            type: "urn:aep:error:authentication_required",
+            title: "Authentication required",
+            status: 401,
+            code: "authentication_required"
+          },
+          contentType: "application/problem+json",
+          status: 401
+        }
+      }),
     enroll: () =>
       Promise.resolve({
         body: { status: "active" },

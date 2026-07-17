@@ -1,10 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import {
-  AEP_GRANT_TYPE_API_KEY,
-  AEP_PROBLEM_MEDIA_TYPE,
-  createProblemDetails
-} from "@aep-foundation/core";
+import { AEP_GRANT_TYPE_API_KEY } from "@aep-foundation/core";
 import type { ApiKeyGrantResponse } from "@aep-foundation/core";
 import { registerExpressAepRoutes } from "@aep-foundation/express";
 import {
@@ -19,10 +15,12 @@ import type { Request, RequestHandler, Response } from "express";
 
 import {
   exampleListenUrl,
+  exampleOpenApi,
+  exampleOpenApiAdvertisement,
   exampleServicePorts,
-  findActiveCredential,
   logExampleCredentialIssued,
   logExampleServiceInteraction,
+  logExampleServiceUrls,
   parsePort,
   profileBody,
   requiredExampleConfig,
@@ -36,10 +34,11 @@ const port = parsePort(process.env["PORT"] ?? "3000");
 const listenUrl = exampleListenUrl(host, port);
 const serviceDid = requiredExampleConfig("SERVICE_DID", process.env["SERVICE_DID"]);
 const credentialStore = createInMemoryServiceCredentialStore();
-const issuedApiKeys = new Map<string, { agentDid: string; credentialId: string }>();
 
 const service = createAepService({
+  ...exampleOpenApiAdvertisement(),
   ...exampleServicePorts(),
+  authenticationMethods: [AEP_GRANT_TYPE_API_KEY],
   clientAssertionVerifier: createDidWebClientAssertionVerifier(),
   grantTypes: [
     storedApiKeyGrantType({
@@ -52,10 +51,6 @@ const service = createAepService({
           scopes: ["read:resource", "write:profile"]
         };
 
-        issuedApiKeys.set(credential.api_key, {
-          agentDid: context.agentDid,
-          credentialId: credential.credential_id
-        });
         logExampleCredentialIssued(
           adapterName,
           AEP_GRANT_TYPE_API_KEY,
@@ -90,45 +85,30 @@ app.use((request, response, next) => {
   next();
 });
 registerExpressAepRoutes(app, service);
+app.get("/openapi.json", (_request, response) => response.json(exampleOpenApi("api-key")));
 app.get("/api/resource", requireCredential, (_request, response) => {
-  response.json(resourceBody(adapterName));
+  response.json(resourceBody());
 });
-app.post("/api/profile", requireCredential, (request, response) => {
-  response.json(profileBody(adapterName, request.body as unknown));
+app.post("/api/profile", requireCredential, (_request, response) => {
+  response.json(profileBody());
 });
 
 app.listen(port, host, () => {
-  console.log(`AEP ${adapterName} credential service listening on ${listenUrl}`);
-  console.log(`Service DID: ${serviceDid}`);
+  logExampleServiceUrls(`${adapterName} credential`, listenUrl, serviceDid);
 });
 
 async function authenticateCredential(request: Request, response: Response): Promise<boolean> {
-  const presentedApiKey = request.header(apiKeyHeader);
-  const issued = presentedApiKey === undefined ? undefined : issuedApiKeys.get(presentedApiKey);
-
-  if (presentedApiKey !== undefined && issued !== undefined) {
-    const record = await findActiveCredential(
-      credentialStore,
-      issued.agentDid,
-      AEP_GRANT_TYPE_API_KEY,
-      (credential) =>
-        credential.credential_id === issued.credentialId &&
-        "api_key" in credential &&
-        typeof credential.api_key === "string" &&
-        "header" in credential &&
-        typeof credential.header === "string" &&
-        credential.header.toLowerCase() === apiKeyHeader &&
-        credential.api_key === presentedApiKey
-    );
-
-    if (record !== undefined) {
-      return true;
-    }
-  }
-
+  const result = await service.authenticateProtectedResource({
+    headers: request.headers,
+    method: request.method,
+    url: new URL(request.originalUrl, listenUrl)
+  });
+  if (result.authenticated) return true;
+  for (const [name, value] of Object.entries(result.response.headers ?? {}))
+    response.set(name, value);
   response
-    .type(AEP_PROBLEM_MEDIA_TYPE)
-    .status(401)
-    .json(createProblemDetails({ code: "not_recognized", status: 401, title: "Not recognized" }));
+    .type(result.response.contentType)
+    .status(result.response.status)
+    .json(result.response.body);
   return false;
 }

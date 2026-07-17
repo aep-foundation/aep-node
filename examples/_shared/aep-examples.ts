@@ -16,6 +16,46 @@ export function exampleListenUrl(host: string, port: number): string {
   return `http://${host}:${port}`;
 }
 
+export function logExampleServiceUrls(
+  service: string,
+  listenUrl: string,
+  serviceDid: string
+): void {
+  console.log(`AEP ${service} service listening on ${listenUrl}`);
+  console.log(`Service DID: ${serviceDid}`);
+  console.log("AEP discovery:");
+  console.log(`  GET  ${listenUrl}/.well-known/aep`);
+  console.log(`  GET  ${listenUrl}/openapi.json`);
+  console.log("Protected resources:");
+  console.log(`  GET  ${listenUrl}/api/resource`);
+  console.log(`  POST ${listenUrl}/api/profile`);
+}
+
+export function exampleOpenApi(authenticationMethod: string): Record<string, unknown> {
+  return {
+    openapi: "3.1.0",
+    info: { title: "AEP example protected resources", version: "1.0.0" },
+    components: {
+      securitySchemes: {
+        aep: {
+          type: "http",
+          scheme: "bearer",
+          "x-aep-authentication-method": authenticationMethod
+        }
+      }
+    },
+    security: [{ aep: [] }],
+    paths: {
+      "/api/resource": { get: { responses: { "200": { description: "Protected resource" } } } },
+      "/api/profile": { post: { responses: { "200": { description: "Protected profile" } } } }
+    }
+  };
+}
+
+export function exampleOpenApiAdvertisement(): Pick<AepServiceOptions, "openapi"> {
+  return { openapi: { url: "/openapi.json", pathMatching: { trailingSlash: "strict" } } };
+}
+
 export function requiredExampleConfig(name: string, value: string | undefined): string {
   if (value === undefined || value.length === 0) {
     throw new Error(`Missing required example configuration: ${name}`);
@@ -41,19 +81,15 @@ export async function findActiveCredential(
   );
 }
 
-export function resourceBody(adapter: string): Record<string, unknown> {
+export function resourceBody(): Record<string, unknown> {
   return {
-    adapter,
-    message: "This resource was returned after AEP credential authentication.",
-    resource: "example-resource"
+    widgets: [1, 2, 3]
   };
 }
 
-export function profileBody(adapter: string, profile: unknown): Record<string, unknown> {
+export function profileBody(): Record<string, unknown> {
   return {
-    adapter,
-    profile,
-    updated: true
+    status: "received"
   };
 }
 
@@ -72,7 +108,12 @@ export function exampleServicePorts(): Pick<
 export function isExampleServiceInteractionPath(pathOrUrl: string | undefined): boolean {
   const path = pathFromUrl(pathOrUrl);
 
-  return path === "/.well-known/aep" || path.startsWith("/aep/") || path.startsWith("/api/");
+  return (
+    path === "/.well-known/aep" ||
+    path === "/openapi.json" ||
+    path.startsWith("/aep/") ||
+    path.startsWith("/api/")
+  );
 }
 
 export function logExampleServiceInteraction(

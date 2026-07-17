@@ -89,6 +89,18 @@ describe("@aep-foundation/service Inspect builder", () => {
     expect(document.commands.grant_types_config).toBeUndefined();
   });
 
+  it("advertises finalized OpenAPI location and slash matching", () => {
+    const document = buildInspectDocument({
+      serviceDid: "did:web:api.example.com",
+      identityMethods: [didWebIdentityMethod()],
+      openapi: { url: "/openapi.json", pathMatching: { trailingSlash: "equivalent" } }
+    });
+    expect(document.http.openapi).toEqual({
+      url: "/openapi.json",
+      path_matching: { trailing_slash: "equivalent" }
+    });
+  });
+
   it("advertises only explicitly enabled identity methods and grant types", () => {
     const document = buildInspectDocument({
       serviceDid: "did:web:api.example.com",
@@ -243,6 +255,37 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     expect(second).toEqual(first);
   });
 
+  it("returns an existing enrollment without reevaluating policy or replacing it", async () => {
+    const existing = activeEnrollment("did:web:agent.example.com:agents:123");
+    const store = createInMemoryEnrollmentStore([existing]);
+    const storedBefore = await store.findEnrollment(existing.agentDid);
+    let policyCalls = 0;
+
+    const response = await handleEnrollRequest(
+      {
+        agent_did: existing.agentDid,
+        idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-111111111111"
+      },
+      {
+        policy: {
+          decideEnrollment: () => {
+            policyCalls += 1;
+            return { status: "rejected" };
+          }
+        },
+        store
+      }
+    );
+
+    expect(response).toEqual({
+      body: { status: "active" },
+      contentType: "application/aep+json",
+      status: 200
+    });
+    expect(policyCalls).toBe(0);
+    expect(await store.findEnrollment(existing.agentDid)).toEqual(storedBefore);
+  });
+
   it("serializes concurrent matching command idempotency keys", async () => {
     const commandIdempotencyStore = createInMemoryCommandIdempotencyStore();
     const started = deferred<void>();
@@ -386,6 +429,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
         type: "urn:aep:error:not_recognized"
       },
       contentType: "application/problem+json",
+      headers: { "WWW-Authenticate": 'AEP reason="not_recognized"' },
       status: 401
     });
   });
@@ -546,30 +590,165 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
 });
 
 describe("@aep-foundation/service protected resource authentication helpers", () => {
-  it("extracts AEP Authorization headers and delegates protected resource checks to Status", async () => {
-    const calls: string[] = [];
+  it("authenticates resource-bound AEP JWT assertions and rejects unsupported JWT presentation", async () => {
+    const resource = "https://api.example.com/orders/123";
+    const claims = {
+      ...clientAssertionClaims("status", "authenticate-resource"),
+      op: "authenticate" as const,
+      resource
+    };
+    const service = createAepService({
+      authenticationMethods: ["aep-jwt"],
+      clientAssertion: assertionConfig(),
+      clientAssertionVerifier: parseJsonAssertion,
+      identityMethods: [didWebIdentityMethod()],
+      inspectUrl: "https://api.example.com/.well-known/aep",
+      serviceDid: "did:web:api.example.com"
+    });
+    await expect(
+      service.authenticateProtectedResource({
+        headers: new Headers({ Authorization: `AEP ${JSON.stringify(claims)}` }),
+        method: "GET",
+        url: resource
+      })
+    ).resolves.toMatchObject({
+      authenticated: true,
+      principal: { authenticationMethod: "aep-jwt" }
+    });
+
+    const unsupported = createAepService({
+      identityMethods: [didWebIdentityMethod()],
+      serviceDid: "did:web:api.example.com"
+    });
+    await expect(
+      unsupported.authenticateProtectedResource({
+        headers: { Authorization: "AEP assertion" },
+        method: "GET",
+        url: resource
+      })
+    ).resolves.toMatchObject({
+      authenticated: false,
+      response: { body: { code: "unsupported_authentication_method" } }
+    });
+  });
+
+  it("selects the dedicated carrier, composes unrelated Authorization, and fails closed on ambiguity", async () => {
+    const service = createAepService({
+      authenticationMethods: ["custom-session"],
+      grantTypes: [
+        grantType("custom-session", undefined, {
+          authenticate: ({ headers }) =>
+            headers["authorization"] === "Bearer valid"
+              ? {
+                  agentDid: "did:web:agent.example",
+                  authenticationKind: "session-credential",
+                  authenticationMethod: "custom-session",
+                  grantType: "custom-session"
+                }
+              : undefined,
+          grant: () => ({}),
+          revoke: () => undefined
+        })
+      ],
+      identityMethods: [didWebIdentityMethod()],
+      serviceDid: "did:web:api.example.com"
+    });
+    await expect(
+      service.authenticateProtectedResource({
+        headers: { "AEP-Authorization": "Bearer valid", Authorization: "Payment orthogonal" },
+        method: "GET",
+        url: "https://api.example.com/orders"
+      })
+    ).resolves.toMatchObject({ authenticated: true });
+    await expect(
+      service.authenticateProtectedResource({
+        headers: { "AEP-Authorization": "Bearer valid", Authorization: "Basic other" },
+        method: "GET",
+        url: "https://api.example.com/orders"
+      })
+    ).resolves.toMatchObject({
+      authenticated: false,
+      response: { body: { code: "not_recognized" } }
+    });
+    await expect(
+      service.authenticateProtectedResource({
+        headers: { "AEP-Authorization": ["Bearer valid", "Bearer other"] },
+        method: "GET",
+        url: "https://api.example.com/orders"
+      })
+    ).resolves.toMatchObject({
+      authenticated: false,
+      response: { body: { code: "not_recognized" } }
+    });
+  });
+
+  it("authenticates through registered handlers and otherwise emits the finalized challenge", async () => {
+    const service = createAepService({
+      authenticationMethods: ["custom-session"],
+      grantTypes: [
+        grantType("custom-session", undefined, {
+          authenticate: ({ headers }) =>
+            headers["x-session"] === "valid"
+              ? {
+                  agentDid: "did:web:agent.example",
+                  authenticationKind: "session-credential",
+                  authenticationMethod: "custom-session",
+                  credentialId: "credential-1",
+                  grantType: "custom-session",
+                  scopes: ["read"]
+                }
+              : undefined,
+          grant: () => ({}),
+          revoke: () => undefined
+        })
+      ],
+      identityMethods: [didWebIdentityMethod()],
+      serviceDid: "did:web:api.example.com"
+    });
+    await expect(
+      service.authenticateProtectedResource({
+        headers: { "X-Session": "valid" },
+        method: "GET",
+        url: "https://api.example.com/orders"
+      })
+    ).resolves.toMatchObject({
+      authenticated: true,
+      principal: { agentDid: "did:web:agent.example", scopes: ["read"] }
+    });
+    const missing = await service.authenticateProtectedResource({
+      headers: {},
+      method: "GET",
+      url: "https://api.example.com/orders"
+    });
+    expect(missing).toMatchObject({ authenticated: false, response: { status: 401 } });
+    if (!missing.authenticated)
+      expect(missing.response.headers?.["WWW-Authenticate"]).toContain(
+        'service_did="did:web:api.example.com"'
+      );
+  });
+
+  it("delegates protected resource authentication to the unified Service API", async () => {
     const result = await authenticateProtectedResource(
       {
-        status: (options) => {
-          calls.push(options.clientAssertion);
-          return Promise.resolve({
-            body: {
-              owner_action_required: "false",
-              requirements_pending: [],
-              since: "2026-05-28T12:00:00.000Z",
-              status: "active"
-            },
-            contentType: "application/aep+json",
-            status: 200
-          });
-        }
+        authenticateProtectedResource: () =>
+          Promise.resolve({
+            authenticated: true,
+            principal: {
+              agentDid: "did:web:agent.example",
+              authenticationKind: "aep-jwt",
+              authenticationMethod: "aep-jwt"
+            }
+          })
       },
-      "AEP jwt.status"
+      {
+        headers: { Authorization: "AEP jwt.authenticate" },
+        method: "GET",
+        url: "https://service.example/resource"
+      }
     );
 
     expect(clientAssertionFromAepAuthorization("AEP jwt.status")).toBe("jwt.status");
     expect(clientAssertionFromAepAuthorization("Bearer token")).toBe("");
-    expect(calls).toEqual(["jwt.status"]);
     expect(isActiveProtectedResourceAuthentication(result)).toBe(true);
   });
 
@@ -1087,6 +1266,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
   it("persists and revokes built-in issued credentials", async () => {
     const credentialStore = createInMemoryServiceCredentialStore();
     const service = createAepService({
+      authenticationMethods: ["oauth-bearer"],
       clientAssertion: assertionConfig(),
       clientAssertionVerifier: parseJsonAssertion,
       serviceDid: "did:web:api.example.com",
@@ -1149,6 +1329,17 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
       grantType: "oauth-bearer"
     });
 
+    await expect(
+      service.authenticateProtectedResource({
+        headers: { Authorization: "Bearer access-token" },
+        method: "GET",
+        url: "https://api.example.com/resource"
+      })
+    ).resolves.toMatchObject({
+      authenticated: true,
+      principal: { credentialId: "cred_123", scopes: ["read"] }
+    });
+
     await service.revoke(
       {
         credential_id: "cred_123"
@@ -1167,6 +1358,13 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
     ).toMatchObject({
       revokedAt: "2026-05-28T12:00:00.000Z"
     });
+    await expect(
+      service.authenticateProtectedResource({
+        headers: { Authorization: "Bearer access-token" },
+        method: "GET",
+        url: "https://api.example.com/resource"
+      })
+    ).resolves.toMatchObject({ authenticated: false });
   });
 });
 
