@@ -2,7 +2,7 @@
 
 Service references may be DIDs, hosts, host paths, or absolute resource URLs. `resolveServiceReference` derives a trusted origin, while `inspectService` applies bounded same-origin redirects, media-type validation, abort support, and a one-mebibyte default response limit.
 
-Platform delegated signers return a `completed` or `pending` result. Pending results carry opaque `platformContext` and numeric `retryAfterSeconds`; pass the returned context unchanged in a later signing call with a new idempotency key.
+Platform delegated signers return a `completed` or `pending` result. Pending results carry opaque `platformContext` and numeric `retryAfterSeconds`.
 
 Agent-side workflows for AEP.
 
@@ -66,6 +66,42 @@ await session.revoke({
 });
 ```
 
+To keep Grant and protected-resource fetch calls alive while delegated signing
+is pending, configure a generic resolver. It receives the complete pending
+result and a continuation that preserves its opaque Platform context:
+
+```ts
+const agent = createAepAgent({
+  identityProvider,
+  platformContextProvider: ({ command, grantType, requestedScopes }) =>
+    command === "grant"
+      ? {
+          grant_type: grantType,
+          ...(requestedScopes === undefined ? {} : { requested_scopes: requestedScopes })
+        }
+      : undefined,
+  pendingSignResolver: async ({ continueSign, pending, signal }) => {
+    await waitForExternalAuthorization(pending, { signal });
+
+    for (;;) {
+      const result = await continueSign();
+      if (result.status === "completed") return result;
+      await delay(result.retryAfterSeconds * 1_000, { signal });
+    }
+  }
+});
+```
+
+`platformContextProvider` supplies opaque Platform-specific authorization context
+before the initial Sign request. The Agent SDK does not interpret or sign the
+returned object.
+
+The first Sign request and its completion use different idempotency keys;
+repeated `continueSign()` calls reuse the completion-stage key. Resolver errors
+are exposed as `AepPendingSignResolverError`, including `code: "aborted"` for
+cancellation. Without a resolver, pending signing continues to throw
+`AepPendingSignError` so applications can manage continuation directly.
+
 Platform authentication can use the compatibility `authorization` option or
 caller-provided headers. The Platform defines its authentication header name:
 
@@ -97,6 +133,16 @@ for those names in caller-provided authentication headers are ignored.
 sovereign Agent support can implement the same `AgentIdentityProvider` interface
 for local `did:key` or `did:jwk` custody without changing the Agent engine.
 
+A Platform-backed application can recover a missing local identity reference
+before provisioning:
+
+```ts
+const identity = await identityProvider.findIdentityByServiceDid(serviceDid);
+```
+
+The application uses the recovered identity to call Service Status and determine
+whether the Service recognizes it.
+
 ## Storage Ports
 
 The Agent engine can use application-provided stores:
@@ -104,7 +150,8 @@ The Agent engine can use application-provided stores:
 - `AgentIdentityStore` persists the Service-scoped Agent identity.
 - `AgentCredentialStore` persists issued session credentials.
 - `AgentIdempotencyKeyProvider` creates command idempotency keys.
-- `AgentInspectCache` caches validated Inspect documents.
+- `AepPublicDocumentCache` serializably caches validated Inspect, Platform
+  Discovery, and OpenAPI documents across Agent and provider instances.
 
 In-memory implementations are provided for examples and tests.
 
@@ -116,8 +163,8 @@ instance per principal or include the principal in every store lookup key.
 
 The package also exports low-level protocol primitives such as
 `inspectService()`, `enrollService()`, `statusService()`, `grantService()`,
-`revokeService()`, `discoverPlatform()`, `provisionPlatformIdentity()`, and
-`createPlatformDelegatedSigner()`.
+`revokeService()`, `discoverPlatform()`, `provisionPlatformIdentity()`,
+`listPlatformIdentities()`, and `createPlatformDelegatedSigner()`.
 
 These functions still own their AEP HTTP behavior. They use the runtime
 `fetch()` implementation, validate responses, and return typed AEP results.
@@ -128,7 +175,31 @@ PEM, JWK, `CryptoKey`, `KeyObject`, and raw key material supported by `jose`.
 `credentialPresentationHeaders()` turns built-in credentials into HTTP headers
 for OAuth Bearer, API-key, and HTTP Basic presentation.
 
+Pass `carrier: "dedicated"` to the presentation helpers, session
+`authenticationHeaders()`, or `fetchProtectedResource()` to use
+`AEP-Authorization` while preserving the `AEP`, `Bearer`, or `Basic` scheme.
+The default remains `Authorization`. Dedicated mode can compose with unrelated
+authentication through `additionalAuthenticationHeaders`; collisions with
+SDK-controlled AEP fields are rejected.
+
 `clientAssertionAuthenticationHeaders()` creates AEP JWT Authorization headers
 for protected Service resources, and `protectedResourceAuthenticationHeaders()`
 uses an issued built-in credential when one is available or falls back to AEP
 JWT authentication.
+
+`probeProtectedResource()` sends the caller's request anonymously and
+classifies success, a valid AEP challenge, unrelated authentication, or another
+HTTP response. `fetchProtectedResource()` performs bounded challenge-driven
+discovery, credential selection or Grant, exact request replay, resource-bound
+`authenticate` signing, redirect credential stripping, and cancellation. A
+streaming body is rejected before authentication begins because it cannot be
+replayed safely.
+
+When Inspect advertises OpenAPI 3.1, `inspectOpenApiPolicy()` returns the
+matched operation, policy source, public/required/fallback state, supported AEP
+methods, freshness, and strict-slash suggestion. `fetchProtectedResource()`
+uses a fresh definitive policy before challenge probing and retains live AEP
+challenges as the fallback for stale, absent, unsupported, or contradictory
+policy. Grant requires a previously stored or recoverable identity and a signed
+active Status result before signing unless the same session has authoritative
+active enrollment evidence.

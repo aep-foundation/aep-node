@@ -1,6 +1,7 @@
 import type {
   AEP_BINDINGS,
   AEP_BUILT_IN_GRANT_TYPES,
+  AEP_ASSERTION_OPERATIONS,
   AEP_COMMANDS,
   AEP_SIGNING_ALGORITHMS
 } from "./constants.js";
@@ -13,12 +14,24 @@ export type AepBuiltInGrantType = (typeof AEP_BUILT_IN_GRANT_TYPES)[number];
 export type AepGrantType = AepExtensibleString<AepBuiltInGrantType>;
 export type AepIdentityMethod = string;
 export type AepAuthenticatedCommand = Exclude<AepCommand, "inspect">;
+export type AepAssertionOperation = (typeof AEP_ASSERTION_OPERATIONS)[number];
+export type AepAuthenticationMethod = AepExtensibleString<"aep-jwt" | AepBuiltInGrantType>;
+export type AepOpenApiTrailingSlashMode = "strict" | "equivalent";
+export type AepProtectedResourceAuthorizationCarrier = "standard" | "dedicated";
+export type AepProtectedResourceAuthorizationScheme = "AEP" | "Bearer" | "Basic";
+
+export interface AepProtectedResourceAuthorization {
+  carrier: AepProtectedResourceAuthorizationCarrier;
+  credentials: string;
+  scheme: AepProtectedResourceAuthorizationScheme;
+}
 
 export type AepEnrollmentStatus = "active" | "pending" | "rejected";
 export type AepAgentStatus = AepEnrollmentStatus | "suspended" | "terminated" | "unavailable";
 
 export interface InspectDocument {
   aep_version: string;
+  authentication?: { methods: AepAuthenticationMethod[] };
   bindings: {
     supported: AepBinding[];
     [key: string]: unknown;
@@ -45,6 +58,10 @@ export interface InspectDocument {
   };
   http: {
     endpoint_base: string;
+    openapi?: {
+      url: string;
+      path_matching: { trailing_slash: AepOpenApiTrailingSlashMode };
+    };
     [key: string]: unknown;
   };
   identity: {
@@ -77,7 +94,10 @@ export type AepErrorCode =
   | "verification_pending"
   | "requirements_unmet"
   | "unsupported_grant_type"
-  | "idempotency_conflict";
+  | "idempotency_conflict"
+  | "authentication_required"
+  | "unsupported_authentication_method"
+  | "insufficient_scope";
 
 export interface EnrollRequest {
   agent_did: string;
@@ -137,7 +157,8 @@ export interface AepClientAssertionClaims {
   iat: number;
   iss: string;
   jti: string;
-  op: AepAuthenticatedCommand;
+  op: AepAssertionOperation;
+  resource?: string;
   sub: string;
   [key: string]: unknown;
 }

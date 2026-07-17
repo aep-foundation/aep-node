@@ -8,6 +8,9 @@ import {
   buildClientAssertionClaims,
   clientAssertionAuthenticationHeaders,
   createInMemorySessionCredentialStore,
+  createInMemoryAgentIdentityStore,
+  createInMemoryPublicDocumentCache,
+  createInMemoryInspectCache,
   createAepAgent,
   createPlatformIdentityProvider,
   createJwtClientAssertionSigner,
@@ -15,8 +18,13 @@ import {
   credentialPresentationHeaders,
   discoverPlatform,
   enrollService,
+  fetchProtectedResource,
+  fetchAepPublicDocument,
   grantService,
   inspectService,
+  inspectOpenApiPolicy,
+  interpretAepOpenApiOperation,
+  probeProtectedResource,
   provisionPlatformIdentity,
   revokeService,
   resolveServiceReference,
@@ -24,12 +32,16 @@ import {
   sessionCredentialRecordFromGrantResult,
   signClientAssertion,
   AepPendingSignError,
+  AepPendingSignResolverError,
   protectedResourceAuthenticationHeaders,
   statusService
 } from "../src/index.js";
 import type {
+  AepAgent,
   AepClientAssertionSigner,
+  AepClientAssertionSignerContext,
   AepInspectError,
+  AepServiceSession,
   InspectServiceResult,
   ResponseLike
 } from "../src/index.js";
@@ -109,6 +121,96 @@ describe("@aep-foundation/agent Inspect client", () => {
       "must not contain credentials"
     );
     expect(() => resolveServiceReference("http://api.example.com")).toThrow("require HTTPS");
+  });
+
+  it("reuses fresh cached Inspect documents and refetches expired entries", async () => {
+    let calls = 0;
+    const cache = createInMemoryInspectCache();
+    const fetch = () => {
+      calls += 1;
+      return jsonResponsePromise(minimalInspectDocument, {
+        headers: { "cache-control": "max-age=300" }
+      });
+    };
+
+    await withFetch(fetch, () =>
+      inspectService({
+        clock: () => new Date("2026-01-01T00:00:00.000Z"),
+        inspectCache: cache,
+        serviceUrl: "https://api.example.com"
+      })
+    );
+    await withFetch(fetch, () =>
+      inspectService({
+        clock: () => new Date("2026-01-01T00:04:59.000Z"),
+        inspectCache: cache,
+        serviceUrl: "https://api.example.com"
+      })
+    );
+    await withFetch(fetch, () =>
+      inspectService({
+        clock: () => new Date("2026-01-01T00:05:00.000Z"),
+        inspectCache: cache,
+        serviceUrl: "https://api.example.com"
+      })
+    );
+
+    expect(calls).toBe(2);
+  });
+
+  it("does not cache Inspect responses marked no-store", async () => {
+    let calls = 0;
+    const cache = createInMemoryInspectCache();
+    const fetch = () => {
+      calls += 1;
+      return jsonResponsePromise(minimalInspectDocument, {
+        headers: { "cache-control": "no-store" }
+      });
+    };
+
+    await withFetch(fetch, () =>
+      inspectService({ inspectCache: cache, serviceUrl: "https://api.example.com" })
+    );
+    await withFetch(fetch, () =>
+      inspectService({ inspectCache: cache, serviceUrl: "https://api.example.com" })
+    );
+
+    expect(calls).toBe(2);
+  });
+
+  it("conditionally revalidates an expired Inspect document", async () => {
+    const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
+    const cache = createInMemoryInspectCache();
+    const fetch = (input: URL | string, init?: RequestInit) => {
+      calls.push(fetchCall(input, init));
+      if (calls.length === 1)
+        return jsonResponsePromise(minimalInspectDocument, {
+          headers: { "cache-control": "max-age=1", etag: '"inspect-1"' }
+        });
+      return jsonResponsePromise(
+        {},
+        { ok: false, status: 304, headers: { "cache-control": "max-age=300" } }
+      );
+    };
+
+    await withFetch(fetch, () =>
+      inspectService({
+        clock: () => new Date("2026-01-01T00:00:00.000Z"),
+        inspectCache: cache,
+        serviceUrl: "https://api.example.com"
+      })
+    );
+    const result = await withFetch(fetch, () =>
+      inspectService({
+        clock: () => new Date("2026-01-01T00:00:02.000Z"),
+        inspectCache: cache,
+        serviceUrl: "https://api.example.com"
+      })
+    );
+
+    expect(calls[1]?.init?.headers).toMatchObject({ "If-None-Match": '"inspect-1"' });
+    expect(result.document.service.did).toBe("did:web:api.example.com");
+    expect(result.cacheControl).toBe("max-age=300");
   });
 
   it("fetches and validates a Service Inspect document", async () => {
@@ -339,6 +441,7 @@ describe("@aep-foundation/agent command clients", () => {
         agentDid: "did:web:agent.example.com:agents:123",
         clock: () => new Date("2026-05-28T12:00:00.000Z"),
         command: "status",
+        idempotencyKey: "status-sign-key",
         jti: "status-jti",
         serviceDid: "did:web:api.example.com",
         signer: (signedClaims, context) =>
@@ -351,6 +454,7 @@ describe("@aep-foundation/agent command clients", () => {
       JSON.stringify({
         context: {
           command: "status",
+          idempotencyKey: "status-sign-key",
           serviceDid: "did:web:api.example.com",
           signingAlgorithms: ["EdDSA", "ES256"]
         },
@@ -365,6 +469,106 @@ describe("@aep-foundation/agent command clients", () => {
         }
       })
     );
+  });
+
+  it.each(["grant", "authenticate"] as const)(
+    "continues pending %s signing with opaque context and a new stable stage key",
+    async (command) => {
+      const contexts: Array<{
+        idempotencyKey?: string;
+        platformContext?: Record<string, unknown>;
+      }> = [];
+      let calls = 0;
+      const signer: AepClientAssertionSigner = (_claims, context) => {
+        contexts.push(context);
+        calls += 1;
+        if (calls === 1) {
+          return {
+            status: "pending",
+            platformContext: { opaque: { continuation: "secret" } },
+            retryAfterSeconds: 7
+          };
+        }
+        if (calls === 2) {
+          return {
+            status: "pending",
+            platformContext: { opaque: { continuation: "secret" } },
+            retryAfterSeconds: 7
+          };
+        }
+        return { status: "completed", clientAssertion: `${command}.jwt` };
+      };
+
+      await expect(
+        signClientAssertion({
+          agentDid: "did:web:agent.example.com:agents:123",
+          command,
+          jti: `${command}-jti`,
+          pendingSignResolver: async (input) => {
+            const { pending } = input;
+            expect(pending).toEqual({
+              status: "pending",
+              platformContext: { opaque: { continuation: "secret" } },
+              retryAfterSeconds: 7
+            });
+            expect((await input.continueSign()).status).toBe("pending");
+            const completed = await input.continueSign();
+            if (completed.status !== "completed") throw new Error("Expected completion.");
+            return completed;
+          },
+          ...(command === "authenticate" ? { resource: "https://api.example.com/items" } : {}),
+          serviceDid: "did:web:api.example.com",
+          signer
+        })
+      ).resolves.toBe(`${command}.jwt`);
+
+      expect(contexts).toHaveLength(3);
+      expect(contexts[0]?.idempotencyKey).not.toBe(contexts[1]?.idempotencyKey);
+      expect(contexts[1]?.idempotencyKey).toBe(contexts[2]?.idempotencyKey);
+      expect(contexts[1]?.platformContext).toEqual({
+        opaque: { continuation: "secret" }
+      });
+      expect(contexts[2]?.platformContext).toEqual({
+        opaque: { continuation: "secret" }
+      });
+    }
+  );
+
+  it("preserves direct pending errors and types resolver failures and cancellation", async () => {
+    const pendingSigner: AepClientAssertionSigner = () => ({
+      status: "pending",
+      platformContext: { opaque: true },
+      retryAfterSeconds: 3
+    });
+    const base = {
+      agentDid: "did:web:agent.example.com:agents:123",
+      command: "grant" as const,
+      serviceDid: "did:web:api.example.com",
+      signer: pendingSigner
+    };
+    await expect(signClientAssertion(base)).rejects.toBeInstanceOf(AepPendingSignError);
+
+    await expect(
+      signClientAssertion({
+        ...base,
+        pendingSignResolver: () => {
+          throw new AepPendingSignResolverError("The caller declined signing.", "declined");
+        }
+      })
+    ).rejects.toMatchObject({ code: "declined" });
+
+    const controller = new AbortController();
+    await expect(
+      signClientAssertion({
+        ...base,
+        pendingSignResolver: ({ signal }) => {
+          controller.abort();
+          signal?.throwIfAborted();
+          throw new Error("unreachable");
+        },
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ code: "aborted" });
   });
 
   it("creates a JWT client assertion signer", async () => {
@@ -747,6 +951,591 @@ describe("@aep-foundation/agent command clients", () => {
   });
 });
 
+describe("@aep-foundation/agent protected-resource pending Sign continuation", () => {
+  it("preserves identity-provider failures for JWT protected resources", async () => {
+    const missingIdentity = new Error("identity not enrolled");
+    const agent = createAepAgent({
+      identityProvider: {
+        getOrCreateIdentity: () => {
+          throw missingIdentity;
+        },
+        signerFor: () => () => "jwt.authenticate"
+      }
+    });
+
+    await withFetch(
+      (input) => {
+        const url = String(input);
+        if (url.endsWith("/.well-known/aep")) {
+          return jsonResponsePromise({
+            ...minimalInspectDocument,
+            authentication: { methods: ["aep-jwt"] }
+          });
+        }
+        return jsonResponsePromise(
+          {},
+          {
+            headers: {
+              "www-authenticate":
+                'AEP service_did="did:web:api.example.com", inspect="https://api.example.com/.well-known/aep"'
+            },
+            ok: false,
+            status: 401
+          }
+        );
+      },
+      async () => {
+        await expect(
+          fetchProtectedResource({ agent, url: "https://api.example.com/items" })
+        ).rejects.toBe(missingIdentity);
+      }
+    );
+  });
+
+  it.each(["grant", "authenticate"] as const)(
+    "keeps fetchProtectedResource alive through pending %s signing",
+    async (pendingOperation) => {
+      const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
+      const signCalls: AepClientAssertionSignerContext[] = [];
+      const platformContextCalls: string[] = [];
+      let resolverCalls = 0;
+      let operationCalls = 0;
+      const signer: AepClientAssertionSigner = (claims, context) => {
+        signCalls.push(context);
+        if (claims.op !== pendingOperation) return `jwt.${claims.op}`;
+        operationCalls += 1;
+        return operationCalls === 1
+          ? {
+              status: "pending",
+              platformContext: { opaque: `${pendingOperation}-continuation` },
+              retryAfterSeconds: 2
+            }
+          : { status: "completed", clientAssertion: `jwt.${pendingOperation}` };
+      };
+      const inspect = {
+        ...minimalInspectDocument,
+        authentication: {
+          methods: pendingOperation === "authenticate" ? ["aep-jwt"] : ["oauth-bearer"]
+        }
+      } satisfies InspectDocument;
+      const agent = createAepAgent({
+        identityStore: createInMemoryAgentIdentityStore([
+          {
+            agentDid: "did:web:agent.example.com:agents:123",
+            identityKind: "sovereign",
+            serviceDid: "did:web:api.example.com",
+            signingAlgorithms: ["ES256"]
+          }
+        ]),
+        identityProvider: {
+          getOrCreateIdentity: () => ({
+            agentDid: "did:web:agent.example.com:agents:123",
+            identityKind: "sovereign",
+            serviceDid: "did:web:api.example.com",
+            signingAlgorithms: ["ES256"]
+          }),
+          signerFor: () => signer
+        },
+        pendingSignResolver: async (input) => {
+          const { pending } = input;
+          resolverCalls += 1;
+          expect(pending.platformContext).toEqual({
+            opaque: `${pendingOperation}-continuation`
+          });
+          const completed = await input.continueSign();
+          if (completed.status !== "completed") throw new Error("Expected completion.");
+          return completed;
+        },
+        platformContextProvider: ({ command, grantType }) => {
+          platformContextCalls.push(command);
+          return command === "grant" ? { grant_type: grantType } : undefined;
+        }
+      });
+      const fetch = (input: URL | string, init?: RequestInit): Promise<ResponseLike> => {
+        calls.push(fetchCall(input, init));
+        const url = String(input);
+        if (url.endsWith("/.well-known/aep")) return jsonResponsePromise(inspect);
+        if (url.endsWith("/aep/grant")) {
+          return jsonResponsePromise({
+            access_token: "access-token",
+            credential_id: "cred_123",
+            expires_at: "2999-05-28T12:00:00Z",
+            scopes: [],
+            token_type: "Bearer"
+          });
+        }
+        if (url.endsWith("/aep/status")) return jsonResponsePromise({ status: "active" });
+        const authorization = new Headers(init?.headers).get("authorization");
+        if (authorization === null) {
+          return jsonResponsePromise(
+            {},
+            {
+              headers: {
+                "www-authenticate":
+                  'AEP service_did="did:web:api.example.com", inspect="https://api.example.com/.well-known/aep"'
+              },
+              ok: false,
+              status: 401
+            }
+          );
+        }
+        return jsonResponsePromise({ ok: true });
+      };
+
+      const response = await withFetch(fetch, () =>
+        fetchProtectedResource({
+          agent,
+          url: "https://api.example.com/items"
+        })
+      );
+
+      expect(response.status).toBe(200);
+      expect(resolverCalls).toBe(1);
+      expect(operationCalls).toBe(2);
+      expect(signCalls.filter((context) => context.command === pendingOperation)).toHaveLength(2);
+      expect(platformContextCalls).toEqual(pendingOperation === "grant" ? ["grant"] : []);
+      expect(calls.filter((call) => String(call.input).endsWith("/aep/grant"))).toHaveLength(
+        pendingOperation === "grant" ? 1 : 0
+      );
+      const operationContexts = signCalls.filter((context) => context.command === pendingOperation);
+      if (pendingOperation === "grant") {
+        expect(operationContexts[0]?.platformContext).toEqual({ grant_type: "oauth-bearer" });
+      }
+      expect(operationContexts[0]?.idempotencyKey).not.toBe(operationContexts[1]?.idempotencyKey);
+      expect(operationContexts[1]?.platformContext).toEqual({
+        opaque: `${pendingOperation}-continuation`
+      });
+    }
+  );
+});
+
+describe("@aep-foundation/agent public documents and OpenAPI", () => {
+  it("fetches and interprets an advertised OpenAPI document", async () => {
+    const inspect = inspectResult({
+      ...minimalInspectDocument,
+      http: {
+        ...minimalInspectDocument.http,
+        openapi: { path_matching: { trailing_slash: "strict" }, url: "/openapi.json" }
+      }
+    });
+    const policy = await withFetch(
+      () =>
+        jsonResponsePromise(
+          {
+            openapi: "3.1.0",
+            paths: { "/items": { get: { security: [] } } }
+          },
+          { headers: { "content-type": "application/json" } }
+        ),
+      () =>
+        inspectOpenApiPolicy({
+          inspect,
+          maxResponseBytes: 10_000,
+          method: "GET",
+          publicDocumentCache: createInMemoryPublicDocumentCache(),
+          signal: new AbortController().signal,
+          url: "https://api.example.com/items"
+        })
+    );
+    expect(policy).toMatchObject({ state: "public", freshness: "fetched" });
+  });
+
+  it("shares fresh serializable documents and single-flights fetches", async () => {
+    const cache = createInMemoryPublicDocumentCache();
+    let calls = 0;
+    const fetcher = async () => {
+      calls += 1;
+      await Promise.resolve();
+      return new Response(JSON.stringify({ value: 1 }), {
+        headers: { "cache-control": "max-age=300", "content-type": "application/json" }
+      });
+    };
+    const run = () =>
+      withFetch(fetcher, () =>
+        fetchAepPublicDocument({
+          accept: "application/json",
+          acceptedMediaTypes: ["application/json"],
+          cache,
+          namespace: "openapi",
+          parse: (value) => value,
+          url: "https://api.example.com/openapi.json"
+        })
+      );
+    const [first, second] = await Promise.all([run(), run()]);
+    expect(first.value).toEqual({ value: 1 });
+    expect(second.freshness).toBe("fetched");
+    expect(calls).toBe(1);
+    const cached = await run();
+    expect(cached.freshness).toBe("fresh");
+    expect(calls).toBe(1);
+  });
+
+  it("follows redirects, persists aliases, and conditionally revalidates public documents", async () => {
+    const cache = createInMemoryPublicDocumentCache();
+    const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
+    let response = 0;
+    const fetcher = (input: URL | string, init?: RequestInit) => {
+      calls.push(fetchCall(input, init));
+      response += 1;
+      if (response === 1)
+        return Promise.resolve(
+          new Response(null, { status: 302, headers: { location: "/documents/openapi.json" } })
+        );
+      if (response === 2)
+        return jsonResponsePromise(
+          { openapi: "3.1.0" },
+          {
+            headers: {
+              "cache-control": "max-age=0",
+              "content-type": "application/json",
+              etag: '"openapi-1"',
+              "last-modified": "Thu, 16 Jul 2026 12:00:00 GMT"
+            }
+          }
+        );
+      return Promise.resolve(
+        new Response(null, { status: 304, headers: { "cache-control": "max-age=300" } })
+      );
+    };
+    const options = {
+      accept: "application/json",
+      acceptedMediaTypes: ["application/json"],
+      cache,
+      clock: () => new Date("2026-07-16T12:05:00.000Z"),
+      namespace: "openapi" as const,
+      parse: (value: unknown) => value,
+      sameOriginRedirects: true,
+      url: "https://api.example.com/openapi.json"
+    };
+
+    const fetched = await withFetch(fetcher, () => fetchAepPublicDocument(options));
+    const revalidated = await withFetch(fetcher, () => fetchAepPublicDocument(options));
+
+    expect(fetched.finalUrl.href).toBe("https://api.example.com/documents/openapi.json");
+    expect(revalidated).toMatchObject({ freshness: "revalidated", value: { openapi: "3.1.0" } });
+    expect(calls[2]?.init?.headers).toMatchObject({
+      "If-Modified-Since": "Thu, 16 Jul 2026 12:00:00 GMT",
+      "If-None-Match": '"openapi-1"'
+    });
+  });
+
+  it.each([
+    ["missing location", new Response(null, { status: 302 }), "omitted Location"],
+    [
+      "cross-origin redirect",
+      new Response(null, { status: 302, headers: { location: "https://other.example/openapi" } }),
+      "changed origin"
+    ],
+    [
+      "transport downgrade",
+      new Response(null, { status: 302, headers: { location: "http://localhost/openapi" } }),
+      "downgraded transport"
+    ]
+  ])("rejects public-document %s", async (label, response, message) => {
+    await expect(
+      withFetch(
+        () => Promise.resolve(response),
+        () =>
+          fetchAepPublicDocument({
+            accept: "application/json",
+            namespace: "openapi",
+            parse: (value) => value,
+            sameOriginRedirects: label !== "transport downgrade",
+            url: "https://api.example.com/openapi.json"
+          })
+      )
+    ).rejects.toThrow(message);
+  });
+
+  it("rejects redirect exhaustion, cacheless 304, HTTP failures, and unsafe URLs", async () => {
+    const request = (url = "https://api.example.com/openapi.json") =>
+      fetchAepPublicDocument({
+        accept: "application/json",
+        maxRedirects: 0,
+        namespace: "openapi",
+        parse: (value) => value,
+        url
+      });
+    await expect(
+      withFetch(
+        () => Promise.resolve(new Response(null, { status: 302, headers: { location: "/next" } })),
+        request
+      )
+    ).rejects.toThrow("redirect limit");
+    await expect(
+      withFetch(() => Promise.resolve(new Response(null, { status: 304 })), request)
+    ).rejects.toThrow("without a cached representation");
+    await expect(
+      withFetch(() => Promise.resolve(new Response(null, { status: 503 })), request)
+    ).rejects.toThrow("HTTP 503");
+    await expect(request("https://user:secret@api.example.com/openapi.json")).rejects.toThrow(
+      "must not contain user information"
+    );
+    await expect(request("http://api.example.com/openapi.json")).rejects.toThrow("require HTTPS");
+  });
+
+  it("interprets inherited, public, and strict-slash OpenAPI policy", () => {
+    const document = {
+      openapi: "3.1.0",
+      components: {
+        securitySchemes: {
+          session: { type: "http", scheme: "bearer", "x-aep-authentication-method": "oauth-bearer" }
+        }
+      },
+      security: [{ session: [] }],
+      paths: { "/items/{id}": { get: {} }, "/public": { get: { security: [] } } }
+    };
+    expect(
+      interpretAepOpenApiOperation(document, {
+        method: "get",
+        trailingSlash: "strict",
+        url: "https://api.example.com/items/1?x=1"
+      })
+    ).toMatchObject({
+      state: "required",
+      methods: ["oauth-bearer"],
+      matchedOperation: { pathTemplate: "/items/{id}" }
+    });
+    expect(
+      interpretAepOpenApiOperation(document, {
+        trailingSlash: "strict",
+        url: "https://api.example.com/public"
+      }).state
+    ).toBe("public");
+    expect(
+      interpretAepOpenApiOperation(document, {
+        trailingSlash: "strict",
+        url: "https://api.example.com/public/"
+      })
+    ).toMatchObject({ state: "fallback", strictSlashSuggestion: "/public" });
+    expect(
+      interpretAepOpenApiOperation(
+        {
+          ...document,
+          paths: {
+            "/v1/orders/{id}": { get: {} },
+            "/v1/{kind}/123": { get: {} }
+          }
+        },
+        { method: "get", trailingSlash: "strict", url: "https://api.example.com/v1/orders/123" }
+      )
+    ).toMatchObject({ matchedOperation: { pathTemplate: "/v1/orders/{id}" } });
+  });
+
+  it("handles invalid, missing, equivalent, ambiguous, and unusable OpenAPI policies", () => {
+    const request = {
+      method: "GET",
+      trailingSlash: "equivalent" as const,
+      url: "https://api.example.com/items/"
+    };
+    expect(() => interpretAepOpenApiOperation({ openapi: "3.0.3" }, request)).toThrow(
+      "OpenAPI 3.1"
+    );
+    expect(interpretAepOpenApiOperation({ openapi: "3.1.0" }, request).state).toBe("fallback");
+    expect(
+      interpretAepOpenApiOperation(
+        {
+          openapi: "3.1.0",
+          paths: {
+            "/items": { get: { security: [{ first: [], second: [] }] } },
+            "/{kind}": { get: {} }
+          }
+        },
+        request
+      )
+    ).toMatchObject({ state: "fallback", matchedOperation: { pathTemplate: "/items" } });
+    expect(
+      interpretAepOpenApiOperation(
+        {
+          openapi: "3.1.0",
+          paths: {
+            "/{first}/items": { get: {} },
+            "/items/{second}": { get: {} }
+          }
+        },
+        { ...request, url: "https://api.example.com/items/items" }
+      ).state
+    ).toBe("fallback");
+    expect(
+      interpretAepOpenApiOperation(
+        { openapi: "3.1.0", paths: { "/items": { get: { security: [{}] } } } },
+        request
+      ).state
+    ).toBe("public");
+  });
+
+  it("classifies protected-resource responses and ignores malformed AEP challenges", async () => {
+    const responses = [
+      new Response("ok"),
+      new Response(null, { status: 401, headers: { "www-authenticate": "Basic realm=x" } }),
+      new Response(null, { status: 403 }),
+      new Response(null, {
+        status: 401,
+        headers: {
+          "www-authenticate":
+            'AEP service_did="did:web:api.example.com", inspect="https://api.example.com/.well-known/aep", reason="expired"'
+        }
+      }),
+      new Response(null, {
+        status: 401,
+        headers: {
+          "www-authenticate": 'AEP service_did="did:web:api.example.com", inspect="not a valid URL"'
+        }
+      })
+    ];
+    const classifications = [];
+    for (const response of responses) {
+      classifications.push(
+        await withFetch(
+          () => Promise.resolve(response),
+          () =>
+            probeProtectedResource({
+              body: "replayable",
+              headers: { "X-Request": "test" },
+              method: "POST",
+              signal: new AbortController().signal,
+              url: "https://api.example.com/items"
+            })
+        )
+      );
+    }
+    expect(classifications.map((result) => result.classification)).toEqual([
+      "success",
+      "unrelated-authentication",
+      "http-response",
+      "aep-challenge",
+      "unrelated-authentication"
+    ]);
+    expect(classifications[3]?.challenge).toMatchObject({ reason: "expired" });
+  });
+
+  it("validates protected-resource challenge origins and Service identities", async () => {
+    const session = resourceSession();
+    const agent = resourceAgent(session);
+    const challenge = (serviceDid: string, inspect: string) =>
+      new Response(null, {
+        status: 401,
+        headers: {
+          "www-authenticate": `AEP service_did="${serviceDid}", inspect="${inspect}"`
+        }
+      });
+
+    await expect(
+      withFetch(
+        () =>
+          Promise.resolve(
+            challenge("did:web:api.example.com", "https://other.example/.well-known/aep")
+          ),
+        () => fetchProtectedResource({ agent, url: "https://api.example.com/items" })
+      )
+    ).rejects.toMatchObject({ code: "invalid_redirect" });
+    await expect(
+      withFetch(
+        () =>
+          Promise.resolve(
+            challenge("did:web:different.example", "https://api.example.com/.well-known/aep")
+          ),
+        () => fetchProtectedResource({ agent, url: "https://api.example.com/items" })
+      )
+    ).rejects.toMatchObject({ code: "validation_failed" });
+  });
+
+  it("rejects unusable OpenAPI authentication and conflicting presentation fields", async () => {
+    const noMethods = resourceAgent(
+      resourceSession({
+        openApiPolicy: () =>
+          Promise.resolve({
+            freshness: "fetched",
+            methods: [],
+            source: "openapi",
+            state: "required"
+          })
+      })
+    );
+    await expect(
+      fetchProtectedResource({ agent: noMethods, url: "https://api.example.com/items" })
+    ).rejects.toThrow("supplies no usable AEP method");
+
+    const conflicting = resourceAgent(
+      resourceSession({
+        authenticationHeaders: () => Promise.resolve({ Authorization: "Bearer credential" }),
+        openApiPolicy: () =>
+          Promise.resolve({
+            freshness: "fetched",
+            methods: ["oauth-bearer"],
+            source: "openapi",
+            state: "required"
+          })
+      })
+    );
+    await expect(
+      fetchProtectedResource({
+        additionalAuthenticationHeaders: { Authorization: "Bearer caller" },
+        agent: conflicting,
+        url: "https://api.example.com/items"
+      })
+    ).rejects.toMatchObject({ code: "invalid_request" });
+  });
+
+  it("reports malformed and excessive protected-resource redirects", async () => {
+    const agent = resourceAgent(resourceSession());
+    await expect(
+      withFetch(
+        () => Promise.resolve(new Response(null, { status: 302 })),
+        () => fetchProtectedResource({ agent, url: "https://api.example.com/items" })
+      )
+    ).rejects.toMatchObject({ code: "invalid_redirect" });
+    await expect(
+      withFetch(
+        () => Promise.resolve(new Response(null, { status: 302, headers: { location: "/next" } })),
+        () =>
+          fetchProtectedResource({
+            agent,
+            maxRedirects: 0,
+            url: "https://api.example.com/items"
+          })
+      )
+    ).rejects.toMatchObject({ code: "invalid_redirect" });
+  });
+
+  it("rejects Grant before identity recovery without signing or calling Grant", async () => {
+    let signCalls = 0;
+    const agent = createAepAgent({
+      identityProvider: {
+        getOrCreateIdentity: () => {
+          throw new Error("must not provision");
+        },
+        signerFor: () => {
+          signCalls += 1;
+          return () => "jwt";
+        }
+      }
+    });
+    let grantCalls = 0;
+    await withFetch(
+      (input) => {
+        const url = String(input);
+        if (url.endsWith("/.well-known/aep"))
+          return jsonResponsePromise({
+            ...minimalInspectDocument,
+            authentication: { methods: ["oauth-bearer"] }
+          });
+        if (url.endsWith("/aep/grant")) grantCalls += 1;
+        return jsonResponsePromise({});
+      },
+      async () => {
+        await expect(
+          agent
+            .serviceSession({ serviceUrl: "https://api.example.com" })
+            .grant({ grantType: "oauth-bearer" })
+        ).rejects.toMatchObject({ problem: { code: "not_recognized" } });
+      }
+    );
+    expect(signCalls).toBe(0);
+    expect(grantCalls).toBe(0);
+  });
+});
+
 describe("@aep-foundation/agent Platform clients", () => {
   it("discovers Platform metadata", async () => {
     const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
@@ -970,6 +1759,10 @@ describe("@aep-foundation/agent Platform clients", () => {
           return jsonResponsePromise(minimalPlatformDiscoveryDocument);
         }
 
+        if (String(input).includes("?")) {
+          return jsonResponsePromise({ count: "0", data: [], total: "0" });
+        }
+
         return jsonResponsePromise(platformIdentityFixture());
       },
       () =>
@@ -987,8 +1780,39 @@ describe("@aep-foundation/agent Platform clients", () => {
     });
     expect(calls.map((call) => String(call.input))).toEqual([
       "https://platform.example.com/.well-known/aep-platform",
+      "https://platform.example.com/v1/aep/agent-identities?descending=true&limit=100&service_did=did%3Aweb%3Aapi.service.example",
       "https://platform.example.com/v1/aep/agent-identities"
     ]);
+  });
+
+  it("recovers a Platform-backed identity by Service DID", async () => {
+    const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
+    const provider = createPlatformIdentityProvider({
+      authorization: "Bearer demo-agent",
+      platformUrl: "https://platform.example.com/"
+    });
+    const identity = await withFetch(
+      (input, init) => {
+        calls.push(fetchCall(input, init));
+        if (String(input).endsWith("/.well-known/aep-platform"))
+          return jsonResponsePromise(minimalPlatformDiscoveryDocument);
+        return jsonResponsePromise({ count: 1, data: [platformIdentityFixture()], total: 1 });
+      },
+      () =>
+        provider.getOrCreateIdentity({
+          inspect: minimalInspectDocument,
+          serviceDid: "did:web:api.service.example",
+          serviceUrl: "https://api.service.example/"
+        })
+    );
+
+    expect(identity).toMatchObject({
+      agentDid: "did:web:platform.example.com:agents:01J0AEPPLATFORM000000000001",
+      serviceDid: "did:web:api.service.example"
+    });
+    expect(String(calls[1]?.input)).toBe(
+      "https://platform.example.com/v1/aep/agent-identities?descending=true&limit=100&service_did=did%3Aweb%3Aapi.service.example"
+    );
   });
 });
 
@@ -1013,7 +1837,7 @@ describe("@aep-foundation/agent credential helpers", () => {
       body: {
         access_token: "access-token",
         credential_id: "cred_123",
-        expires_at: "2026-05-28T12:00:00Z",
+        expires_at: "2999-05-28T12:00:00Z",
         scopes: ["read"],
         token_type: "Bearer" as const
       },
@@ -1031,13 +1855,16 @@ describe("@aep-foundation/agent credential helpers", () => {
 
     expect(await store.findCredential("did:web:api.example.com", "cred_123")).toMatchObject({
       credentialId: "cred_123",
-      expiresAt: "2026-05-28T12:00:00Z",
+      expiresAt: "2999-05-28T12:00:00Z",
       grantType: "oauth-bearer",
       issuedAt: "2026-05-28T11:00:00.000Z",
       serviceDid: "did:web:api.example.com"
     });
     expect(credentialPresentationHeaders(grant.body)).toEqual({
       Authorization: "Bearer access-token"
+    });
+    expect(credentialPresentationHeaders(grant.body, "dedicated")).toEqual({
+      "AEP-Authorization": "Bearer access-token"
     });
     expect(
       credentialPresentationHeaders({
@@ -1090,6 +1917,16 @@ describe("@aep-foundation/agent credential helpers", () => {
     });
 
     await expect(
+      clientAssertionAuthenticationHeaders({
+        agentDid: "did:web:agent.example.com:agents:123",
+        carrier: "dedicated",
+        inspect: inspectResult(),
+        jti: "dedicated-jti",
+        signer: () => "signed"
+      })
+    ).resolves.toEqual({ "AEP-Authorization": "AEP signed" });
+
+    await expect(
       protectedResourceAuthenticationHeaders({
         credential: {
           access_token: "access-token",
@@ -1121,6 +1958,27 @@ function jsonResponse(
     json: () => Promise.resolve(body),
     ...(options.statusText === undefined ? {} : { statusText: options.statusText })
   };
+}
+
+function resourceSession(overrides: Partial<AepServiceSession> = {}): AepServiceSession {
+  const unavailable = () => Promise.reject(new Error("not used by this test"));
+  return {
+    authenticationHeaders: unavailable,
+    enroll: unavailable,
+    forgetCredential: unavailable,
+    grant: unavailable,
+    identity: unavailable,
+    inspect: () => Promise.resolve(inspectResult()),
+    openApiPolicy: () =>
+      Promise.resolve({ freshness: "fetched", methods: [], source: "openapi", state: "fallback" }),
+    revoke: unavailable,
+    status: unavailable,
+    ...overrides
+  };
+}
+
+function resourceAgent(session: AepServiceSession): AepAgent {
+  return { serviceSession: () => session };
 }
 
 function jsonResponsePromise(

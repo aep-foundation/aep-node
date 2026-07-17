@@ -1,5 +1,9 @@
 # @aep-foundation/core
 
+Protected-resource helpers parse and render standard `Authorization` and
+dedicated `AEP-Authorization` carriers while preserving the `AEP`, `Bearer`,
+and `Basic` schemes. API-key credentials keep their service-selected field.
+
 Core Agent Enrollment Protocol implementation shared by the Agent, Service,
 Platform, adapter, and conformance packages.
 

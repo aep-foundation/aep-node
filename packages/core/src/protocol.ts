@@ -1,5 +1,5 @@
 import {
-  AEP_AUTHENTICATED_COMMANDS,
+  AEP_ASSERTION_OPERATIONS,
   AEP_GRANT_TYPE_API_KEY,
   AEP_GRANT_TYPE_BASIC,
   AEP_GRANT_TYPE_OAUTH_BEARER
@@ -22,7 +22,7 @@ import type {
   ValidationResult
 } from "./types.js";
 
-const AUTHENTICATED_COMMANDS = new Set<string>(AEP_AUTHENTICATED_COMMANDS);
+const ASSERTION_OPERATIONS = new Set<string>(AEP_ASSERTION_OPERATIONS);
 const ENROLLMENT_STATUSES = new Set<string>(["active", "pending", "rejected"]);
 const AGENT_STATUSES = new Set<string>([
   "active",
@@ -172,7 +172,14 @@ export function validateClientAssertionClaims(
   requireString(value, "iss", issues, { minLength: 1 });
   requireString(value, "sub", issues, { minLength: 1 });
   requireString(value, "aud", issues, { minLength: 1 });
-  requireString(value, "op", issues, { allowedValues: AUTHENTICATED_COMMANDS });
+  requireString(value, "op", issues, { allowedValues: ASSERTION_OPERATIONS });
+  optionalString(value["resource"], "$.resource", issues, { minLength: 1 });
+  if (value["op"] === "authenticate" && value["resource"] === undefined) {
+    issues.push({ path: "$.resource", message: "Expected a protected-resource URI." });
+  }
+  if (value["op"] !== "authenticate" && value["resource"] !== undefined) {
+    issues.push({ path: "$.resource", message: "resource is only valid for authenticate." });
+  }
   requireInteger(value["iat"], "$.iat", issues);
   requireInteger(value["exp"], "$.exp", issues);
   requireString(value, "jti", issues, { minLength: 1 });

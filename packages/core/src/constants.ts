@@ -3,11 +3,14 @@ export const AEP_VERSION = "1.0";
 export const AEP_MEDIA_TYPE = "application/aep+json";
 export const AEP_PROBLEM_MEDIA_TYPE = "application/problem+json";
 export const AEP_AUTH_SCHEME = "AEP";
+export const AEP_AUTHORIZATION_HEADER = "AEP-Authorization";
 export const AEP_WELL_KNOWN_PATH = "/.well-known/aep";
 export const DEFAULT_HTTP_ENDPOINT_BASE = "/aep/";
 
 export const AEP_COMMANDS = ["inspect", "enroll", "grant", "revoke", "status"] as const;
 export const AEP_AUTHENTICATED_COMMANDS = ["enroll", "grant", "revoke", "status"] as const;
+export const AEP_ASSERTION_OPERATIONS = [...AEP_AUTHENTICATED_COMMANDS, "authenticate"] as const;
+export const AEP_AUTHENTICATION_METHOD_JWT = "aep-jwt";
 
 export const AEP_BINDINGS = ["http"] as const;
 export const AEP_SIGNING_ALGORITHMS = ["EdDSA", "ES256"] as const;
