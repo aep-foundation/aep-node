@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/openapi-aep-security-scheme.schema.json",
+  "title": "OpenAPI Security Scheme AEP Extension",
+  "type": "object",
+  "required": ["x-aep-authentication-method"],
+  "additionalProperties": true,
+  "properties": {
+    "x-aep-authentication-method": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    }
+  }
+}

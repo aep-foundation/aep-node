@@ -3,8 +3,8 @@
   "title": "OAuth Bearer Grant request",
   "description": "A core Grant request selecting the OAuth Bearer credential profile.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-01",
-    "draft-kavian-aep-oauth-session-credential-01"
+    "draft-kavian-agent-enrollment-protocol-02",
+    "draft-kavian-aep-oauth-session-credential-02"
   ],
   "category": "grant-revoke",
   "applies_to": ["agent", "service"],

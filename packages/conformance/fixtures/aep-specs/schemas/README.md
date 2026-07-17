@@ -16,6 +16,8 @@ session-credential Grant responses, and the hosted identity Platform specificati
 | --------------------------------------------------- | ------------------------------------------ |
 | `client-assertion-claims.schema.json`               | Client assertion JWT claim set             |
 | `inspect-document.schema.json`                      | Inspect document response body             |
+| `openapi-aep-security-scheme.schema.json`           | OpenAPI AEP security-scheme extension      |
+| `protected-resource-authorization.schema.json`      | Protected-resource authorization carrier   |
 | `enroll-request.schema.json`                        | Enroll request body                        |
 | `enroll-response.schema.json`                       | Enroll response body                       |
 | `status-response.schema.json`                       | Status response body                       |

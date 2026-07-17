@@ -1,0 +1,26 @@
+{
+  "id": "redirect-safety",
+  "title": "Protected-resource redirect credential safety",
+  "description": "Same-origin redirects require resource rebinding and cross-origin redirects restart anonymously without credential forwarding.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "category": "protected-resource",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "source": "https://api.example.com/v1/orders/123",
+    "same_origin": "https://api.example.com/v1/orders/124",
+    "cross_origin": "https://other.example.net/v1/orders/123"
+  },
+  "expected": {
+    "same_origin": {
+      "credential_forwarded": false,
+      "new_authenticate_assertion_resource": "https://api.example.com/v1/orders/124"
+    },
+    "cross_origin": {
+      "anonymous_restart": true,
+      "assertion_forwarded": false,
+      "session_credential_forwarded": false,
+      "api_key_header_forwarded": false
+    }
+  }
+}

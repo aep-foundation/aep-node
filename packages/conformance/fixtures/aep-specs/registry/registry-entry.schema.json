@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/registry/registry-entry.schema.json",
+  "title": "AEP Registry Entry",
+  "type": "object",
+  "required": [
+    "id",
+    "kind",
+    "name",
+    "status",
+    "version",
+    "wire_identifier",
+    "specification",
+    "summary",
+    "compatibility",
+    "artifacts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^urn:aep:(?:grant-type|authentication-method|http-field|ext|binding|identity-method|command|policy|proof|attestation|other):[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?::[a-z0-9][a-z0-9-]*)*(?:-[a-z0-9]+)*#v=[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "grant_type",
+        "authentication_method",
+        "http_field",
+        "extension",
+        "binding",
+        "identity_method",
+        "command",
+        "policy",
+        "proof",
+        "attestation",
+        "other"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "provisional", "deprecated", "reserved"]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "wire_identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?::[a-z0-9]+)*(?:-[a-z0-9]+)*$"
+    },
+    "specification": {
+      "type": "object",
+      "required": ["draft", "path", "datatracker"],
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "type": "string",
+          "pattern": "^draft-"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "datatracker": {
+          "type": "string",
+          "pattern": "^https://datatracker\\.ietf\\.org/doc/draft-"
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "inspect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "grant_type": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "config_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "required": ["core_version", "additive"],
+      "additionalProperties": false,
+      "properties": {
+        "core_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+$"
+        },
+        "additive": {
+          "type": "string",
+          "enum": ["true", "false"]
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["examples", "schemas", "test_vectors"],
+      "additionalProperties": false,
+      "properties": {
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "schemas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "test_vectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

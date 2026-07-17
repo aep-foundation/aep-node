@@ -1,0 +1,11 @@
+{
+  "id": "grant-before-enroll-rejected",
+  "title": "Grant before enrollment is rejected",
+  "description": "Grant never implicitly enrolls an unrecognized Agent.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "category": "grant-revoke",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": { "operation": "grant", "enrollment": "unrecognized" },
+  "expected": { "status": 401, "code": "not_recognized", "implicit_enrollment": false }
+}

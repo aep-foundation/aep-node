@@ -1,0 +1,27 @@
+{
+  "id": "urn:aep:grant-type:aep:api-key#v=1.0.0",
+  "kind": "grant_type",
+  "name": "API-key Session Credential",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "api-key",
+  "specification": {
+    "draft": "draft-kavian-aep-api-key-session-credential-02",
+    "path": "ietf/specs/grant-types/draft-kavian-aep-api-key-session-credential-02.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-api-key-session-credential/"
+  },
+  "summary": "Opaque API key issued through AEP Grant and revoked through AEP Revoke.",
+  "inspect": {
+    "grant_type": "api-key",
+    "config_key": "api-key"
+  },
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/api-key-grant-revoke.md"],
+    "schemas": ["ietf/schemas/api-key-grant-response.schema.json"],
+    "test_vectors": ["ietf/test-vectors/credentials/api-key/grant-response.json"]
+  }
+}

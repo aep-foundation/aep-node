@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/protected-resource-authorization.schema.json",
+  "title": "AEP Protected-Resource Authorization Carrier",
+  "type": "object",
+  "required": ["carrier", "scheme", "credentials"],
+  "additionalProperties": false,
+  "properties": {
+    "carrier": { "type": "string", "enum": ["Authorization", "AEP-Authorization"] },
+    "scheme": { "type": "string", "enum": ["AEP", "Bearer", "Basic"] },
+    "credentials": { "type": "string", "minLength": 1 }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "api-key-wrong-header-rejected",
+  "title": "API key under wrong header is rejected",
+  "description": "The Service-selected Grant response header is authoritative; a conventional alias is not accepted.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-02",
+    "draft-kavian-aep-api-key-session-credential-02"
+  ],
+  "category": "protected-resource",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "issued_header": "Aep-Service-Key",
+    "presented_header": "X-API-KEY",
+    "api_key": "opaque-api-key"
+  },
+  "expected": { "accepted": false, "code": "not_recognized" }
+}

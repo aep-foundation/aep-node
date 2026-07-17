@@ -283,9 +283,7 @@ function assertProtectedBody(value, serviceName, field) {
   assertRecord(value, serviceName, field);
 
   if (field === "resource") {
-    if (!Array.isArray(value["widgets"]) || value["widgets"].join(",") !== "1,2,3") {
-      throw new Error(`${serviceName}: expected resource widgets to be [1,2,3].`);
-    }
+    assertEqual(JSON.stringify(value["widgets"]), "[1,2,3]", serviceName, field);
     return;
   }
 

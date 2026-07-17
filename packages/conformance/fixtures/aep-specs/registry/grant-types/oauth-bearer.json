@@ -1,0 +1,31 @@
+{
+  "id": "urn:aep:grant-type:aep:oauth-bearer#v=1.0.0",
+  "kind": "grant_type",
+  "name": "OAuth Bearer Session Credential",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "oauth-bearer",
+  "specification": {
+    "draft": "draft-kavian-aep-oauth-session-credential-02",
+    "path": "ietf/specs/grant-types/draft-kavian-aep-oauth-session-credential-02.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-oauth-session-credential/"
+  },
+  "summary": "OAuth Bearer access token issued through AEP Grant and revoked through AEP Revoke.",
+  "inspect": {
+    "grant_type": "oauth-bearer",
+    "config_key": "oauth-bearer"
+  },
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/enroll-grant-revoke-transcript.md"],
+    "schemas": ["ietf/schemas/oauth-bearer-grant-response.schema.json"],
+    "test_vectors": [
+      "ietf/test-vectors/credentials/oauth-bearer/grant-response.json",
+      "ietf/test-vectors/grant-revoke/grant-request-oauth-bearer.json",
+      "ietf/test-vectors/grant-revoke/revoke-request-oauth-bearer.json"
+    ]
+  }
+}

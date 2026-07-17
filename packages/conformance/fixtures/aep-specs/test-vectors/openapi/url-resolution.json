@@ -1,0 +1,22 @@
+{
+  "id": "url-resolution",
+  "title": "OpenAPI URL resolution and anonymous retrieval",
+  "description": "Relative references resolve against final Inspect URLs and anonymous cross-origin HTTPS references are allowed.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "category": "openapi",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "final_inspect_url": "https://api.example.com/discovery/aep",
+    "relative": "../openapi.json",
+    "cross_origin": "https://docs.example.net/openapi.json"
+  },
+  "expected": {
+    "relative_resolved": "https://api.example.com/openapi.json",
+    "cross_origin_https": "allowed-anonymous",
+    "forwarded_headers": [],
+    "userinfo": "reject",
+    "downgrade": "reject",
+    "accepted_media_types": ["application/vnd.oai.openapi+json;version=3.1", "application/json"]
+  }
+}

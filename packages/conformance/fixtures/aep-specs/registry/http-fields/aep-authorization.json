@@ -1,0 +1,20 @@
+{
+  "id": "urn:aep:http-field:aep:aep-authorization#v=1.0.0",
+  "kind": "http_field",
+  "name": "AEP Authorization",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "aep-authorization",
+  "specification": {
+    "draft": "draft-kavian-agent-enrollment-protocol-02",
+    "path": "ietf/specs/core/draft-kavian-agent-enrollment-protocol-02.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-agent-enrollment-protocol/"
+  },
+  "summary": "Dedicated protected-resource carrier for AEP-recognized credentials.",
+  "compatibility": { "core_version": "1.0", "additive": "true" },
+  "artifacts": {
+    "examples": ["ietf/examples/authorization-composition.md"],
+    "schemas": ["ietf/schemas/protected-resource-authorization.schema.json"],
+    "test_vectors": ["ietf/test-vectors/protected-resource/authorization-carriers.json"]
+  }
+}

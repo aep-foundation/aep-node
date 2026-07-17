@@ -12,11 +12,22 @@
     },
     "op": {
       "type": "string",
-      "enum": ["enroll", "grant", "revoke", "status"]
+      "enum": ["enroll", "grant", "revoke", "status", "authenticate"]
+    },
+    "resource": {
+      "type": "string",
+      "pattern": "^https://[^#]+$"
     },
     "service_did": {
       "type": "string",
       "pattern": "^did:"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "op": { "const": "authenticate" } } },
+      "then": { "required": ["resource"] },
+      "else": { "not": { "required": ["resource"] } }
+    }
+  ]
 }

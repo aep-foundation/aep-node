@@ -1,0 +1,26 @@
+{
+  "id": "urn:aep:authentication-method:aep:aep-jwt#v=1.0.0",
+  "kind": "authentication_method",
+  "name": "AEP JWT Authentication",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "aep-jwt",
+  "specification": {
+    "draft": "draft-kavian-agent-enrollment-protocol-02",
+    "path": "ietf/specs/core/draft-kavian-agent-enrollment-protocol-02.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-agent-enrollment-protocol/"
+  },
+  "summary": "Resource-bound, short-lived AEP client assertion with the authenticate operation.",
+  "compatibility": { "core_version": "1.0", "additive": "true" },
+  "artifacts": {
+    "examples": ["ietf/examples/protected-resource-authentication.md"],
+    "schemas": [
+      "ietf/schemas/client-assertion-claims.schema.json",
+      "ietf/schemas/inspect-document.schema.json"
+    ],
+    "test_vectors": [
+      "ietf/test-vectors/protected-resource/authenticate-assertion.json",
+      "ietf/test-vectors/protected-resource/inspect-authentication-methods.json"
+    ]
+  }
+}

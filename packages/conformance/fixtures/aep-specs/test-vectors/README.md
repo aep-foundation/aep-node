@@ -18,6 +18,9 @@ The initial vector set should cover:
 | API-key credential      | Validate API-key Grant response, API-key value syntax, header selection, expiry, scopes, and Revoke shape.                                                          | API-key                       |
 | Basic credential        | Validate Basic Grant response, generated username/password constraints, Basic presentation syntax, expiry, scopes, and Revoke shape.                                | Basic                         |
 | Platform specification  | Validate Platform discovery, Service-scoped Agent DID provisioning, distinct opaque DIDs per Service, delegated signing, lifecycle, and hosted verification shapes. | Platform Hosted Identity      |
+| Protected resource      | Validate explicit authentication advertisement, challenge discovery, operation/resource binding, credential presentation, failures, and redirect safety.            | Core plus credential profiles |
+| Public document caching | Validate Inspect and Platform Discovery validators, freshness, directives, and final-URL cache keys.                                                                | Core and Platform             |
+| OpenAPI discovery       | Validate URL resolution, anonymous retrieval, security inheritance, operation matching, slash modes, and contradiction fallback.                                    | Core                          |
 
 ## File Layout
 
@@ -33,6 +36,9 @@ test-vectors/
   status/
   grant-revoke/
   platform/
+  protected-resource/
+  caching/
+  openapi/
   credentials/
     oauth-bearer/
     api-key/

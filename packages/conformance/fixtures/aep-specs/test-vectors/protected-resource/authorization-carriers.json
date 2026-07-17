@@ -1,0 +1,42 @@
+{
+  "id": "authorization-carriers",
+  "title": "Standard and dedicated authorization carriers",
+  "description": "AEP JWT, Bearer, and Basic preserve their schemes through either accepted protected-resource carrier.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-02",
+    "draft-kavian-aep-oauth-session-credential-02",
+    "draft-kavian-aep-basic-session-credential-02"
+  ],
+  "category": "protected-resource",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {},
+  "expected": {
+    "standard_jwt": { "carrier": "Authorization", "scheme": "AEP", "credentials": "compact-jws" },
+    "dedicated_jwt": {
+      "carrier": "AEP-Authorization",
+      "scheme": "AEP",
+      "credentials": "compact-jws"
+    },
+    "standard_bearer": {
+      "carrier": "Authorization",
+      "scheme": "Bearer",
+      "credentials": "opaque-token"
+    },
+    "dedicated_bearer": {
+      "carrier": "AEP-Authorization",
+      "scheme": "Bearer",
+      "credentials": "opaque-token"
+    },
+    "standard_basic": {
+      "carrier": "Authorization",
+      "scheme": "Basic",
+      "credentials": "base64-credentials"
+    },
+    "dedicated_basic": {
+      "carrier": "AEP-Authorization",
+      "scheme": "Basic",
+      "credentials": "base64-credentials"
+    }
+  }
+}

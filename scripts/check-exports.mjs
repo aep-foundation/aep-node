@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const packagesRoot = path.join(root, 'packages');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const packagesRoot = path.join(root, "packages");
 
 async function pathExists(candidate) {
   try {
@@ -26,7 +26,7 @@ async function walkPackageJsonFiles(dir) {
       files.push(...(await walkPackageJsonFiles(full)));
       continue;
     }
-    if (entry.isFile() && entry.name === 'package.json') {
+    if (entry.isFile() && entry.name === "package.json") {
       files.push(full);
     }
   }
@@ -40,9 +40,9 @@ async function discoverPackages() {
 
   for (const pkgPath of files) {
     const dir = path.dirname(pkgPath);
-    const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
+    const pkg = JSON.parse(await fs.readFile(pkgPath, "utf8"));
     if (pkg.private === true) continue;
-    if (typeof pkg.name !== 'string' || !pkg.name.startsWith('@aep-foundation/')) continue;
+    if (typeof pkg.name !== "string" || !pkg.name.startsWith("@aep-foundation/")) continue;
     packages.push({ name: pkg.name, dir, pkg });
   }
 
@@ -50,19 +50,19 @@ async function discoverPackages() {
 }
 
 function* walkExports(node, subpath, conditionChain) {
-  if (typeof node === 'string') {
-    yield { subpath, condition: conditionChain.join(' > ') || 'default', file: node };
+  if (typeof node === "string") {
+    yield { subpath, condition: conditionChain.join(" > ") || "default", file: node };
     return;
   }
 
-  if (node === null || typeof node !== 'object') return;
+  if (node === null || typeof node !== "object") return;
 
   const keys = Object.keys(node);
-  if (conditionChain.length > 0 && keys.includes('types') && keys[0] !== 'types') {
+  if (conditionChain.length > 0 && keys.includes("types") && keys[0] !== "types") {
     yield {
       subpath,
-      condition: conditionChain.join(' > '),
-      error: `'types' is not the first conditional key (found order: ${keys.join(', ')})`,
+      condition: conditionChain.join(" > "),
+      error: `'types' is not the first conditional key (found order: ${keys.join(", ")})`
     };
   }
 
@@ -74,28 +74,28 @@ function* walkExports(node, subpath, conditionChain) {
 async function checkPackage({ dir, pkg }) {
   const errors = [];
 
-  for (const field of ['main', 'module', 'types']) {
+  for (const field of ["main", "module", "types"]) {
     const value = pkg[field];
-    if (typeof value !== 'string') continue;
+    if (typeof value !== "string") continue;
     if (!(await pathExists(path.join(dir, value)))) {
       errors.push(`${field}: "${value}" does not exist`);
     }
   }
 
   if (pkg.exports === undefined || pkg.exports === null) {
-    errors.push('exports field is missing');
+    errors.push("exports field is missing");
     return errors;
   }
 
-  if (typeof pkg.exports === 'string') {
+  if (typeof pkg.exports === "string") {
     if (!(await pathExists(path.join(dir, pkg.exports)))) {
       errors.push(`exports: "${pkg.exports}" does not exist`);
     }
     return errors;
   }
 
-  if (typeof pkg.exports !== 'object') {
-    errors.push('exports field must be a string or object');
+  if (typeof pkg.exports !== "object") {
+    errors.push("exports field must be a string or object");
     return errors;
   }
 
@@ -105,9 +105,11 @@ async function checkPackage({ dir, pkg }) {
         errors.push(`exports["${entry.subpath}"]: ${entry.error}`);
         continue;
       }
-      if (typeof entry.file !== 'string') continue;
+      if (typeof entry.file !== "string") continue;
       if (!(await pathExists(path.join(dir, entry.file)))) {
-        errors.push(`exports["${entry.subpath}"] (${entry.condition}): "${entry.file}" does not exist`);
+        errors.push(
+          `exports["${entry.subpath}"] (${entry.condition}): "${entry.file}" does not exist`
+        );
       }
     }
   }
@@ -118,7 +120,7 @@ async function checkPackage({ dir, pkg }) {
 async function main() {
   const packages = await discoverPackages();
   if (packages.length === 0) {
-    console.error('check-exports: no publishable @aep packages found under packages/');
+    console.error("check-exports: no publishable @aep packages found under packages/");
     process.exit(1);
   }
 
@@ -129,28 +131,28 @@ async function main() {
     process.stdout.write(`  ${entry.name} ... `);
     const errors = await checkPackage(entry);
     if (errors.length === 0) {
-      console.log('OK');
+      console.log("OK");
       continue;
     }
 
-    console.log('FAIL');
+    console.log("FAIL");
     failed += 1;
     for (const error of errors) {
       console.error(`    ${error}`);
     }
   }
 
-  console.log('');
+  console.log("");
   if (failed > 0) {
     console.error(`check-exports: ${failed} package(s) failed`);
     process.exit(1);
   }
 
-  console.log('check-exports: all packages OK');
+  console.log("check-exports: all packages OK");
 }
 
 main().catch((error) => {
-  console.error('check-exports: unexpected error');
+  console.error("check-exports: unexpected error");
   console.error(error);
   process.exit(1);
 });

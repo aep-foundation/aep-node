@@ -1,0 +1,23 @@
+{
+  "id": "authorization-field-safety",
+  "title": "Dedicated authorization parsing and redirect safety",
+  "description": "Field names are case-insensitive, selected carriers persist safely, and both AEP and payment credentials are stripped when forwarding is prohibited.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "category": "protected-resource",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": { "field_name": "aep-authorization", "selected_carrier": "AEP-Authorization" },
+  "expected": {
+    "field_name_match": "case-insensitive",
+    "redirect_new_assertion_carrier": "AEP-Authorization",
+    "strip_on_disallowed_redirect": [
+      "Authorization",
+      "AEP-Authorization",
+      "PAYMENT-SIGNATURE",
+      "api-key-header"
+    ],
+    "sensitive_headers_redacted": true,
+    "cache_key_excluded": true,
+    "idempotency_fingerprint_excluded": true
+  }
+}

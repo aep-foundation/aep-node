@@ -1,0 +1,24 @@
+{
+  "id": "operation-substitution-rejected",
+  "title": "Operation substitution is rejected",
+  "description": "Every command assertion is exclusive to its endpoint, protected resources reject all command operations, and command endpoints reject authenticate.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "category": "protected-resource",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "operations": ["enroll", "grant", "revoke", "status", "authenticate"],
+    "command_endpoints": ["enroll", "grant", "revoke", "status"],
+    "protected_resource": "https://api.example.com/v1/orders"
+  },
+  "expected": {
+    "allowed": [
+      "enroll:enroll",
+      "grant:grant",
+      "revoke:revoke",
+      "status:status",
+      "authenticate:protected-resource"
+    ],
+    "all_other_pairs": "not_recognized"
+  }
+}

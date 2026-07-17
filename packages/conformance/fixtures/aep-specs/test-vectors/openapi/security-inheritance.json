@@ -1,0 +1,20 @@
+{
+  "id": "security-inheritance",
+  "title": "OpenAPI security inheritance and alternatives",
+  "description": "Root and operation security map public, required, optional-anonymous, alternative, and unsupported compound requirements.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "category": "openapi",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "security_scheme": { "type": "http", "scheme": "AEP", "x-aep-authentication-method": "aep-jwt" }
+  },
+  "expected": {
+    "root_inherited": "required",
+    "operation_empty_array": "public",
+    "empty_requirement_alternative": "optional-anonymous",
+    "multiple_objects": "alternatives",
+    "multiple_schemes_one_object": "all-required",
+    "unsupported_compound": "fallback-live-challenge"
+  }
+}

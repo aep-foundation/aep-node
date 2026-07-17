@@ -1,0 +1,20 @@
+{
+  "id": "urn:aep:ext:aep:openapi-authentication#v=1.0.0",
+  "kind": "extension",
+  "name": "OpenAPI AEP Authentication Method",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "openapi-authentication",
+  "specification": {
+    "draft": "draft-kavian-agent-enrollment-protocol-02",
+    "path": "ietf/specs/core/draft-kavian-agent-enrollment-protocol-02.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-agent-enrollment-protocol/"
+  },
+  "summary": "Registers the x-aep-authentication-method field for OpenAPI Security Scheme Objects.",
+  "compatibility": { "core_version": "1.0", "additive": "true" },
+  "artifacts": {
+    "examples": ["ietf/examples/openapi-authentication.md"],
+    "schemas": ["ietf/schemas/openapi-aep-security-scheme.schema.json"],
+    "test_vectors": ["ietf/test-vectors/openapi/security-inheritance.json"]
+  }
+}

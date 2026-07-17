@@ -2,7 +2,7 @@
   "id": "response-active",
   "title": "Active Status response",
   "description": "A successful Status response for an active enrolled Agent identity.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
   "category": "status",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

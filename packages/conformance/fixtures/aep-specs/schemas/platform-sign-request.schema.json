@@ -12,10 +12,14 @@
     },
     "op": {
       "type": "string",
-      "enum": ["enroll", "grant", "revoke", "status"]
+      "enum": ["enroll", "grant", "revoke", "status", "authenticate"]
     },
     "platform_context": {
       "type": "object"
+    },
+    "resource": {
+      "type": "string",
+      "pattern": "^https://[^#]+$"
     },
     "service_did": {
       "type": "string",
@@ -25,5 +29,12 @@
       "type": "string",
       "pattern": "^(?:[1-9][0-9]?|[12][0-9]{2}|300)$"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "op": { "const": "authenticate" } } },
+      "then": { "required": ["resource"] },
+      "else": { "not": { "required": ["resource"] } }
+    }
+  ]
 }

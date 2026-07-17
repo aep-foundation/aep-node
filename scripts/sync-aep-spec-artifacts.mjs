@@ -11,6 +11,16 @@ const targetRoot = path.join(repoRoot, "packages/conformance/fixtures/aep-specs"
 
 const artifactGroups = [
   {
+    name: "examples",
+    source: path.join(sourceRoot, "examples"),
+    target: path.join(targetRoot, "examples")
+  },
+  {
+    name: "registry",
+    source: path.join(sourceRoot, "registry"),
+    target: path.join(targetRoot, "registry")
+  },
+  {
     name: "schemas",
     source: path.join(sourceRoot, "schemas"),
     target: path.join(targetRoot, "schemas")
@@ -38,10 +48,11 @@ for (const group of artifactGroups) {
 
 await writeJson(path.join(targetRoot, "manifest.json"), manifest);
 
-const schemaCount = manifest.artifacts.schemas.length;
-const testVectorCount = manifest.artifacts["test-vectors"].length;
+const counts = Object.entries(manifest.artifacts)
+  .map(([name, files]) => `${files.length} ${name} artifact(s)`)
+  .join(", ");
 
-console.log(`Synced ${schemaCount} schema artifact(s) and ${testVectorCount} test vector artifact(s).`);
+console.log(`Synced ${counts}.`);
 console.log(`Source: ${manifest.source}`);
 console.log(`Target: ${normalizePath(path.relative(repoRoot, targetRoot))}`);
 
@@ -107,7 +118,7 @@ async function listArtifactFiles(root) {
         continue;
       }
 
-      if (entry.isFile() && (entry.name.endsWith(".json") || entry.name === "README.md")) {
+      if (entry.isFile() && (entry.name.endsWith(".json") || entry.name.endsWith(".md"))) {
         files.push(path.relative(root, absolutePath));
       }
     }

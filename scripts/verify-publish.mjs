@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
-import { execFile } from 'node:child_process';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
+import { execFile } from "node:child_process";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 
 const execFileP = promisify(execFile);
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const packagesRoot = path.join(root, 'packages');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const packagesRoot = path.join(root, "packages");
 
-const requiredTarballEntries = ['dist/', 'README.md', 'LICENSE'];
+const requiredTarballEntries = ["dist/", "README.md", "LICENSE"];
 const forbiddenPatterns = [/^src\//u, /^test\//u, /\.test\.[mc]?[jt]s$/u, /\.spec\.[mc]?[jt]s$/u];
 
 async function walkPackageJsonFiles(dir) {
@@ -23,7 +23,7 @@ async function walkPackageJsonFiles(dir) {
       files.push(...(await walkPackageJsonFiles(full)));
       continue;
     }
-    if (entry.isFile() && entry.name === 'package.json') {
+    if (entry.isFile() && entry.name === "package.json") {
       files.push(full);
     }
   }
@@ -37,9 +37,9 @@ async function discoverPackages() {
 
   for (const pkgPath of files) {
     const dir = path.dirname(pkgPath);
-    const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf8'));
+    const pkg = JSON.parse(await fs.readFile(pkgPath, "utf8"));
     if (pkg.private === true) continue;
-    if (typeof pkg.name !== 'string' || !pkg.name.startsWith('@aep-foundation/')) continue;
+    if (typeof pkg.name !== "string" || !pkg.name.startsWith("@aep-foundation/")) continue;
     packages.push({ name: pkg.name, dir, pkg });
   }
 
@@ -47,7 +47,7 @@ async function discoverPackages() {
 }
 
 async function dryRunPack(dir) {
-  const { stdout } = await execFileP('pnpm', ['pack', '--dry-run', '--json'], { cwd: dir });
+  const { stdout } = await execFileP("pnpm", ["pack", "--dry-run", "--json"], { cwd: dir });
   const parsed = JSON.parse(stdout);
   const record = Array.isArray(parsed) ? parsed[0] : parsed;
   const files = Array.isArray(record?.files) ? record.files : [];
@@ -69,11 +69,13 @@ async function sumEntrySizes(dir, entries) {
 
 function checkEntries(entries) {
   const missing = requiredTarballEntries.filter((required) =>
-    required.endsWith('/')
+    required.endsWith("/")
       ? !entries.some((entry) => entry.startsWith(required))
-      : !entries.includes(required),
+      : !entries.includes(required)
   );
-  const forbidden = entries.filter((entry) => forbiddenPatterns.some((pattern) => pattern.test(entry)));
+  const forbidden = entries.filter((entry) =>
+    forbiddenPatterns.some((pattern) => pattern.test(entry))
+  );
   return { missing, forbidden };
 }
 
@@ -86,7 +88,7 @@ function formatBytes(size) {
 async function main() {
   const packages = await discoverPackages();
   if (packages.length === 0) {
-    console.error('verify-publish: no publishable @aep packages found under packages/');
+    console.error("verify-publish: no publishable @aep packages found under packages/");
     process.exit(1);
   }
 
@@ -100,23 +102,25 @@ async function main() {
     try {
       result = await dryRunPack(dir);
     } catch (error) {
-      console.log('FAIL');
-      console.error(`    pnpm pack failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.log("FAIL");
+      console.error(
+        `    pnpm pack failed: ${error instanceof Error ? error.message : String(error)}`
+      );
       failed += 1;
       continue;
     }
 
     const { missing, forbidden } = checkEntries(result.entries);
     if (missing.length > 0) {
-      console.log('FAIL');
-      console.error(`    missing required entries: ${missing.join(', ')}`);
+      console.log("FAIL");
+      console.error(`    missing required entries: ${missing.join(", ")}`);
       failed += 1;
       continue;
     }
 
     if (forbidden.length > 0) {
-      console.log('FAIL');
-      console.error(`    forbidden entries found in tarball: ${forbidden.join(', ')}`);
+      console.log("FAIL");
+      console.error(`    forbidden entries found in tarball: ${forbidden.join(", ")}`);
       failed += 1;
       continue;
     }
@@ -124,17 +128,17 @@ async function main() {
     console.log(`OK (${result.entries.length} files, ${formatBytes(result.size)})`);
   }
 
-  console.log('');
+  console.log("");
   if (failed > 0) {
     console.error(`verify-publish: ${failed} package(s) failed`);
     process.exit(1);
   }
 
-  console.log('verify-publish: all packages OK');
+  console.log("verify-publish: all packages OK");
 }
 
 main().catch((error) => {
-  console.error('verify-publish: unexpected error');
+  console.error("verify-publish: unexpected error");
   console.error(error);
   process.exit(1);
 });

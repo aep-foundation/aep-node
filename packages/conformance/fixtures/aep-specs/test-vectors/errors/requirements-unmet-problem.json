@@ -2,7 +2,7 @@
   "id": "requirements-unmet-problem",
   "title": "requirements_unmet Problem Details response",
   "description": "A recognized identity receives a blocking unmet-requirements error with names but no claim values.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
   "category": "errors",
   "applies_to": ["agent", "service"],
   "profile": "core-http",
