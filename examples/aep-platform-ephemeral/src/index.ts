@@ -21,8 +21,8 @@ import type {
   PlatformIdentityRecord,
   PlatformIdentityStore,
   PlatformKeyStore,
-  PlatformProvisionIdempotencyRecord,
-  PlatformProvisionIdempotencyStore,
+  PlatformIdempotencyRecord,
+  PlatformIdempotencyStore,
   PlatformReplayStore,
   PlatformRequestContext,
   PlatformSignResponse,
@@ -113,17 +113,17 @@ class ExampleIdentityStore implements PlatformIdentityStore {
   }
 }
 
-class ExampleIdempotencyStore implements PlatformProvisionIdempotencyStore {
-  readonly #records = new Map<string, PlatformProvisionIdempotencyRecord>();
+class ExampleIdempotencyStore implements PlatformIdempotencyStore {
+  readonly #records = new Map<string, PlatformIdempotencyRecord>();
 
-  get(idempotencyKey: string): PlatformProvisionIdempotencyRecord | undefined {
-    const record = this.#records.get(idempotencyKey);
+  get(principal: string, idempotencyKey: string): PlatformIdempotencyRecord | undefined {
+    const record = this.#records.get(`${principal}\u001f${idempotencyKey}`);
 
     return record === undefined ? undefined : structuredClone(record);
   }
 
-  set(record: PlatformProvisionIdempotencyRecord): void {
-    this.#records.set(record.idempotencyKey, structuredClone(record));
+  set(record: PlatformIdempotencyRecord): void {
+    this.#records.set(`${record.principal}\u001f${record.idempotencyKey}`, structuredClone(record));
   }
 }
 
@@ -418,9 +418,12 @@ function createExampleDidDocument(
 
 function contextFrom(request: Request): PlatformRequestContext {
   const authorization = request.header("authorization");
+  const idempotencyKey = request.header("idempotency-key");
 
   return {
-    ...(authorization === undefined ? {} : { authorization })
+    ...(authorization === undefined ? {} : { authorization }),
+    ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+    ...(authorization === undefined ? {} : { subject: "demo-owner" })
   };
 }
 
@@ -496,7 +499,7 @@ function logProvision(result: PlatformHttpResponse<unknown>): void {
 }
 
 function logSign(agentIdentityId: string | undefined, result: PlatformHttpResponse<unknown>): void {
-  if (!isPlatformSignResponse(result.body)) {
+  if (!isPlatformSignResponse(result.body) || result.body.status !== "completed") {
     logPlatformProblem("Sign client assertion", result);
     return;
   }

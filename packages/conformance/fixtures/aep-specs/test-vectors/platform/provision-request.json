@@ -3,12 +3,9 @@
   "category": "platform",
   "description": "An authenticated caller asks a Platform to mint or retrieve an Agent DID scoped to a supplied Service DID.",
   "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
-  "expected": {},
   "id": "provision-request",
-  "input": {
-    "idempotency_key": "01J0AEPPLATFORM000000000001",
-    "service_did": "did:web:api.service.example"
-  },
+  "input": { "service_did": "did:web:api.service.example" },
+  "expected": { "idempotency_key_header": "01J0AEPPLATFORM000000000001" },
   "profile": "platform-hosted-identity",
   "title": "Platform provisioning request"
 }

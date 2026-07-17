@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 
-import { AepValidationError, verifyClientAssertionJwt } from "@aep-foundation/core";
+import { verifyClientAssertionJwt } from "@aep-foundation/core";
 import type { InspectDocument } from "@aep-foundation/core";
 import { describe, expect, it } from "vitest";
 
@@ -19,9 +19,11 @@ import {
   inspectService,
   provisionPlatformIdentity,
   revokeService,
+  resolveServiceReference,
   selectGrantType,
   sessionCredentialRecordFromGrantResult,
   signClientAssertion,
+  AepPendingSignError,
   protectedResourceAuthenticationHeaders,
   statusService
 } from "../src/index.js";
@@ -92,6 +94,23 @@ const minimalPlatformDiscoveryDocument = {
 };
 
 describe("@aep-foundation/agent Inspect client", () => {
+  it("normalizes URL, hostname, loopback, and did:web Service references", () => {
+    expect(String(resolveServiceReference("api.example.com/path"))).toBe(
+      "https://api.example.com/"
+    );
+    expect(String(resolveServiceReference("did:web:api.example.com:services:one"))).toBe(
+      "https://api.example.com/"
+    );
+    expect(String(resolveServiceReference("http://localhost:3000/path"))).toBe(
+      "http://localhost:3000/"
+    );
+    expect(() => resolveServiceReference("did:web:")).toThrow("Invalid AEP Service reference");
+    expect(() => resolveServiceReference("https://user:secret@api.example.com")).toThrow(
+      "must not contain credentials"
+    );
+    expect(() => resolveServiceReference("http://api.example.com")).toThrow("require HTTPS");
+  });
+
   it("fetches and validates a Service Inspect document", async () => {
     const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
     const fetch = (input: URL | string, init?: RequestInit) => {
@@ -147,7 +166,7 @@ describe("@aep-foundation/agent Inspect client", () => {
     } satisfies Partial<AepInspectError>);
   });
 
-  it("throws AepValidationError on invalid Inspect response bodies", async () => {
+  it("throws a typed Inspect error on invalid response bodies", async () => {
     await expect(
       withFetch(
         () =>
@@ -159,7 +178,86 @@ describe("@aep-foundation/agent Inspect client", () => {
             serviceUrl: "https://api.example.com"
           })
       )
-    ).rejects.toBeInstanceOf(AepValidationError);
+    ).rejects.toMatchObject({ name: "AepInspectError", code: "validation_failed" });
+  });
+
+  it.each([
+    ["missing redirect location", { status: 302, headers: {} }, "invalid_redirect"],
+    [
+      "cross-origin redirect",
+      { status: 302, headers: { location: "https://other.example/.well-known/aep" } },
+      "invalid_redirect"
+    ],
+    [
+      "invalid media type",
+      { status: 200, headers: { "content-type": "application/json" } },
+      "invalid_media_type"
+    ]
+  ])("rejects %s", async (_name, responseOptions, code) => {
+    await expect(
+      withFetch(
+        () => jsonResponsePromise(minimalInspectDocument, responseOptions),
+        () => inspectService({ serviceUrl: "https://api.example.com" })
+      )
+    ).rejects.toMatchObject({ code });
+  });
+
+  it("bounds redirects and response bytes and reports malformed transport data", async () => {
+    let redirects = 0;
+    await expect(
+      withFetch(
+        () => {
+          redirects += 1;
+          return jsonResponsePromise(
+            {},
+            { status: 302, headers: { location: `/redirect-${redirects}` } }
+          );
+        },
+        () => inspectService({ serviceUrl: "https://api.example.com" })
+      )
+    ).rejects.toMatchObject({ code: "invalid_redirect" });
+
+    await expect(
+      withFetch(
+        () => Promise.reject(new Error("aborted")),
+        () => inspectService({ serviceUrl: "https://api.example.com" })
+      )
+    ).rejects.toMatchObject({ code: "aborted" });
+
+    await expect(
+      withFetch(
+        () =>
+          Promise.resolve({
+            ...jsonResponse(minimalInspectDocument),
+            text: () => Promise.resolve("not-json")
+          }),
+        () => inspectService({ serviceUrl: "https://api.example.com" })
+      )
+    ).rejects.toMatchObject({ code: "invalid_json" });
+
+    await expect(
+      withFetch(
+        () =>
+          Promise.resolve({
+            ...jsonResponse(minimalInspectDocument),
+            text: () => Promise.resolve(JSON.stringify(minimalInspectDocument))
+          }),
+        () => inspectService({ maxResponseBytes: 10, serviceUrl: "https://api.example.com" })
+      )
+    ).rejects.toMatchObject({ code: "response_too_large" });
+
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(JSON.stringify(minimalInspectDocument)));
+        controller.close();
+      }
+    });
+    await expect(
+      withFetch(
+        () => Promise.resolve({ ...jsonResponse(minimalInspectDocument), body }),
+        () => inspectService({ maxResponseBytes: 10, serviceUrl: "https://api.example.com" })
+      )
+    ).rejects.toMatchObject({ code: "response_too_large" });
   });
 
   it("requires a fetch implementation", async () => {
@@ -186,6 +284,36 @@ describe("@aep-foundation/agent Inspect client", () => {
 });
 
 describe("@aep-foundation/agent command clients", () => {
+  it("returns completed asynchronous signing and exposes pending signing as a typed error", async () => {
+    const base = {
+      agentDid: "did:web:agent.example.com:agents:123",
+      clock: () => new Date("2026-05-28T12:00:00.000Z"),
+      command: "status" as const,
+      jti: "status-jti",
+      serviceDid: "did:web:api.example.com"
+    };
+
+    await expect(
+      signClientAssertion({
+        ...base,
+        signer: () => ({ status: "completed", clientAssertion: "completed.jwt" })
+      })
+    ).resolves.toBe("completed.jwt");
+
+    const pending = signClientAssertion({
+      ...base,
+      signer: () => ({
+        status: "pending",
+        platformContext: { continuation: "opaque" },
+        retryAfterSeconds: 5
+      })
+    });
+    await expect(pending).rejects.toBeInstanceOf(AepPendingSignError);
+    await expect(pending).rejects.toMatchObject({
+      result: { retryAfterSeconds: 5, status: "pending" }
+    });
+  });
+
   it("builds and signs baseline client assertions", async () => {
     const claims = buildClientAssertionClaims({
       agentDid: "did:web:agent.example.com:agents:123",
@@ -338,7 +466,6 @@ describe("@aep-foundation/agent command clients", () => {
       calls.push(fetchCall(input, init));
       return jsonResponsePromise({
         owner_action_required: "false",
-        requirements_pending: [],
         since: "2026-05-28T12:00:00Z",
         status: "active"
       });
@@ -517,7 +644,6 @@ describe("@aep-foundation/agent command clients", () => {
               : String(input).endsWith("/status")
                 ? {
                     owner_action_required: "false",
-                    requirements_pending: [],
                     since: "2026-05-28T12:00:00Z",
                     status: "active"
                   }
@@ -676,7 +802,6 @@ describe("@aep-foundation/agent Platform clients", () => {
       "Idempotency-Key": "01J0AEPIDEMPOTENCY0000000001"
     });
     expect(JSON.parse(requestBody(calls[0]?.init?.body))).toEqual({
-      idempotency_key: "01J0AEPIDEMPOTENCY0000000001",
       service_did: "did:web:api.service.example"
     });
     expect(result.body.agent_did).toBe(
@@ -705,6 +830,7 @@ describe("@aep-foundation/agent Platform clients", () => {
         (input, init) => {
           calls.push(fetchCall(input, init));
           return jsonResponsePromise({
+            status: "completed",
             agent_did: platformIdentityFixture().agent_did,
             client_assertion: "signed.jwt",
             expires_at: "2026-07-06T12:05:00.000Z",
@@ -730,7 +856,7 @@ describe("@aep-foundation/agent Platform clients", () => {
             }
           )
       )
-    ).resolves.toBe("signed.jwt");
+    ).resolves.toMatchObject({ status: "completed", clientAssertion: "signed.jwt" });
     expect(String(calls[0]?.input)).toBe(
       "https://platform.example.com/v1/aep/agent-identities/pai_01J0AEPPLATFORM000000000001/sign"
     );
@@ -740,6 +866,93 @@ describe("@aep-foundation/agent Platform clients", () => {
       op: "enroll",
       service_did: "did:web:api.service.example"
     });
+  });
+
+  it("supports caller-defined authentication headers without exposing or overriding protocol headers", async () => {
+    const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
+    const discovery = await withFetch(
+      () => jsonResponsePromise(minimalPlatformDiscoveryDocument),
+      () => discoverPlatform({ platformUrl: "https://platform.example.com/" })
+    );
+    const result = await withFetch(
+      (input, init) => {
+        calls.push(fetchCall(input, init));
+        return jsonResponsePromise(platformIdentityFixture());
+      },
+      () =>
+        provisionPlatformIdentity({
+          authenticationHeaders: {
+            Accept: "text/plain",
+            "Content-Type": "text/plain",
+            "Idempotency-Key": "caller-key",
+            "X-CUSTOM-AUTH": "secret-api-key"
+          },
+          discovery,
+          idempotencyKey: "sdk-key",
+          platformUrl: "https://platform.example.com/",
+          serviceDid: "did:web:api.service.example"
+        })
+    );
+
+    expect(calls[0]?.init?.headers).toEqual({
+      Accept: "application/aep+json",
+      "Content-Type": "application/aep+json",
+      "Idempotency-Key": "sdk-key",
+      "X-CUSTOM-AUTH": "secret-api-key"
+    });
+    expect(result).not.toHaveProperty("authenticationHeaders");
+    expect(result).not.toHaveProperty("headers");
+  });
+
+  it("resolves rotating authentication headers for every delegated Sign request", async () => {
+    const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
+    let token = 0;
+    const discovery = await withFetch(
+      () => jsonResponsePromise(minimalPlatformDiscoveryDocument),
+      () => discoverPlatform({ platformUrl: "https://platform.example.com/" })
+    );
+    const signer = createPlatformDelegatedSigner({
+      authenticationHeaders: () => Promise.resolve({ Authorization: `Bearer rotating-${++token}` }),
+      discovery,
+      identity: platformIdentityFixture(),
+      platformUrl: "https://platform.example.com/"
+    });
+    const claims = buildClientAssertionClaims({
+      agentDid: platformIdentityFixture().agent_did,
+      clock: () => new Date("2026-07-06T12:00:00.000Z"),
+      command: "enroll",
+      jti: "01J0AEPASSERTION0000000001",
+      serviceDid: "did:web:api.service.example",
+      ttlSeconds: 300
+    });
+    await withFetch(
+      (input, init) => {
+        calls.push(fetchCall(input, init));
+        return jsonResponsePromise({
+          status: "completed",
+          agent_did: platformIdentityFixture().agent_did,
+          client_assertion: "signed.jwt",
+          expires_at: "2026-07-06T12:05:00.000Z",
+          issued_at: "2026-07-06T12:00:00.000Z",
+          jti: claims.jti,
+          service_did: claims.aud
+        });
+      },
+      async () => {
+        await signer(claims, {
+          command: "enroll",
+          serviceDid: claims.aud,
+          signingAlgorithms: ["ES256"]
+        });
+        await signer(claims, {
+          command: "enroll",
+          serviceDid: claims.aud,
+          signingAlgorithms: ["ES256"]
+        });
+      }
+    );
+    expect(calls[0]?.init?.headers).toMatchObject({ Authorization: "Bearer rotating-1" });
+    expect(calls[1]?.init?.headers).toMatchObject({ Authorization: "Bearer rotating-2" });
   });
 
   it("creates a single Platform-backed Agent identity provider", async () => {
@@ -904,7 +1117,7 @@ function jsonResponse(
   return {
     ok: options.ok ?? true,
     status: options.status ?? 200,
-    headers: headerMap(options.headers ?? {}),
+    headers: headerMap({ "content-type": "application/aep+json", ...(options.headers ?? {}) }),
     json: () => Promise.resolve(body),
     ...(options.statusText === undefined ? {} : { statusText: options.statusText })
   };

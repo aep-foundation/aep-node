@@ -1,5 +1,9 @@
 # @aep-foundation/agent
 
+Service references may be DIDs, hosts, host paths, or absolute resource URLs. `resolveServiceReference` derives a trusted origin, while `inspectService` applies bounded same-origin redirects, media-type validation, abort support, and a one-mebibyte default response limit.
+
+Platform delegated signers return a `completed` or `pending` result. Pending results carry opaque `platformContext` and numeric `retryAfterSeconds`; pass the returned context unchanged in a later signing call with a new idempotency key.
+
 Agent-side workflows for AEP.
 
 ## Responsibilities
@@ -61,6 +65,32 @@ await session.revoke({
   credentialId: grant.body.credential_id
 });
 ```
+
+Platform authentication can use the compatibility `authorization` option or
+caller-provided headers. The Platform defines its authentication header name:
+
+```ts
+const platformApiKeyHeader = platformConfiguration.apiKeyHeader;
+const identityProvider = createPlatformIdentityProvider({
+  authenticationHeaders: { [platformApiKeyHeader]: platformApiKey },
+  platformUrl
+});
+```
+
+For rotating bearer credentials, provide an async function. It is evaluated
+for every Provision and Sign request:
+
+```ts
+const identityProvider = createPlatformIdentityProvider({
+  authenticationHeaders: async () => ({
+    Authorization: `Bearer ${await session.accessToken()}`
+  }),
+  platformUrl: inflowPlatformUrl
+});
+```
+
+The SDK always controls `Accept`, `Content-Type`, and `Idempotency-Key`; values
+for those names in caller-provided authentication headers are ignored.
 
 `createAepAgent()` accepts exactly one `identityProvider`. Platform-hosted
 `did:web` support is provided by `createPlatformIdentityProvider()`. Future

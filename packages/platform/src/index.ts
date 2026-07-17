@@ -7,6 +7,7 @@ import {
   signClientAssertionJwt,
   verifyClientAssertionJwt
 } from "@aep-foundation/core";
+import { createHash } from "node:crypto";
 import type {
   AepAuthenticatedCommand,
   AepClientAssertionClaims,
@@ -176,7 +177,6 @@ export interface PlatformEnrollRequestOptions {
 }
 
 export interface PlatformProvisionRequest {
-  idempotency_key: string;
   service_did: string;
 }
 
@@ -302,6 +302,7 @@ export interface PlatformSignRequest {
   jti: string;
   lifetime_seconds?: string;
   op: AepAuthenticatedCommand;
+  platform_context?: Record<string, unknown>;
   service_did: string;
 }
 
@@ -311,16 +312,27 @@ export interface PlatformSignRequestOptions {
   maxLifetimeSeconds?: number;
   serviceDid: string;
   lifetimeSeconds?: number;
+  platformContext?: Record<string, unknown>;
 }
 
-export interface PlatformSignResponse {
+export interface PlatformSignCompletedResponse {
+  status: "completed";
   agent_did: string;
   client_assertion: string;
   expires_at: string;
   issued_at: string;
   jti: string;
+  platform_context?: Record<string, unknown>;
   service_did: string;
 }
+
+export interface PlatformSignPendingResponse {
+  status: "pending";
+  platform_context?: Record<string, unknown>;
+  retry_after_seconds: string;
+}
+
+export type PlatformSignResponse = PlatformSignCompletedResponse | PlatformSignPendingResponse;
 
 export interface PlatformSignResponseOptions {
   clientAssertion: string;
@@ -330,6 +342,12 @@ export interface PlatformSignResponseOptions {
   maxLifetimeSeconds?: number;
   serviceDid: string;
   lifetimeSeconds?: number;
+  platformContext?: Record<string, unknown>;
+}
+
+export interface PlatformSignPendingResponseOptions {
+  platformContext?: Record<string, unknown>;
+  retryAfterSeconds: number;
 }
 
 export interface PlatformVerificationRequest {
@@ -376,6 +394,7 @@ export interface PlatformRequestContext {
   authorization?: string;
   now?: Date;
   requestId?: string;
+  idempotencyKey?: string;
   subject?: string;
 }
 
@@ -425,18 +444,24 @@ export interface PlatformIdentityStore {
   ): Awaitable<PlatformIdentityRecord | undefined>;
 }
 
-export interface PlatformProvisionIdempotencyRecord {
+export type PlatformIdempotentOperation = "hosted_verification" | "provision" | "sign";
+
+export interface PlatformIdempotencyRecord {
+  expiresAt: string;
+  fingerprint: string;
   idempotencyKey: string;
-  requestHash: string;
-  response: PlatformAgentIdentity;
+  operation: PlatformIdempotentOperation;
+  principal: string;
+  response: PlatformHttpResponse<unknown>;
 }
 
-export interface PlatformProvisionIdempotencyStore {
+export interface PlatformIdempotencyStore {
   get(
+    principal: string,
     idempotencyKey: string,
     context: PlatformRequestContext
-  ): Awaitable<PlatformProvisionIdempotencyRecord | undefined>;
-  set(record: PlatformProvisionIdempotencyRecord, context: PlatformRequestContext): Awaitable<void>;
+  ): Awaitable<PlatformIdempotencyRecord | undefined>;
+  set(record: PlatformIdempotencyRecord, context: PlatformRequestContext): Awaitable<void>;
 }
 
 export interface PlatformReplayStore {
@@ -486,6 +511,16 @@ export interface PlatformLifecyclePolicy {
   canVerify(identity: PlatformIdentityRecord, context: PlatformRequestContext): Awaitable<boolean>;
 }
 
+export interface PlatformSignHandlerInput {
+  identity: PlatformIdentityRecord;
+  request: PlatformSignRequest;
+}
+
+export type PlatformSignHandler = (
+  input: PlatformSignHandlerInput,
+  context: PlatformRequestContext
+) => Awaitable<PlatformHttpResponse<PlatformSignResponse | AepProblemDetails> | undefined>;
+
 export interface CreateAepPlatformOptions {
   authorizer?: PlatformAuthorizer;
   clock?: () => Date;
@@ -493,12 +528,14 @@ export interface CreateAepPlatformOptions {
   didHost: string;
   didPathPrefix?: string;
   didUrlTemplate: string;
+  signHandler?: PlatformSignHandler;
   discovery: Omit<
     PlatformDiscoveryDocumentOptions,
     "defaultLifetimeSeconds" | "didUrlTemplate" | "signingAlgorithms"
   >;
   idGenerator?: () => string;
-  idempotencyStore: PlatformProvisionIdempotencyStore;
+  idempotencyRetentionSeconds?: number;
+  idempotencyStore: PlatformIdempotencyStore;
   identityStore: PlatformIdentityStore;
   keyStore: PlatformKeyStore;
   lifecyclePolicy?: PlatformLifecyclePolicy;
@@ -539,7 +576,7 @@ export interface AepPlatform {
   verify(
     body: unknown,
     context?: PlatformRequestContext
-  ): Promise<PlatformHttpResponse<PlatformVerificationResponse>>;
+  ): Promise<PlatformHttpResponse<PlatformVerificationResponse | AepProblemDetails>>;
 }
 
 export class InMemoryManagedAgentRegistry implements ManagedAgentRegistry {
@@ -745,11 +782,9 @@ export function createPlatformLifecycleRequest(
 export function createPlatformProvisionRequest(
   options: PlatformProvisionRequestOptions
 ): PlatformProvisionRequest {
-  assertNonEmpty("idempotencyKey", options.idempotencyKey);
   assertNonEmpty("serviceDid", options.serviceDid);
 
   return {
-    idempotency_key: options.idempotencyKey,
     service_did: options.serviceDid
   };
 }
@@ -872,6 +907,9 @@ export function createPlatformSignRequest(
     jti: options.jti,
     ...(lifetimeSeconds === undefined ? {} : { lifetime_seconds: String(lifetimeSeconds) }),
     op: options.command,
+    ...(options.platformContext === undefined
+      ? {}
+      : { platform_context: cloneRecord(options.platformContext) }),
     service_did: options.serviceDid
   };
 }
@@ -890,12 +928,35 @@ export function createPlatformSignResponse(
   );
 
   return {
+    status: "completed",
     agent_did: options.identity.agentDid,
     client_assertion: options.clientAssertion,
     expires_at: epochSecondsToIso(issuedAt + lifetimeSeconds),
     issued_at: epochSecondsToIso(issuedAt),
     jti: options.jti,
+    ...(options.platformContext === undefined
+      ? {}
+      : { platform_context: cloneRecord(options.platformContext) }),
     service_did: options.serviceDid
+  };
+}
+
+export function createPlatformSignPendingResponse(
+  options: PlatformSignPendingResponseOptions
+): PlatformSignPendingResponse {
+  if (
+    !Number.isInteger(options.retryAfterSeconds) ||
+    options.retryAfterSeconds < 1 ||
+    options.retryAfterSeconds > 300
+  ) {
+    throw new RangeError("retryAfterSeconds must be an integer from 1 through 300.");
+  }
+  return {
+    status: "pending",
+    ...(options.platformContext === undefined
+      ? {}
+      : { platform_context: cloneRecord(options.platformContext) }),
+    retry_after_seconds: String(options.retryAfterSeconds)
   };
 }
 
@@ -1012,115 +1073,121 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
 
     async provision(body, context = {}) {
       const request = parsePlatformProvisionRequestBody(body);
+      return executePlatformIdempotent<PlatformAgentIdentity | AepProblemDetails>(
+        "provision",
+        request,
+        context,
+        options.idempotencyStore,
+        clock,
+        options.idempotencyRetentionSeconds,
+        async () => {
+          if ((await authorizer.authorizeProvision?.(request, context)) === false) {
+            return problem(404, "not_recognized", "Identity not recognized.");
+          }
 
-      if ((await authorizer.authorizeProvision?.(request, context)) === false) {
-        return problem(404, "not_recognized", "Identity not recognized.");
-      }
+          if (!(await options.serviceDidResolver.resolve(request.service_did, context))) {
+            return problem(400, "invalid_request", "Service DID could not be resolved.");
+          }
 
-      if (!(await options.serviceDidResolver.resolve(request.service_did, context))) {
-        return problem(400, "invalid_request", "Service DID could not be resolved.");
-      }
+          const generatedId = idGenerator();
+          assertNonEmpty("generated identity id", generatedId);
+          const now = clock().toISOString();
+          const agentDidId = generatedId;
+          const agentDid = createServiceScopedAgentDid({
+            agentDidId,
+            host: options.didHost,
+            pathPrefix: options.didPathPrefix ?? "agents"
+          });
+          const identity: PlatformIdentityRecord = {
+            agentDid,
+            agentDidId,
+            agentIdentityId: generatedId.startsWith("pai_") ? generatedId : `pai_${generatedId}`,
+            createdAt: now,
+            didDocumentUrl: renderDidUrlTemplate(options.didUrlTemplate, agentDidId),
+            keyId: agentDid,
+            serviceDid: request.service_did,
+            signingAlgorithms: [...options.signingAlgorithms],
+            status: "active",
+            updatedAt: now
+          };
 
-      const requestHash = stableStringify(request);
-      const existing = await options.idempotencyStore.get(request.idempotency_key, context);
+          await options.keyStore.create(identity, context);
+          await options.identityStore.create(identity, context);
 
-      if (existing !== undefined) {
-        if (existing.requestHash !== requestHash) {
-          return problem(409, "idempotency_conflict", "Idempotency key already used.");
+          return ok(200, platformIdentityFromRecord(identity));
         }
-
-        return ok(200, existing.response);
-      }
-
-      const generatedId = idGenerator();
-      assertNonEmpty("generated identity id", generatedId);
-      const now = clock().toISOString();
-      const agentDidId = generatedId;
-      const agentDid = createServiceScopedAgentDid({
-        agentDidId,
-        host: options.didHost,
-        pathPrefix: options.didPathPrefix ?? "agents"
-      });
-      const identity: PlatformIdentityRecord = {
-        agentDid,
-        agentDidId,
-        agentIdentityId: generatedId.startsWith("pai_") ? generatedId : `pai_${generatedId}`,
-        createdAt: now,
-        didDocumentUrl: renderDidUrlTemplate(options.didUrlTemplate, agentDidId),
-        keyId: agentDid,
-        serviceDid: request.service_did,
-        signingAlgorithms: [...options.signingAlgorithms],
-        status: "active",
-        updatedAt: now
-      };
-
-      await options.keyStore.create(identity, context);
-      await options.identityStore.create(identity, context);
-
-      const response = platformIdentityFromRecord(identity);
-      await options.idempotencyStore.set(
-        {
-          idempotencyKey: request.idempotency_key,
-          requestHash,
-          response
-        },
-        context
       );
-
-      return ok(200, response);
     },
 
     async sign(agentIdentityId, body, context = {}) {
       const request = parsePlatformSignRequestBody(body);
-      const identity = await authorizedIdentity(
-        agentIdentityId,
-        authorizer,
-        options.identityStore,
-        context
-      );
+      return executePlatformIdempotent<PlatformSignResponse | AepProblemDetails>(
+        "sign",
+        { agent_identity_id: agentIdentityId, request },
+        context,
+        options.idempotencyStore,
+        clock,
+        options.idempotencyRetentionSeconds,
+        async () => {
+          const identity = await authorizedIdentity(
+            agentIdentityId,
+            authorizer,
+            options.identityStore,
+            context
+          );
 
-      if (identity === undefined || identity.serviceDid !== request.service_did) {
-        return problem(404, "not_recognized", "Identity not recognized.");
-      }
+          if (identity === undefined || identity.serviceDid !== request.service_did) {
+            return problem(404, "not_recognized", "Identity not recognized.");
+          }
 
-      if (!(await lifecyclePolicy.canSign(identity, context))) {
-        return problem(403, lifecycleProblemCode(identity.status), "Identity cannot sign.");
-      }
+          if (!(await lifecyclePolicy.canSign(identity, context))) {
+            return problem(403, lifecycleProblemCode(identity.status), "Identity cannot sign.");
+          }
 
-      if (!(await options.serviceDidResolver.resolve(request.service_did, context))) {
-        return problem(400, "invalid_request", "Service DID could not be resolved.");
-      }
+          if (!(await options.serviceDidResolver.resolve(request.service_did, context))) {
+            return problem(400, "invalid_request", "Service DID could not be resolved.");
+          }
 
-      const issuedAt = context.now ?? clock();
-      const lifetimeSeconds =
-        request.lifetime_seconds === undefined ? undefined : Number(request.lifetime_seconds);
-      const managedIdentity = managedIdentityFromRecord(identity);
-      const claims = createPlatformClientAssertionClaims({
-        command: request.op,
-        identity: managedIdentity,
-        issuedAt,
-        jti: request.jti,
-        ...(options.maxLifetimeSeconds === undefined
-          ? {}
-          : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
-        serviceDid: request.service_did,
-        ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds })
-      });
-      const clientAssertion = await options.keyStore.sign(identity, claims, context);
+          if (options.signHandler !== undefined) {
+            const handled = await options.signHandler(
+              { identity: clonePlatformIdentityRecord(identity), request },
+              context
+            );
+            if (handled !== undefined) return handled;
+          }
 
-      return ok(
-        200,
-        createPlatformSignResponse({
-          clientAssertion,
-          identity: managedIdentity,
-          issuedAt,
-          jti: request.jti,
-          ...(options.maxLifetimeSeconds === undefined
-            ? {}
-            : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
-          serviceDid: request.service_did,
-          ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds })
-        })
+          const issuedAt = context.now ?? clock();
+          const lifetimeSeconds =
+            request.lifetime_seconds === undefined ? undefined : Number(request.lifetime_seconds);
+          const managedIdentity = managedIdentityFromRecord(identity);
+          const claims = createPlatformClientAssertionClaims({
+            command: request.op,
+            identity: managedIdentity,
+            issuedAt,
+            jti: request.jti,
+            ...(options.maxLifetimeSeconds === undefined
+              ? {}
+              : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
+            serviceDid: request.service_did,
+            ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds })
+          });
+          const clientAssertion = await options.keyStore.sign(identity, claims, context);
+
+          return ok(
+            200,
+            createPlatformSignResponse({
+              clientAssertion,
+              identity: managedIdentity,
+              issuedAt,
+              jti: request.jti,
+              ...(options.maxLifetimeSeconds === undefined
+                ? {}
+                : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
+              serviceDid: request.service_did,
+              ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds })
+            })
+          );
+        }
       );
     },
 
@@ -1163,67 +1230,76 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
 
     async verify(body, context = {}) {
       const request = parsePlatformVerificationRequestBody(body);
+      return executePlatformIdempotent<PlatformVerificationResponse | AepProblemDetails>(
+        "hosted_verification",
+        request,
+        context,
+        options.idempotencyStore,
+        clock,
+        options.idempotencyRetentionSeconds,
+        async () => {
+          try {
+            const decoded = decodeJwtUnverified(request.client_assertion);
+            const agentDid = requireString(decoded.payload, "iss");
+            const subject = requireString(decoded.payload, "sub");
+            const jti = requireString(decoded.payload, "jti");
+            const expiresAt = requireNumber(decoded.payload, "exp");
 
-      try {
-        const decoded = decodeJwtUnverified(request.client_assertion);
-        const agentDid = requireString(decoded.payload, "iss");
-        const subject = requireString(decoded.payload, "sub");
-        const jti = requireString(decoded.payload, "jti");
-        const expiresAt = requireNumber(decoded.payload, "exp");
+            if (agentDid !== subject) {
+              return ok(200, unrecognizedVerification(request, "not_recognized"));
+            }
 
-        if (agentDid !== subject) {
-          return ok(200, unrecognizedVerification(request, "not_recognized"));
+            const identity = await options.identityStore.findByAgentDid(agentDid, context);
+
+            if (
+              identity === undefined ||
+              identity.serviceDid !== request.service_did ||
+              !(await lifecyclePolicy.canVerify(identity, context))
+            ) {
+              return ok(200, unrecognizedVerification(request, "not_recognized"));
+            }
+
+            const claims = await verifyClientAssertionJwt(request.client_assertion, {
+              algorithms: identity.signingAlgorithms,
+              audience: request.service_did,
+              currentDate: context.now ?? clock(),
+              issuer: agentDid,
+              key: await options.keyStore.verificationKey(identity, context),
+              subject: agentDid
+            });
+
+            if (claims.op !== request.op) {
+              return ok(200, unrecognizedVerification(request, "not_recognized"));
+            }
+
+            const replayKey = [request.service_did, request.op, agentDid, jti].join("\u001f");
+            const consumed = await options.replayStore.consume(
+              replayKey,
+              new Date(expiresAt * 1000),
+              context
+            );
+
+            if (!consumed) {
+              return ok(200, unrecognizedVerification(request, "not_recognized"));
+            }
+
+            return ok(
+              200,
+              createPlatformVerificationResponse({
+                agentDid: identity.agentDid,
+                agentIdentityId: identity.agentIdentityId,
+                command: request.op,
+                reason: "verified",
+                serviceDid: request.service_did,
+                status: identity.status,
+                verified: true
+              })
+            );
+          } catch {
+            return ok(200, unrecognizedVerification(request, "not_recognized"));
+          }
         }
-
-        const identity = await options.identityStore.findByAgentDid(agentDid, context);
-
-        if (
-          identity === undefined ||
-          identity.serviceDid !== request.service_did ||
-          !(await lifecyclePolicy.canVerify(identity, context))
-        ) {
-          return ok(200, unrecognizedVerification(request, "not_recognized"));
-        }
-
-        const claims = await verifyClientAssertionJwt(request.client_assertion, {
-          algorithms: identity.signingAlgorithms,
-          audience: request.service_did,
-          currentDate: context.now ?? clock(),
-          issuer: agentDid,
-          key: await options.keyStore.verificationKey(identity, context),
-          subject: agentDid
-        });
-
-        if (claims.op !== request.op) {
-          return ok(200, unrecognizedVerification(request, "not_recognized"));
-        }
-
-        const replayKey = [request.service_did, request.op, agentDid, jti].join("\u001f");
-        const consumed = await options.replayStore.consume(
-          replayKey,
-          new Date(expiresAt * 1000),
-          context
-        );
-
-        if (!consumed) {
-          return ok(200, unrecognizedVerification(request, "not_recognized"));
-        }
-
-        return ok(
-          200,
-          createPlatformVerificationResponse({
-            agentDid: identity.agentDid,
-            agentIdentityId: identity.agentIdentityId,
-            command: request.op,
-            reason: "verified",
-            serviceDid: request.service_did,
-            status: identity.status,
-            verified: true
-          })
-        );
-      } catch {
-        return ok(200, unrecognizedVerification(request, "not_recognized"));
-      }
+      );
     }
   };
 }
@@ -1239,6 +1315,64 @@ const defaultLifecyclePolicy: PlatformLifecyclePolicy = {
     return identity.status === "active";
   }
 };
+
+async function executePlatformIdempotent<TBody>(
+  operation: PlatformIdempotentOperation,
+  material: unknown,
+  context: PlatformRequestContext,
+  store: PlatformIdempotencyStore,
+  clock: () => Date,
+  retentionSeconds = 3600,
+  execute: () => Awaitable<PlatformHttpResponse<TBody>>
+): Promise<PlatformHttpResponse<TBody>> {
+  const idempotencyKey = context.idempotencyKey;
+  const principal = context.subject;
+  if (idempotencyKey === undefined || idempotencyKey.length === 0) {
+    return problem(
+      400,
+      "invalid_request",
+      "Idempotency-Key is required."
+    ) as PlatformHttpResponse<TBody>;
+  }
+  if (principal === undefined || principal.length === 0) {
+    return problem(
+      400,
+      "invalid_request",
+      "A stable authorized principal is required."
+    ) as PlatformHttpResponse<TBody>;
+  }
+  if (!Number.isInteger(retentionSeconds) || retentionSeconds < 3600) {
+    throw new RangeError("idempotencyRetentionSeconds must be at least 3600.");
+  }
+
+  const fingerprint = createHash("sha256").update(stableStringify(material)).digest("hex");
+  const now = clock();
+  const existing = await store.get(principal, idempotencyKey, context);
+  if (existing !== undefined && Date.parse(existing.expiresAt) > now.getTime()) {
+    if (existing.operation !== operation || existing.fingerprint !== fingerprint) {
+      return problem(
+        409,
+        "idempotency_conflict",
+        "Idempotency key already used."
+      ) as PlatformHttpResponse<TBody>;
+    }
+    return structuredClone(existing.response) as PlatformHttpResponse<TBody>;
+  }
+
+  const response = await execute();
+  await store.set(
+    {
+      expiresAt: new Date(now.getTime() + retentionSeconds * 1000).toISOString(),
+      fingerprint,
+      idempotencyKey,
+      operation,
+      principal,
+      response: structuredClone(response)
+    },
+    context
+  );
+  return response;
+}
 
 function ok<TBody>(status: number, body: TBody): PlatformHttpResponse<TBody> {
   return {
@@ -1324,7 +1458,7 @@ function parsePlatformProvisionRequestBody(value: unknown): PlatformProvisionReq
   const body = requireRecord(value, "Platform provision request");
 
   return createPlatformProvisionRequest({
-    idempotencyKey: requireString(body, "idempotency_key"),
+    idempotencyKey: "transport-header",
     serviceDid: requireString(body, "service_did")
   });
 }
@@ -1355,6 +1489,9 @@ function parsePlatformSignRequestBody(value: unknown): PlatformSignRequest {
     command,
     jti: requireString(body, "jti"),
     serviceDid: requireString(body, "service_did"),
+    ...(body["platform_context"] === undefined
+      ? {}
+      : { platformContext: requireRecord(body["platform_context"], "platform_context") }),
     ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds: Number(lifetimeSeconds) })
   });
 }

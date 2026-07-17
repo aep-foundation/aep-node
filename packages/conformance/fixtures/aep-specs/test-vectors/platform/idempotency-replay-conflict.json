@@ -1,0 +1,21 @@
+{
+  "id": "idempotency-replay-conflict",
+  "title": "Platform idempotency replay and conflict",
+  "description": "Provision, Sign, and hosted Verification share principal-scoped header idempotency with exact replay and cross-operation conflict.",
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "category": "platform",
+  "applies_to": ["agent", "platform", "service"],
+  "profile": "platform-hosted-identity",
+  "input": {
+    "principal": "stable-principal-123",
+    "initial_sign_key": "01J0AEPSIGNINITIAL0000000001",
+    "final_sign_key": "01J0AEPSIGNFINAL000000000002",
+    "operations": ["provision", "sign", "hosted_verification"]
+  },
+  "expected": {
+    "retention_seconds_minimum": "3600",
+    "exact_replay": "stored_http_result",
+    "changed_input_or_operation_status": 409,
+    "changed_input_or_operation_code": "idempotency_conflict"
+  }
+}

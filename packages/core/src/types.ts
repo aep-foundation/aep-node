@@ -75,6 +75,7 @@ export type AepErrorCode =
   | "identity_terminated"
   | "identity_unavailable"
   | "verification_pending"
+  | "requirements_unmet"
   | "unsupported_grant_type"
   | "idempotency_conflict";
 
@@ -88,6 +89,7 @@ export interface EnrollRequest {
 export interface EnrollResponse {
   status: AepEnrollmentStatus;
   owner_action_required?: "true" | "false";
+  verification_pending?: string[];
   requirements_pending?: string[];
   [key: string]: unknown;
 }
@@ -95,6 +97,7 @@ export interface EnrollResponse {
 export interface StatusResponse {
   status: AepAgentStatus;
   owner_action_required?: "true" | "false";
+  verification_pending?: string[];
   requirements_pending?: string[];
   since?: string;
   [key: string]: unknown;
@@ -109,13 +112,13 @@ export interface GrantRequest {
 export type RevokeRequest =
   | {
       grant_type: AepGrantType;
-      credential_id?: string;
+      credential_id?: never;
       all_grant_types?: never;
       [key: string]: unknown;
     }
   | {
       credential_id: string;
-      grant_type?: AepGrantType;
+      grant_type?: never;
       all_grant_types?: never;
       [key: string]: unknown;
     }

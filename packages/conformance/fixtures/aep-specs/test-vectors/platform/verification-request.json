@@ -3,7 +3,7 @@
   "category": "platform",
   "description": "A Service asks a Platform to verify a hosted Agent assertion for a Service DID and AEP command.",
   "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
-  "expected": {},
+  "expected": { "idempotency_key_header": "01J0AEPVERIFY0000000000001" },
   "id": "verification-request",
   "input": {
     "client_assertion": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRpZDp3ZWI6cC5leGFtcGxlOmE6NFlmN3AyeFFkOSJ9.eyJhdWQiOiJkaWQ6d2ViOmFwaS5zZXJ2aWNlLmV4YW1wbGUiLCJleHAiOjE3ODM0MjU5MDAsImlhdCI6MTc4MzQyNTYwMCwiaXNzIjoiZGlkOndlYjpwLmV4YW1wbGU6YTo0WWY3cDJ4UWQ5IiwianRpIjoiMDFKMEFFUEFTU0VSVElPTjAwMDAwMDAwMDEiLCJvcCI6ImVucm9sbCIsInN1YiI6ImRpZDp3ZWI6cC5leGFtcGxlOmE6NFlmN3AyeFFkOSJ9.signature",

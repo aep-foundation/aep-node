@@ -31,11 +31,11 @@
   "id": "provision-response-distinct-services",
   "input": {
     "first_request": {
-      "idempotency_key": "01J0AEPPLATFORM000000000001",
+      "idempotency_key_header": "01J0AEPPLATFORM000000000001",
       "service_did": "did:web:api.service.example"
     },
     "second_request": {
-      "idempotency_key": "01J0AEPPLATFORM000000000002",
+      "idempotency_key_header": "01J0AEPPLATFORM000000000002",
       "service_did": "did:web:billing.service.example"
     }
   },

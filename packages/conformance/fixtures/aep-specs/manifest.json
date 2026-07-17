@@ -36,14 +36,19 @@
       "credentials/oauth-bearer/grant-response.json",
       "enroll/request-minimal.json",
       "enroll/response-active.json",
+      "enroll/response-pending-verification-owner-action.json",
       "errors/not-recognized-problem.json",
+      "errors/requirements-unmet-problem.json",
+      "errors/verification-pending-problem.json",
       "grant-revoke/grant-request-oauth-bearer.json",
       "grant-revoke/revoke-request-all-grant-types.json",
       "grant-revoke/revoke-request-oauth-bearer.json",
       "grant-revoke/revoke-response-empty.json",
       "idempotency/enroll-conflict.json",
       "inspect/minimal-http.json",
+      "inspect/transport-requirements.json",
       "platform/discovery.json",
+      "platform/idempotency-replay-conflict.json",
       "platform/lifecycle-request.json",
       "platform/lifecycle-response.json",
       "platform/list-response.json",
@@ -51,11 +56,13 @@
       "platform/provision-response-distinct-services.json",
       "platform/provision-response.json",
       "platform/sign-request.json",
+      "platform/sign-response-pending.json",
       "platform/sign-response.json",
       "platform/verification-request.json",
       "platform/verification-response-recognized.json",
       "platform/verification-response-unrecognized.json",
-      "status/response-active.json"
+      "status/response-active.json",
+      "status/response-pending-requirements.json"
     ]
   }
 }

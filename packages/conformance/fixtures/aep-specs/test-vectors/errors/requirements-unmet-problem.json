@@ -1,0 +1,21 @@
+{
+  "id": "requirements-unmet-problem",
+  "title": "requirements_unmet Problem Details response",
+  "description": "A recognized identity receives a blocking unmet-requirements error with names but no claim values.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "category": "errors",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": { "failure_class": "missing_requirement" },
+  "expected": {
+    "status": 422,
+    "content_type": "application/problem+json",
+    "body": {
+      "type": "urn:aep:error:requirements_unmet",
+      "title": "Requirements unmet",
+      "status": 422,
+      "code": "requirements_unmet",
+      "requirements_pending": ["company.registration"]
+    }
+  }
+}
