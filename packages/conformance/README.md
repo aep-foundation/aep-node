@@ -1,5 +1,8 @@
 # @aep-foundation/conformance
 
+Finalized schemas, registries, examples, and vectors are synchronized here.
+`loadRegistryArtifact()` and `loadExampleArtifact()` expose the added groups.
+
 SDK-facing conformance helpers for checking AEP behavior against schemas,
 examples, and test vectors.
 

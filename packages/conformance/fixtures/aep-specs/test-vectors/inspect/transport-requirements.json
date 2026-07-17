@@ -2,7 +2,7 @@
   "id": "transport-requirements",
   "title": "Inspect transport requirements",
   "description": "Successful Inspect requires the AEP JSON media-type essence, same-origin redirects, and fail-closed implementation bounds.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
   "category": "inspect",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

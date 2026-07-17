@@ -2,7 +2,7 @@
   "id": "response-active",
   "title": "Synchronous active Enroll response",
   "description": "A successful synchronous Enroll response for an immediately active Agent identity.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
   "category": "enroll",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

@@ -1,0 +1,26 @@
+{
+  "id": "urn:aep:identity-method:aep:did:web#v=1.0.0",
+  "kind": "identity_method",
+  "name": "did:web Identity Method",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "did:web",
+  "specification": {
+    "draft": "draft-kavian-aep-did-web-identity-method-00",
+    "path": "ietf/specs/identity-methods/draft-kavian-aep-did-web-identity-method-00.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-did-web-identity-method/"
+  },
+  "summary": "DID Web identity method for AEP client assertions.",
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/inspect-document.md"],
+    "schemas": [
+      "ietf/schemas/inspect-document.schema.json",
+      "ietf/schemas/client-assertion-claims.schema.json"
+    ],
+    "test_vectors": ["ietf/test-vectors/inspect/minimal-http.json"]
+  }
+}

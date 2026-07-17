@@ -1,0 +1,24 @@
+{
+  "id": "path-matching",
+  "title": "OpenAPI operation and trailing-slash matching",
+  "description": "Method, templates, query exclusion, slash modes, ambiguity diagnostics, and stale contradictions are deterministic.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "category": "openapi",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "method": "get",
+    "path": "/v1/orders/123",
+    "query": "view=full",
+    "templates": ["/v1/orders/{id}", "/v1/{kind}/123"]
+  },
+  "expected": {
+    "method": "GET",
+    "query_selects_operation": false,
+    "literal_precedence": true,
+    "strict": { "/items": "different-from-/items/" },
+    "equivalent": { "/items": "same-as-/items/", "/": "unchanged" },
+    "similar_templates": "contradiction",
+    "stale_contradiction": "revalidate-and-live-challenge"
+  }
+}

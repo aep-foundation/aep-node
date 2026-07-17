@@ -44,6 +44,8 @@ const packageRoot = path.dirname(
 
 export const specArtifactsRoot = path.join(packageRoot, "fixtures/aep-specs");
 export const schemaArtifactsRoot = path.join(specArtifactsRoot, "schemas");
+export const exampleArtifactsRoot = path.join(specArtifactsRoot, "examples");
+export const registryArtifactsRoot = path.join(specArtifactsRoot, "registry");
 export const testVectorArtifactsRoot = path.join(specArtifactsRoot, "test-vectors");
 export const specArtifactManifestPath = path.join(specArtifactsRoot, "manifest.json");
 
@@ -51,6 +53,8 @@ export interface SpecArtifactManifest {
   source: string;
   generated_by: string;
   artifacts: {
+    examples: string[];
+    registry: string[];
     schemas: string[];
     "test-vectors": string[];
   };
@@ -85,6 +89,22 @@ export async function loadSpecArtifactManifest(): Promise<SpecArtifactManifest> 
 
 export function schemaArtifactPath(relativePath: string): string {
   return path.join(schemaArtifactsRoot, relativePath);
+}
+
+export function exampleArtifactPath(relativePath: string): string {
+  return path.join(exampleArtifactsRoot, relativePath);
+}
+
+export function registryArtifactPath(relativePath: string): string {
+  return path.join(registryArtifactsRoot, relativePath);
+}
+
+export async function loadExampleArtifact(relativePath: string): Promise<string> {
+  return readFile(exampleArtifactPath(relativePath), "utf8");
+}
+
+export async function loadRegistryArtifact<T = unknown>(relativePath: string): Promise<T> {
+  return readJson<T>(registryArtifactPath(relativePath));
 }
 
 export function testVectorArtifactPath(relativePath: string): string {

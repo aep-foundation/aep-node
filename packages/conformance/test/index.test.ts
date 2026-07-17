@@ -31,6 +31,7 @@ import {
   loadApiKeyGrantResponseTestVector,
   loadBasicGrantResponseTestVector,
   loadEmptyRevokeResponseTestVector,
+  loadExampleArtifact,
   loadEnrollIdempotencyConflictTestVector,
   loadMinimalInspectTestVector,
   loadMinimalEnrollRequestTestVector,
@@ -45,6 +46,7 @@ import {
   loadPlatformSignRequestTestVector,
   loadPlatformVerificationResponseRecognizedTestVector,
   loadPlatformVerificationResponseUnrecognizedTestVector,
+  loadRegistryArtifact,
   loadSchemaArtifact,
   loadSpecArtifactManifest,
   loadTestVector,
@@ -79,6 +81,8 @@ describe("@aep-foundation/conformance spec artifacts", () => {
     expect(manifest.source).toBe("../aep-specs/ietf");
     expect(manifest.generated_by).toBe("scripts/sync-aep-spec-artifacts.mjs");
     expect(manifest.artifacts.schemas).toContain("inspect-document.schema.json");
+    expect(manifest.artifacts.examples).toContain("authorization-composition.md");
+    expect(manifest.artifacts.registry).toContain("http-fields/aep-authorization.json");
     expect(manifest.artifacts["test-vectors"]).toContain("inspect/minimal-http.json");
     expect(manifest.artifacts["test-vectors"]).toContain("enroll/request-minimal.json");
     expect(manifest.artifacts["test-vectors"]).toContain("status/response-active.json");
@@ -96,6 +100,15 @@ describe("@aep-foundation/conformance spec artifacts", () => {
     expect(manifest.artifacts["test-vectors"]).toContain("platform/provision-request.json");
     expect(manifest.artifacts["test-vectors"]).toContain(
       "platform/verification-response-recognized.json"
+    );
+  });
+
+  it("loads the finalized dedicated-field registry and example artifacts", async () => {
+    await expect(
+      loadRegistryArtifact<{ wire_identifier: string }>("http-fields/aep-authorization.json")
+    ).resolves.toMatchObject({ wire_identifier: "aep-authorization" });
+    await expect(loadExampleArtifact("authorization-composition.md")).resolves.toContain(
+      "AEP-Authorization"
     );
   });
 
@@ -452,12 +465,14 @@ describe("@aep-foundation/conformance Inspect checks", () => {
   it("compares @aep-foundation/service Inspect output against the synced minimal vector", async () => {
     const vector = await loadMinimalInspectTestVector();
     const document = buildInspectDocument({
+      authenticationMethods: ["aep-jwt", "oauth-bearer", "api-key", "basic"],
       serviceDid: "did:web:api.example.com",
       identityMethods: [didWebIdentityMethod()],
       grantTypes: [oauthBearerGrantType(), apiKeyGrantType(), basicGrantType()],
       claims: {
         required: ["contact.email"]
-      }
+      },
+      openapi: { url: "/openapi.json", pathMatching: { trailingSlash: "strict" } }
     });
 
     expect(assertInspectConformance(document)).toEqual(vector.expected);

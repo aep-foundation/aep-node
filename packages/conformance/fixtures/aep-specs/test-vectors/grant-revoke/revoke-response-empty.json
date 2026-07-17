@@ -2,7 +2,7 @@
   "id": "revoke-response-empty",
   "title": "Successful Revoke response",
   "description": "A successful Revoke response returns an empty JSON object regardless of whether matching credentials existed.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-01"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
   "category": "grant-revoke",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

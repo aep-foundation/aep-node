@@ -16,7 +16,7 @@
     },
     "op": {
       "type": "string",
-      "enum": ["enroll", "grant", "revoke", "status"]
+      "enum": ["enroll", "grant", "revoke", "status", "authenticate"]
     },
     "reason": {
       "type": "string",

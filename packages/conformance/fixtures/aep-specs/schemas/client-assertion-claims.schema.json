@@ -20,7 +20,7 @@
     },
     "op": {
       "type": "string",
-      "enum": ["enroll", "grant", "revoke", "status"]
+      "enum": ["enroll", "grant", "revoke", "status", "authenticate"]
     },
     "iat": {
       "type": "integer"
@@ -31,6 +31,17 @@
     "jti": {
       "type": "string",
       "minLength": 1
+    },
+    "resource": {
+      "type": "string",
+      "pattern": "^https://[^#]+$"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "op": { "const": "authenticate" } } },
+      "then": { "required": ["resource"] },
+      "else": { "not": { "required": ["resource"] } }
+    }
+  ]
 }
