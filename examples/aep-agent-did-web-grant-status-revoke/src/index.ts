@@ -38,7 +38,13 @@ const credential =
   grantType === undefined || grant === undefined
     ? undefined
     : parseBuiltInGrantResponse(grantType, grant.body);
-const protectedHeaders = (): Promise<Record<string, string>> => session.authenticationHeaders();
+const protectedHeaders = (): Promise<Record<string, string>> =>
+  credential === undefined || grantType === undefined
+    ? session.authenticationHeaders({ preferCredential: false })
+    : session.authenticationHeaders({
+        credentialId: credential.credential_id,
+        grantType
+      });
 const resource = await fetchProtectedJson(
   new URL("/api/resource", serviceUrl),
   {},

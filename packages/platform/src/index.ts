@@ -9,7 +9,7 @@ import {
 } from "@aep-foundation/core";
 import { createHash } from "node:crypto";
 import type {
-  AepAuthenticatedCommand,
+  AepAssertionOperation,
   AepClientAssertionClaims,
   AepImportableJoseKey,
   AepProblemDetails,
@@ -191,17 +191,19 @@ export interface PlatformClientAssertionClaims {
   iat: number;
   iss: string;
   jti: string;
-  op: AepAuthenticatedCommand;
+  op: AepAssertionOperation;
+  resource?: string;
   sub: string;
 }
 
 export interface PlatformClientAssertionClaimsOptions {
-  command: AepAuthenticatedCommand;
+  command: AepAssertionOperation;
   identity: ManagedAgentIdentity;
   issuedAt?: Date | number;
   jti: string;
   maxLifetimeSeconds?: number;
   serviceDid: string;
+  resource?: string;
   lifetimeSeconds?: number;
 }
 
@@ -301,16 +303,18 @@ export interface SignPlatformClientAssertionOptions extends PlatformClientAssert
 export interface PlatformSignRequest {
   jti: string;
   lifetime_seconds?: string;
-  op: AepAuthenticatedCommand;
+  op: AepAssertionOperation;
+  resource?: string;
   platform_context?: Record<string, unknown>;
   service_did: string;
 }
 
 export interface PlatformSignRequestOptions {
-  command: AepAuthenticatedCommand;
+  command: AepAssertionOperation;
   jti: string;
   maxLifetimeSeconds?: number;
   serviceDid: string;
+  resource?: string;
   lifetimeSeconds?: number;
   platformContext?: Record<string, unknown>;
 }
@@ -352,20 +356,22 @@ export interface PlatformSignPendingResponseOptions {
 
 export interface PlatformVerificationRequest {
   client_assertion: string;
-  op: AepAuthenticatedCommand;
+  op: AepAssertionOperation;
+  resource?: string;
   service_did: string;
 }
 
 export interface PlatformVerificationRequestOptions {
   clientAssertion: string;
-  command: AepAuthenticatedCommand;
+  command: AepAssertionOperation;
   serviceDid: string;
+  resource?: string;
 }
 
 export interface PlatformVerificationResponse {
   agent_did?: string;
   agent_identity_id?: string;
-  op?: AepAuthenticatedCommand;
+  op?: AepAssertionOperation;
   reason: string;
   service_did: string;
   status?: ManagedAgentStatus;
@@ -375,7 +381,7 @@ export interface PlatformVerificationResponse {
 export interface PlatformVerificationResponseOptions {
   agentDid?: string;
   agentIdentityId?: string;
-  command?: AepAuthenticatedCommand;
+  command?: AepAssertionOperation;
   reason: string;
   serviceDid: string;
   status?: ManagedAgentStatus;
@@ -808,6 +814,8 @@ export function createPlatformClientAssertionClaims(
   assertUsableIdentity(options.identity);
   assertNonEmpty("serviceDid", options.serviceDid);
   assertNonEmpty("jti", options.jti);
+  if ((options.command === "authenticate") !== (options.resource !== undefined))
+    throw new TypeError("resource is required only for authenticate assertions.");
 
   const issuedAt = toEpochSeconds(options.issuedAt ?? new Date());
   const lifetimeSeconds = validateLifetimeSeconds(
@@ -822,6 +830,7 @@ export function createPlatformClientAssertionClaims(
     iss: options.identity.agentDid,
     jti: options.jti,
     op: options.command,
+    ...(options.resource === undefined ? {} : { resource: options.resource }),
     sub: options.identity.agentDid
   };
 }
@@ -898,6 +907,8 @@ export function createPlatformSignRequest(
 ): PlatformSignRequest {
   assertNonEmpty("jti", options.jti);
   assertNonEmpty("serviceDid", options.serviceDid);
+  if ((options.command === "authenticate") !== (options.resource !== undefined))
+    throw new TypeError("resource is required only for authenticate signing.");
   const lifetimeSeconds =
     options.lifetimeSeconds === undefined
       ? undefined
@@ -907,6 +918,7 @@ export function createPlatformSignRequest(
     jti: options.jti,
     ...(lifetimeSeconds === undefined ? {} : { lifetime_seconds: String(lifetimeSeconds) }),
     op: options.command,
+    ...(options.resource === undefined ? {} : { resource: options.resource }),
     ...(options.platformContext === undefined
       ? {}
       : { platform_context: cloneRecord(options.platformContext) }),
@@ -965,10 +977,13 @@ export function createPlatformVerificationRequest(
 ): PlatformVerificationRequest {
   assertNonEmpty("clientAssertion", options.clientAssertion);
   assertNonEmpty("serviceDid", options.serviceDid);
+  if ((options.command === "authenticate") !== (options.resource !== undefined))
+    throw new TypeError("resource is required only for authenticate verification.");
 
   return {
     client_assertion: options.clientAssertion,
     op: options.command,
+    ...(options.resource === undefined ? {} : { resource: options.resource }),
     service_did: options.serviceDid
   };
 }
@@ -1165,6 +1180,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
             identity: managedIdentity,
             issuedAt,
             jti: request.jti,
+            ...(request.resource === undefined ? {} : { resource: request.resource }),
             ...(options.maxLifetimeSeconds === undefined
               ? {}
               : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
@@ -1268,7 +1284,12 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
               subject: agentDid
             });
 
-            if (claims.op !== request.op) {
+            if (
+              claims.op !== request.op ||
+              (request.op === "authenticate"
+                ? claims.resource !== request.resource
+                : claims.resource !== undefined)
+            ) {
               return ok(200, unrecognizedVerification(request, "not_recognized"));
             }
 
@@ -1478,8 +1499,8 @@ function parsePlatformSignRequestBody(value: unknown): PlatformSignRequest {
   const body = requireRecord(value, "Platform sign request");
   const command = requireString(body, "op");
 
-  if (!isAuthenticatedCommand(command)) {
-    throw new TypeError("op must be an AEP authenticated command.");
+  if (!isAssertionOperation(command)) {
+    throw new TypeError("op must be an AEP assertion operation.");
   }
 
   const lifetimeSeconds =
@@ -1489,6 +1510,7 @@ function parsePlatformSignRequestBody(value: unknown): PlatformSignRequest {
     command,
     jti: requireString(body, "jti"),
     serviceDid: requireString(body, "service_did"),
+    ...(body["resource"] === undefined ? {} : { resource: requireString(body, "resource") }),
     ...(body["platform_context"] === undefined
       ? {}
       : { platformContext: requireRecord(body["platform_context"], "platform_context") }),
@@ -1500,13 +1522,14 @@ function parsePlatformVerificationRequestBody(value: unknown): PlatformVerificat
   const body = requireRecord(value, "Platform verification request");
   const command = requireString(body, "op");
 
-  if (!isAuthenticatedCommand(command)) {
-    throw new TypeError("op must be an AEP authenticated command.");
+  if (!isAssertionOperation(command)) {
+    throw new TypeError("op must be an AEP assertion operation.");
   }
 
   return createPlatformVerificationRequest({
     clientAssertion: requireString(body, "client_assertion"),
     command,
+    ...(body["resource"] === undefined ? {} : { resource: requireString(body, "resource") }),
     serviceDid: requireString(body, "service_did")
   });
 }
@@ -1589,8 +1612,14 @@ function requireNumber(record: Record<string, unknown>, key: string): number {
   return value;
 }
 
-function isAuthenticatedCommand(value: string): value is AepAuthenticatedCommand {
-  return value === "enroll" || value === "grant" || value === "revoke" || value === "status";
+function isAssertionOperation(value: string): value is AepAssertionOperation {
+  return (
+    value === "enroll" ||
+    value === "grant" ||
+    value === "revoke" ||
+    value === "status" ||
+    value === "authenticate"
+  );
 }
 
 function isManagedAgentStatus(value: string): value is ManagedAgentStatus {

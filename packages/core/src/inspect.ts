@@ -6,6 +6,7 @@ const VERSION_PATTERN = /^[0-9]+\.[0-9]+$/;
 const ENDPOINT_BASE_PATTERN = /^\//;
 const DID_PATTERN = /^did:/;
 const IDENTITY_METHOD_PATTERN = /^[a-z0-9]+(?::[a-z0-9]+)*(?:-[a-z0-9]+)*$/;
+const AUTHENTICATION_METHOD_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const COMMANDS = new Set<string>(AEP_COMMANDS);
 const BINDINGS = new Set<string>(AEP_BINDINGS);
@@ -21,6 +22,7 @@ export function validateInspectDocument(value: unknown): ValidationResult<Inspec
   }
 
   requireString(value, "aep_version", issues, VERSION_PATTERN);
+  validateAuthentication(value["authentication"], issues);
   validateBindings(value["bindings"], issues);
   validateClaims(value["claims"], issues);
   validateCommands(value["commands"], issues);
@@ -35,6 +37,16 @@ export function validateInspectDocument(value: unknown): ValidationResult<Inspec
   }
 
   return { ok: true, value: value as InspectDocument, issues: [] };
+}
+
+function validateAuthentication(value: unknown, issues: ValidationIssue[]): void {
+  if (value === undefined) return;
+  if (!requireRecord(value, "authentication", issues)) return;
+  requireStringArray(value["methods"], "$.authentication.methods", issues, {
+    minItems: 1,
+    itemPattern: AUTHENTICATION_METHOD_PATTERN,
+    uniqueItems: true
+  });
 }
 
 export function isInspectDocument(value: unknown): value is InspectDocument {
@@ -118,6 +130,20 @@ function validateHttp(value: unknown, issues: ValidationIssue[]): void {
   }
 
   requireString(value, "endpoint_base", issues, ENDPOINT_BASE_PATTERN, "$.http.endpoint_base");
+  const openapi = value["openapi"];
+  if (openapi === undefined) return;
+  if (!requireRecord(openapi, "http.openapi", issues)) return;
+  requireString(openapi, "url", issues, undefined, "$.http.openapi.url");
+  if (openapi["url"] === "")
+    issues.push({ path: "$.http.openapi.url", message: "Expected a non-empty string." });
+  const pathMatching = openapi["path_matching"];
+  if (!requireRecord(pathMatching, "http.openapi.path_matching", issues)) return;
+  const trailingSlash = pathMatching["trailing_slash"];
+  if (trailingSlash !== "strict" && trailingSlash !== "equivalent")
+    issues.push({
+      path: "$.http.openapi.path_matching.trailing_slash",
+      message: "Expected strict or equivalent."
+    });
 }
 
 function validateIdentity(value: unknown, issues: ValidationIssue[]): void {
@@ -191,6 +217,7 @@ interface StringArrayOptions {
   minItems?: number;
   allowedValues?: ReadonlySet<string>;
   itemPattern?: RegExp;
+  uniqueItems?: boolean;
 }
 
 function requireStringArray(
@@ -206,6 +233,9 @@ function requireStringArray(
 
   if (options.minItems !== undefined && value.length < options.minItems) {
     issues.push({ path, message: `Expected at least ${options.minItems} item(s).` });
+  }
+  if (options.uniqueItems && new Set(value).size !== value.length) {
+    issues.push({ path, message: "Expected unique items." });
   }
 
   value.forEach((item, index) => {

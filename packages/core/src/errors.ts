@@ -15,6 +15,16 @@ export class AepValidationError extends Error {
   }
 }
 
+export class AepAuthorizationCarrierError extends Error {
+  readonly code: "invalid_request" | "not_recognized";
+
+  constructor(message: string, code: "invalid_request" | "not_recognized") {
+    super(message);
+    this.name = "AepAuthorizationCarrierError";
+    this.code = code;
+  }
+}
+
 export function createProblemDetails(input: {
   code: AepExtensibleString<AepErrorCode>;
   title: string;

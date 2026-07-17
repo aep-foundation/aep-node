@@ -3,6 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 
 import {
   AEP_AUTH_SCHEME,
+  AEP_AUTHORIZATION_HEADER,
   AEP_BUILT_IN_GRANT_TYPES,
   AEP_GRANT_TYPE_API_KEY,
   AEP_GRANT_TYPE_BASIC,
@@ -25,10 +26,12 @@ import {
   parseGrantRequest,
   parseInspectDocument,
   parseProblemDetails,
+  parseProtectedResourceAuthorization,
   parseRevokeRequest,
   parseRevokeResponse,
   parseStatusResponse,
   signClientAssertionJwt,
+  renderProtectedResourceAuthorization,
   resolveDidWebPublicKey,
   validateClientAssertionClaims,
   validateEnrollRequest,
@@ -69,6 +72,47 @@ const minimalInspectDocument = {
   }
 } satisfies InspectDocument;
 
+function minimalClaims(): AepClientAssertionClaims {
+  return {
+    aud: "did:web:api.example.com",
+    exp: 1748428860,
+    iat: 1748428800,
+    iss: "did:web:agent.example.com:agents:123",
+    jti: "minimal-jti",
+    op: "status",
+    sub: "did:web:agent.example.com:agents:123"
+  };
+
+  describe("protected-resource authorization carriers", () => {
+    it("parses and renders the standard and dedicated fields without changing schemes", () => {
+      expect(AEP_AUTHORIZATION_HEADER).toBe("AEP-Authorization");
+      expect(
+        renderProtectedResourceAuthorization({
+          carrier: "dedicated",
+          scheme: "Bearer",
+          credentials: "token"
+        })
+      ).toEqual({
+        "AEP-Authorization": "Bearer token"
+      });
+      expect(parseProtectedResourceAuthorization("Basic credentials", "dedicated")).toEqual({
+        carrier: "dedicated",
+        credentials: "credentials",
+        scheme: "Basic"
+      });
+    });
+
+    it("rejects malformed and combined dedicated fields without disclosing credentials", () => {
+      expect(() =>
+        parseProtectedResourceAuthorization("Bearer secret, Basic other", "dedicated")
+      ).toThrow("ambiguous");
+      expect(() => parseProtectedResourceAuthorization("Payment secret", "dedicated")).toThrow(
+        "not recognized"
+      );
+    });
+  });
+}
+
 describe("@aep-foundation/core constants", () => {
   it("exports baseline protocol constants", () => {
     expect(AEP_VERSION).toBe("1.0");
@@ -97,6 +141,7 @@ describe("did:web helpers", () => {
       x: "example-x",
       y: "example-y"
     };
+
     const calls: string[] = [];
     const key = await resolveDidWebPublicKey({
       did: "did:web:agent.example.com:agents:123",
@@ -129,6 +174,33 @@ describe("Inspect document validation", () => {
 
     expect(result.ok).toBe(true);
     expect(parseInspectDocument(minimalInspectDocument)).toEqual(minimalInspectDocument);
+  });
+
+  it("validates finalized OpenAPI advertisement fields", () => {
+    const document = {
+      ...minimalInspectDocument,
+      http: {
+        ...minimalInspectDocument.http,
+        openapi: { path_matching: { trailing_slash: "strict" }, url: "/openapi.json" }
+      }
+    };
+    expect(validateInspectDocument(document).ok).toBe(true);
+    const invalid = validateInspectDocument({
+      ...document,
+      http: {
+        ...document.http,
+        openapi: { path_matching: { trailing_slash: "sometimes" }, url: "" }
+      }
+    });
+    expect(invalid.ok).toBe(false);
+    expect(invalid.issues).toContainEqual({
+      path: "$.http.openapi.url",
+      message: "Expected a non-empty string."
+    });
+    expect(invalid.issues).toContainEqual({
+      path: "$.http.openapi.path_matching.trailing_slash",
+      message: "Expected strict or equivalent."
+    });
   });
 
   it("exports the Inspect JSON Schema metadata", () => {
@@ -321,6 +393,25 @@ describe("Protocol message validation", () => {
       { path: "$.exp", message: "Expected an integer." },
       { path: "$.jti", message: "Expected a string." }
     ]);
+
+    expect(
+      parseClientAssertionClaims({
+        aud: "did:web:api.example.com",
+        exp: 1748428860,
+        iat: 1748428800,
+        iss: "did:web:agent.example.com:agents:123",
+        jti: "resource-jti",
+        op: "authenticate",
+        resource: "https://api.example.com/v1/orders/123",
+        sub: "did:web:agent.example.com:agents:123"
+      }).resource
+    ).toBe("https://api.example.com/v1/orders/123");
+    expect(validateClientAssertionClaims({ ...minimalClaims(), op: "authenticate" }).ok).toBe(
+      false
+    );
+    expect(
+      validateClientAssertionClaims({ ...minimalClaims(), resource: "https://api.example.com" }).ok
+    ).toBe(false);
   });
 
   it("accepts AEP Problem Details", () => {
