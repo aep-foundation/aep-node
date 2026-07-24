@@ -1,5 +1,13 @@
 # @aep-foundation/fastify
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`17ecb34`](https://github.com/aep-foundation/aep-node/commit/17ecb340fdd539f0ea6cf1494858f0beb3a0c7a2)]:
+  - @aep-foundation/core@0.3.0
+  - @aep-foundation/service@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
