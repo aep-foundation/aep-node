@@ -1,5 +1,19 @@
 # @aep-foundation/service
 
+## 0.3.0
+
+### Minor Changes
+
+- [#14](https://github.com/aep-foundation/aep-node/pull/14) [`17ecb34`](https://github.com/aep-foundation/aep-node/commit/17ecb340fdd539f0ea6cf1494858f0beb3a0c7a2) Thanks [@nkavian](https://github.com/nkavian)! - Add AEP Claim Value catalog constants, types, schema metadata, validation and
+  negotiation helpers, RFC 5321 mailbox validation, Agent and Service
+  enforcement, Service resource limits, synced conformance artifacts, and
+  conformance helper loaders.
+
+### Patch Changes
+
+- Updated dependencies [[`17ecb34`](https://github.com/aep-foundation/aep-node/commit/17ecb340fdd539f0ea6cf1494858f0beb3a0c7a2)]:
+  - @aep-foundation/core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
