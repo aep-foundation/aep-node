@@ -15,6 +15,7 @@ Initial responsibilities:
 - HTTP binding helpers
 - Problem Details helpers
 - client assertion signing and verification primitives
+- AEP Claim Value catalog types, schema metadata, and validation helpers
 - identity method and grant type registration primitives
 
 ## Initial API
@@ -24,8 +25,11 @@ The first implemented surface covers the Inspect slice:
 - `AEP_VERSION`, `AEP_MEDIA_TYPE`, `AEP_AUTH_SCHEME`, and command/grant type
   constants
 - `InspectDocument` and related wire types
-- `inspectDocumentSchema`
+- `inspectDocumentSchema` and `claimValuesSchema`
 - `validateInspectDocument`, `parseInspectDocument`, and `isInspectDocument`
+- `AEP_CLAIM_NAMES`, `AEP_CLAIM_NAME_*`, `validateAepClaimValues`,
+  `parseAepClaimValues`, and `isAepClaimValues`
+- `evaluateAepClaimSupport` and `missingAepRequiredClaimNames`
 - `commandPath` and `commandPathFromInspect`
 - `createProblemDetails`
 - `signClientAssertionJwt` and `verifyClientAssertionJwt` for baseline AEP
@@ -37,3 +41,7 @@ The first implemented surface covers the Inspect slice:
 
 JWT helpers accept PEM (`pkcs8`, `spki`, or `x509`), JWK, `CryptoKey`,
 `KeyObject`, or raw key material where `jose` supports it.
+
+The registered email Claim validator implements the RFC 5321 `Mailbox`
+grammar, including quoted local parts and address literals. Syntax validation
+does not establish that a mailbox exists or is controlled by the submitter.

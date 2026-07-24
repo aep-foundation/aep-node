@@ -11,6 +11,7 @@ import {
   DEFAULT_HTTP_ENDPOINT_BASE,
   createProblemDetails,
   decodeJwtUnverified,
+  missingAepRequiredClaimNames,
   parseBuiltInGrantResponse,
   parseClientAssertionClaims,
   parseEnrollRequest,
@@ -25,6 +26,8 @@ import type {
   AepCommand,
   AepAuthenticationMethod,
   AepAssertionOperation,
+  AepClaimName,
+  AepClaimValues,
   AepClientAssertionClaims,
   AepEnrollmentStatus,
   AepBuiltInGrantResponse,
@@ -150,10 +153,26 @@ export interface AepStoredCredentialGrantTypeOptions<TCredential extends AepBuil
 }
 
 export interface AepServiceClaimsConfig {
-  required?: string[];
-  preferred?: string[];
-  optional?: string[];
+  required?: AepClaimName[];
+  preferred?: AepClaimName[];
+  optional?: AepClaimName[];
+  limits?: Partial<AepServiceClaimValueLimits>;
 }
+
+export interface AepServiceClaimValueLimits {
+  maxEncodedBytes: number;
+  maxMemberCount: number;
+  maxObjectDepth: number;
+  maxStringLength: number;
+}
+
+export const DEFAULT_AEP_SERVICE_CLAIM_VALUE_LIMITS: Readonly<AepServiceClaimValueLimits> =
+  Object.freeze({
+    maxEncodedBytes: 65_536,
+    maxMemberCount: 128,
+    maxObjectDepth: 8,
+    maxStringLength: 4_096
+  });
 
 export interface AepServiceOptions {
   clock?: () => Date;
@@ -265,7 +284,7 @@ export interface AepClientAssertionReplayStore {
 
 export interface AepEnrollmentRecord {
   agentDid: string;
-  claims: Record<string, unknown>;
+  claims: AepClaimValues;
   createdAt: string;
   ownerActionRequired: boolean;
   requirementsPending: string[];
@@ -357,6 +376,7 @@ export interface AepService {
 
 export function createAepService(options: AepServiceOptions): AepService {
   const inspectDocument = buildInspectDocument(options);
+  const claimValueLimits = resolveClaimValueLimits(options.claims?.limits);
   const commandIdempotencyStore =
     options.commandIdempotencyStore ?? createInMemoryCommandIdempotencyStore();
   const enrollmentPolicy = options.enrollmentPolicy ?? createStaticEnrollmentPolicy();
@@ -402,7 +422,9 @@ export function createAepService(options: AepServiceOptions): AepService {
       }
 
       return handleEnrollRequest(request, {
+        claimValueLimits,
         commandIdempotencyStore,
+        requiredClaims: inspectDocument.claims?.required ?? [],
         store: enrollmentStore,
         ...(options.clock === undefined ? {} : { clock: options.clock }),
         policy: enrollmentPolicy,
@@ -880,10 +902,12 @@ export function createInMemoryServiceCredentialStore(
 }
 
 export interface HandleEnrollRequestOptions {
+  claimValueLimits?: Partial<AepServiceClaimValueLimits>;
   clock?: () => Date;
   commandIdempotencyStore?: AepCommandIdempotencyStore;
   idempotencyKey?: string;
   policy: AepEnrollmentPolicy;
+  requiredClaims?: readonly AepClaimName[];
   store: AepEnrollmentStore;
 }
 
@@ -903,7 +927,11 @@ export async function handleEnrollRequest(
     return problem("invalid_request", "Invalid request", 400);
   }
 
-  return withIdempotency(
+  if (!claimValuesWithinLimits(parsed.claims, resolveClaimValueLimits(options.claimValueLimits))) {
+    return problem("invalid_request", "Invalid request", 400);
+  }
+
+  return withIdempotency<EnrollResponse | AepProblemDetails>(
     "enroll",
     parsed.agent_did,
     parsed.idempotency_key,
@@ -914,6 +942,15 @@ export async function handleEnrollRequest(
       if (existing !== undefined) {
         return aepResponse(200, enrollmentResponseFromRecord(existing));
       }
+
+      const missingRequiredClaims = missingAepRequiredClaimNames(
+        options.requiredClaims ?? [],
+        parsed.claims
+      );
+      if (missingRequiredClaims.length > 0) {
+        return requirementsUnmet(missingRequiredClaims);
+      }
+
       const now = options.clock ?? (() => new Date());
       const nowDate = now();
       const nowIso = nowDate.toISOString();
@@ -1534,6 +1571,93 @@ function problem(
     ...(status === 401 ? { headers: { "WWW-Authenticate": `AEP reason="${code}"` } } : {}),
     status
   };
+}
+
+function requirementsUnmet(
+  requirementsPending: readonly AepClaimName[]
+): AepServiceResponse<AepProblemDetails> {
+  const response = problem("requirements_unmet", "Requirements unmet", 422);
+  response.body.requirements_pending = [...requirementsPending];
+  return response;
+}
+
+function resolveClaimValueLimits(
+  configured: Partial<AepServiceClaimValueLimits> | undefined
+): AepServiceClaimValueLimits {
+  const limits = {
+    ...DEFAULT_AEP_SERVICE_CLAIM_VALUE_LIMITS,
+    ...configured
+  };
+
+  for (const [name, value] of Object.entries(limits)) {
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new RangeError(`${name} must be a positive safe integer.`);
+    }
+  }
+
+  return limits;
+}
+
+function claimValuesWithinLimits(
+  claims: AepClaimValues | undefined,
+  limits: AepServiceClaimValueLimits
+): boolean {
+  if (claims === undefined) return true;
+
+  const state = {
+    memberCount: 0,
+    visiting: new Set<object>()
+  };
+  if (!claimValueWithinLimits(claims, 1, limits, state)) return false;
+
+  try {
+    const encoded = JSON.stringify(claims);
+    return new TextEncoder().encode(encoded).byteLength <= limits.maxEncodedBytes;
+  } catch {
+    return false;
+  }
+}
+
+function claimValueWithinLimits(
+  value: unknown,
+  depth: number,
+  limits: AepServiceClaimValueLimits,
+  state: { memberCount: number; visiting: Set<object> }
+): boolean {
+  if (typeof value === "string") {
+    return [...value].length <= limits.maxStringLength;
+  }
+  if (
+    value === null ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return true;
+  }
+  if (typeof value !== "object" || depth > limits.maxObjectDepth) return false;
+  if (state.visiting.has(value)) return false;
+
+  if (!Array.isArray(value) && Object.getPrototypeOf(value) !== Object.prototype) return false;
+
+  state.visiting.add(value);
+  const entries = Array.isArray(value) ? value.entries() : Object.entries(value);
+
+  for (const [key, memberValue] of entries) {
+    if (typeof key === "string") {
+      state.memberCount += 1;
+      if (state.memberCount > limits.maxMemberCount || [...key].length > limits.maxStringLength) {
+        state.visiting.delete(value);
+        return false;
+      }
+    }
+    if (!claimValueWithinLimits(memberValue, depth + 1, limits, state)) {
+      state.visiting.delete(value);
+      return false;
+    }
+  }
+
+  state.visiting.delete(value);
+  return true;
 }
 
 function notRecognized(): AuthenticateClientAssertionResult {

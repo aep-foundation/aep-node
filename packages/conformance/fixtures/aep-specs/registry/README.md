@@ -13,6 +13,14 @@ registry/
   registry-entry.schema.json
   authentication-methods/
     aep-jwt.json
+  claim-names/
+    contact.address.primary.json
+    contact.email.json
+    contact.mobile.json
+    person.birthdate.json
+    person.first_name.json
+    person.last_name.json
+    person.username.json
   extensions/
     openapi-authentication.json
   http-fields/
@@ -34,4 +42,6 @@ make -C ietf check-registry
 ```
 
 The checker validates each entry against `registry-entry.schema.json` and
-performs repository-specific consistency checks.
+performs repository-specific consistency checks. Claim Name checks also ensure
+that the registry, Claims draft, and Claim Values schema contain the same
+catalog and agree on every JSON value type.

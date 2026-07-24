@@ -9,6 +9,8 @@ examples, and test vectors.
 Initial responsibilities:
 
 - load AEP schemas and test vectors
+- validate AEP Claim Value catalog payloads
+- load positive, negative, and forward-compatibility Claims vectors
 - validate SDK-produced Inspect documents
 - validate SDK-produced Enroll request/response and Status response objects
 - validate SDK-produced Grant/Revoke request/response and built-in credential
@@ -20,15 +22,17 @@ Initial responsibilities:
 
 ```ts
 import {
-  assertEnrollResponseConformance,
   assertBuiltInGrantResponseConformance,
+  assertClaimValuesConformance,
+  assertEnrollResponseConformance,
   assertInspectConformance,
   assertProblemDetailsConformance,
   loadActiveEnrollResponseTestVector,
+  loadClaimValuesTestVector,
   loadEnrollIdempotencyConflictTestVector,
-  loadOAuthBearerGrantResponseTestVector,
   loadMinimalInspectTestVector,
   loadNotRecognizedProblemTestVector,
+  loadOAuthBearerGrantResponseTestVector,
   loadPlatformDiscoveryTestVector,
   loadPlatformProvisionRequestTestVector,
   loadPlatformVerificationResponseRecognizedTestVector
@@ -36,6 +40,9 @@ import {
 
 const vector = await loadMinimalInspectTestVector();
 const inspect = assertInspectConformance(vector.expected);
+
+const claimsVector = await loadClaimValuesTestVector();
+const claims = assertClaimValuesConformance(claimsVector.expected);
 
 const enrollVector = await loadActiveEnrollResponseTestVector();
 const enroll = assertEnrollResponseConformance(enrollVector.expected.body);
@@ -55,11 +62,11 @@ const hostedVerificationVector = await loadPlatformVerificationResponseRecognize
 ```
 
 The initial conformance surface loads synced spec artifacts from
-`fixtures/aep-specs`, validates Inspect, Enroll, Status, Grant, Revoke, and
-built-in credential response objects, Problem Details errors, and idempotency
-conflict fixtures through `@aep-foundation/core`, exposes Platform Hosted
-Identity test-vector loaders, and exposes stable fixture path helpers for
-package and SDK tests.
+`fixtures/aep-specs`, validates Claim Values, Inspect, Enroll, Status, Grant,
+Revoke, built-in credential response objects, Problem Details errors, and
+idempotency conflict fixtures through `@aep-foundation/core`, exposes Platform
+Hosted Identity test-vector loaders, and exposes stable fixture path helpers
+for package and SDK tests.
 
 ## Spec Artifacts
 

@@ -7,6 +7,7 @@ The initial vector set should cover:
 
 | Category                | Purpose                                                                                                                                                             | Draft Coverage                |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Claim values            | Validate person and contact values, malformed values, negotiation behavior, and forward-compatible Claim Names and object shapes.                                   | Claims                        |
 | Inspect document        | Validate required fields, command advertisement, grant type advertisement, `did:web`, HTTP binding configuration, transport trust, and extension discovery shape.   | Core                          |
 | Client assertion JWT    | Validate JOSE header fields, JWT claim fields, `aud`, `op`, `iat`, `exp`, and `jti` requirements.                                                                   | Core                          |
 | Error response          | Validate AEP Problem Details shape and stable error codes.                                                                                                          | Core                          |
@@ -28,21 +29,22 @@ Vectors use one directory per category:
 
 ```text
 test-vectors/
-  inspect/
-  client-assertion/
-  errors/
-  idempotency/
-  enroll/
-  status/
-  grant-revoke/
-  platform/
-  protected-resource/
   caching/
-  openapi/
+  claims/
+  client-assertion/
   credentials/
-    oauth-bearer/
     api-key/
     basic/
+    oauth-bearer/
+  enroll/
+  errors/
+  grant-revoke/
+  idempotency/
+  inspect/
+  openapi/
+  platform/
+  protected-resource/
+  status/
 ```
 
 Each vector file is JSON. File names use lowercase hyphenated identifiers:
@@ -71,17 +73,17 @@ Each vector has this top-level shape:
 
 Required fields:
 
-| Field         | Requirement                                                                     |
-| ------------- | ------------------------------------------------------------------------------- |
-| `id`          | Lowercase hyphenated vector identifier.                                         |
-| `title`       | Short human-readable name.                                                      |
-| `description` | One- or two-sentence explanation of the behavior under test.                    |
-| `drafts`      | Draft identifiers covered by the vector.                                        |
-| `category`    | Vector category.                                                                |
-| `applies_to`  | Array containing `agent`, `service`, or both.                                   |
-| `profile`     | `core-http`, `platform-hosted-identity`, `oauth-bearer`, `api-key`, or `basic`. |
-| `input`       | Test input object.                                                              |
-| `expected`    | Expected output or validation result object.                                    |
+| Field         | Requirement                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| `id`          | Lowercase hyphenated vector identifier.                                                   |
+| `title`       | Short human-readable name.                                                                |
+| `description` | One- or two-sentence explanation of the behavior under test.                              |
+| `drafts`      | Draft identifiers covered by the vector.                                                  |
+| `category`    | Vector category.                                                                          |
+| `applies_to`  | Array containing `agent`, `service`, or both.                                             |
+| `profile`     | `core-http`, `claims`, `platform-hosted-identity`, `oauth-bearer`, `api-key`, or `basic`. |
+| `input`       | Test input object.                                                                        |
+| `expected`    | Expected output or validation result object.                                              |
 
 ## Validation Rules
 
@@ -95,6 +97,8 @@ A vector validator should check at least:
 - `applies_to` contains only known roles.
 - `profile` is one of the known profiles.
 - `input` and `expected` are JSON objects.
+- Claims vectors include positive and negative value-shape cases and
+  negotiation compatibility cases.
 
 The validator should not require live network access. Network-dependent checks
 belong in the future conformance harness, not in static vector validation.

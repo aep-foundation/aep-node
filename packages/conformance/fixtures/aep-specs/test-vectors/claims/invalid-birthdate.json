@@ -1,0 +1,17 @@
+{
+  "id": "invalid-birthdate",
+  "title": "Impossible calendar birth date",
+  "description": "A date-shaped string that is not an RFC 3339 full-date is rejected.",
+  "drafts": ["draft-kavian-aep-claims-00"],
+  "category": "claims",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {
+    "claim_values": {
+      "person.birthdate": "2025-02-30"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

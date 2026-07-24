@@ -1,0 +1,17 @@
+{
+  "id": "invalid-value-type",
+  "title": "Claim value with the wrong JSON type",
+  "description": "A numeric first name is rejected because the registered claim requires a string.",
+  "drafts": ["draft-kavian-aep-claims-00"],
+  "category": "claims",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {
+    "claim_values": {
+      "person.first_name": 42
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

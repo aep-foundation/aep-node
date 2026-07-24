@@ -1,4 +1,10 @@
 import {
+  AEP_CLAIM_NAMES,
+  claimValuesSchema,
+  evaluateAepClaimSupport,
+  validateAepClaimValues
+} from "@aep-foundation/core";
+import {
   apiKeyGrantType,
   basicGrantType,
   buildInspectDocument,
@@ -17,6 +23,7 @@ import { describe, expect, it } from "vitest";
 import {
   AepConformanceError,
   assertBuiltInGrantResponseConformance,
+  assertClaimValuesConformance,
   assertEnrollRequestConformance,
   assertEnrollResponseConformance,
   assertGrantRequestConformance,
@@ -30,6 +37,11 @@ import {
   loadActiveStatusResponseTestVector,
   loadApiKeyGrantResponseTestVector,
   loadBasicGrantResponseTestVector,
+  loadClaimsCatalogEnrollRequestTestVector,
+  loadClaimsCatalogInspectTestVector,
+  loadClaimNegotiationCompatibilityTestVector,
+  loadClaimValueValidationTestVector,
+  loadClaimValuesTestVector,
   loadEmptyRevokeResponseTestVector,
   loadExampleArtifact,
   loadEnrollIdempotencyConflictTestVector,
@@ -50,6 +62,7 @@ import {
   loadSchemaArtifact,
   loadSpecArtifactManifest,
   loadTestVector,
+  loadUnknownRequiredClaimTestVector,
   schemaArtifactPath,
   schemaArtifactsRoot,
   specArtifactsRoot,
@@ -59,6 +72,7 @@ import {
   validateEnrollResponseConformance,
   validateGrantRequestConformance,
   validateInspectConformance,
+  validateClaimValuesConformance,
   validateProblemDetailsConformance
 } from "../src/index.js";
 
@@ -83,6 +97,9 @@ describe("@aep-foundation/conformance spec artifacts", () => {
     expect(manifest.artifacts.schemas).toContain("inspect-document.schema.json");
     expect(manifest.artifacts.examples).toContain("authorization-composition.md");
     expect(manifest.artifacts.registry).toContain("http-fields/aep-authorization.json");
+    expect(manifest.artifacts.registry).toContain("claim-names/contact.email.json");
+    expect(manifest.artifacts.schemas).toContain("claim-values.schema.json");
+    expect(manifest.artifacts["test-vectors"]).toContain("claims/person-contact-catalog.json");
     expect(manifest.artifacts["test-vectors"]).toContain("inspect/minimal-http.json");
     expect(manifest.artifacts["test-vectors"]).toContain("enroll/request-minimal.json");
     expect(manifest.artifacts["test-vectors"]).toContain("status/response-active.json");
@@ -120,6 +137,95 @@ describe("@aep-foundation/conformance spec artifacts", () => {
 
     expect(schema.title).toBe("AEP Inspect Document");
     expect(vector.id).toBe("minimal-http");
+  });
+});
+
+describe("@aep-foundation/conformance Claims checks", () => {
+  it("validates the synced claim catalog vector", async () => {
+    const vector = await loadClaimValuesTestVector();
+
+    expect(vector.id).toBe("person-contact-catalog");
+    expect(validateClaimValuesConformance(vector.expected).ok).toBe(true);
+    expect(assertClaimValuesConformance(vector.expected)).toEqual(vector.expected);
+  });
+
+  it("keeps runtime schema metadata identical to the synced schema", async () => {
+    await expect(loadSchemaArtifact("claim-values.schema.json")).resolves.toEqual(
+      claimValuesSchema
+    );
+  });
+
+  it("enforces every synced positive and negative Claim Value vector", async () => {
+    const ids = [
+      "forward-compatible-address",
+      "invalid-address",
+      "invalid-birthdate",
+      "invalid-country-shape",
+      "invalid-email-domain",
+      "invalid-email-dot-string",
+      "invalid-email-format",
+      "invalid-empty-email",
+      "invalid-mobile",
+      "invalid-value-type",
+      "minimal-email",
+      "quoted-email"
+    ] as const;
+
+    for (const id of ids) {
+      const vector = await loadClaimValueValidationTestVector(id);
+      expect(validateAepClaimValues(vector.input.claim_values).ok, id).toBe(vector.expected.valid);
+    }
+  });
+
+  it("enforces the synced forward-compatibility negotiation vectors", async () => {
+    const compatibility = await loadClaimNegotiationCompatibilityTestVector();
+    const unknownRequired = await loadUnknownRequiredClaimTestVector();
+
+    expect(
+      evaluateAepClaimSupport(
+        {
+          optional: compatibility.input.inspect.optional,
+          preferred: compatibility.input.inspect.preferred,
+          required: compatibility.input.inspect.required
+        },
+        AEP_CLAIM_NAMES
+      )
+    ).toMatchObject({
+      canSatisfyRequired: true,
+      supportedOptional: [],
+      supportedPreferred: []
+    });
+    expect(
+      evaluateAepClaimSupport(
+        { required: unknownRequired.input.required },
+        unknownRequired.input.understood
+      ).canSatisfyRequired
+    ).toBe(unknownRequired.expected.can_satisfy);
+  });
+
+  it("validates synced claim catalog Inspect and Enroll vectors", async () => {
+    const inspect = await loadClaimsCatalogInspectTestVector();
+    const enroll = await loadClaimsCatalogEnrollRequestTestVector();
+
+    expect(inspect.expected.claims).toEqual({
+      optional: ["person.username"],
+      preferred: ["contact.mobile", "contact.address.primary", "person.birthdate"],
+      required: ["contact.email", "person.first_name", "person.last_name"]
+    });
+    expect(validateInspectConformance(inspect.expected).ok).toBe(true);
+    expect(validateEnrollRequestConformance(enroll.input).ok).toBe(true);
+    expect(assertClaimValuesConformance(enroll.input.claims)).toEqual(enroll.input.claims);
+  });
+
+  it("loads claim-name registry metadata", async () => {
+    await expect(
+      loadRegistryArtifact<{ value_type: string; wire_identifier: string }>(
+        "claim-names/contact.email.json"
+      )
+    ).resolves.toMatchObject({
+      value_type: "string",
+      wire_identifier: "contact.email"
+    });
   });
 });
 

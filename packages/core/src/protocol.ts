@@ -4,6 +4,7 @@ import {
   AEP_GRANT_TYPE_BASIC,
   AEP_GRANT_TYPE_OAUTH_BEARER
 } from "./constants.js";
+import { validateAepClaimValues } from "./claims.js";
 import { AepValidationError } from "./errors.js";
 import type {
   AepBuiltInGrantResponse,
@@ -42,7 +43,7 @@ export function validateEnrollRequest(value: unknown): ValidationResult<EnrollRe
 
   const issues: ValidationIssue[] = [];
   requireString(value, "agent_did", issues, { minLength: 1 });
-  optionalRecord(value["claims"], "$.claims", issues);
+  optionalClaimValues(value["claims"], issues);
   requireString(value, "idempotency_key", issues, { minLength: 1 });
   return result(value as EnrollRequest, issues);
 }
@@ -375,13 +376,19 @@ function validateString(
   }
 }
 
-function optionalRecord(value: unknown, path: string, issues: ValidationIssue[]): void {
+function optionalClaimValues(value: unknown, issues: ValidationIssue[]): void {
   if (value === undefined) {
     return;
   }
 
-  if (!isRecord(value)) {
-    issues.push({ path, message: "Expected an object." });
+  const claims = validateAepClaimValues(value);
+  if (!claims.ok) {
+    issues.push(
+      ...claims.issues.map((issue) => ({
+        ...issue,
+        path: issue.path === "$" ? "$.claims" : issue.path.replace(/^\$/, "$.claims")
+      }))
+    );
   }
 }
 

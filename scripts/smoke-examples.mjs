@@ -75,6 +75,7 @@ async function main() {
   );
 
   await waitForHttp(`${platformUrl}/health`, platform);
+  await smokeClaimsExample({ platformUrl, serviceDid });
 
   for (const service of serviceExamples) {
     await smokeService({
@@ -82,6 +83,52 @@ async function main() {
       service,
       serviceDid
     });
+  }
+}
+
+async function smokeClaimsExample({ platformUrl, serviceDid }) {
+  const servicePort = await unusedPort();
+  const serviceUrl = `http://${host}:${servicePort}`;
+  const serviceProcess = startProcess(
+    "aep-service-express claims",
+    "examples/aep-service-express/dist/index.js",
+    {
+      PORT: String(servicePort),
+      SERVICE_DID: serviceDid
+    }
+  );
+
+  try {
+    await waitForHttp(`${serviceUrl}/.well-known/aep`, serviceProcess);
+
+    const agentResult = await runProcess(
+      "aep-agent-did-web-enroll-status claims",
+      "examples/aep-agent-did-web-enroll-status/dist/index.js",
+      {
+        PLATFORM_AUTHORIZATION: platformAuthorization,
+        PLATFORM_URL: platformUrl,
+        SERVICE_URL: serviceUrl
+      }
+    );
+    const payload = parseJson(agentResult.stdout, "Claims Agent output");
+    const expectedClaimNames = ["contact.email", "person.username"];
+
+    assertEqual(
+      JSON.stringify(payload["submittedClaimNames"]),
+      JSON.stringify(expectedClaimNames),
+      "aep-service-express claims",
+      "submittedClaimNames"
+    );
+    assertRecord(payload["resource"], "aep-service-express claims", "resource");
+    assertEqual(
+      JSON.stringify(payload["resource"]["claim_names"]),
+      JSON.stringify(expectedClaimNames),
+      "aep-service-express claims",
+      "resource.claim_names"
+    );
+    console.log("smoke-examples: aep-service-express Claims negotiation OK");
+  } finally {
+    await stopChild(serviceProcess);
   }
 }
 

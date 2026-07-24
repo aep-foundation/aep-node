@@ -205,6 +205,73 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     });
   });
 
+  it("enforces configurable Claim Value resource limits before policy and storage", async () => {
+    const baseRequest = {
+      agent_did: "did:web:agent.example.com:agents:123",
+      idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
+    };
+    const cases = [
+      {
+        claims: { "example.value": "12345" },
+        limits: { maxStringLength: 4 }
+      },
+      {
+        claims: { first: true, second: true },
+        limits: { maxMemberCount: 1 }
+      },
+      {
+        claims: { nested: { too: { deep: { object: true } } } },
+        limits: { maxObjectDepth: 3 }
+      },
+      {
+        claims: { "example.value": "encoded payload" },
+        limits: { maxEncodedBytes: 8 }
+      }
+    ] as const;
+
+    for (const testCase of cases) {
+      let policyCalled = false;
+      const response = await handleEnrollRequest(
+        {
+          ...baseRequest,
+          claims: testCase.claims
+        },
+        {
+          claimValueLimits: testCase.limits,
+          policy: {
+            decideEnrollment: () => {
+              policyCalled = true;
+              return {};
+            }
+          },
+          store: createInMemoryEnrollmentStore()
+        }
+      );
+
+      expect(response, JSON.stringify(testCase.limits)).toMatchObject({
+        body: {
+          code: "invalid_request"
+        },
+        status: 400
+      });
+      expect(policyCalled).toBe(false);
+    }
+  });
+
+  it("rejects invalid Claim Value limit configuration", () => {
+    expect(() =>
+      createAepService({
+        claims: {
+          limits: {
+            maxObjectDepth: 0
+          }
+        },
+        identityMethods: [didWebIdentityMethod()],
+        serviceDid: "did:web:api.example.com"
+      })
+    ).toThrow("maxObjectDepth must be a positive safe integer");
+  });
+
   it("supports pending enrollment requirements", async () => {
     const store = createInMemoryEnrollmentStore();
 
@@ -470,6 +537,40 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
         status: "active"
       },
       status: 200
+    });
+  });
+
+  it("rejects new enrollment when an advertised required Claim is missing", async () => {
+    const service = createAepService({
+      claims: {
+        required: ["contact.email"]
+      },
+      clientAssertion: assertionConfig(),
+      clientAssertionVerifier: parseJsonAssertion,
+      serviceDid: "did:web:api.example.com",
+      identityMethods: [didWebIdentityMethod()]
+    });
+
+    await expect(
+      service.enroll(
+        {
+          agent_did: "did:web:agent.example.com:agents:123",
+          idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-required00000"
+        },
+        {
+          clientAssertion: clientAssertion("enroll", "missing-required-claim")
+        }
+      )
+    ).resolves.toEqual({
+      body: {
+        code: "requirements_unmet",
+        requirements_pending: ["contact.email"],
+        status: 422,
+        title: "Requirements unmet",
+        type: "urn:aep:error:requirements_unmet"
+      },
+      contentType: "application/problem+json",
+      status: 422
     });
   });
 

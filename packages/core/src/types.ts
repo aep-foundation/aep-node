@@ -2,6 +2,7 @@ import type {
   AEP_BINDINGS,
   AEP_BUILT_IN_GRANT_TYPES,
   AEP_ASSERTION_OPERATIONS,
+  AEP_CLAIM_NAMES,
   AEP_COMMANDS,
   AEP_SIGNING_ALGORITHMS
 } from "./constants.js";
@@ -19,6 +20,36 @@ export type AepAuthenticationMethod = AepExtensibleString<"aep-jwt" | AepBuiltIn
 export type AepOpenApiTrailingSlashMode = "strict" | "equivalent";
 export type AepProtectedResourceAuthorizationCarrier = "standard" | "dedicated";
 export type AepProtectedResourceAuthorizationScheme = "AEP" | "Bearer" | "Basic";
+export type AepRegisteredClaimName = (typeof AEP_CLAIM_NAMES)[number];
+export type AepClaimName = AepExtensibleString<AepRegisteredClaimName>;
+
+export interface AepContactAddressPrimaryClaimValue {
+  city: string;
+  country: string;
+  line1: string;
+  line2?: string;
+  postal_code?: string;
+  region?: string;
+  [key: string]: unknown;
+}
+
+export interface AepClaimValues {
+  "contact.address.primary"?: AepContactAddressPrimaryClaimValue;
+  "contact.email"?: string;
+  "contact.mobile"?: string;
+  "person.birthdate"?: string;
+  "person.first_name"?: string;
+  "person.last_name"?: string;
+  "person.username"?: string;
+  [key: string]: unknown;
+}
+
+export interface AepInspectClaims {
+  required?: AepClaimName[];
+  preferred?: AepClaimName[];
+  optional?: AepClaimName[];
+  [key: string]: unknown;
+}
 
 export interface AepProtectedResourceAuthorization {
   carrier: AepProtectedResourceAuthorizationCarrier;
@@ -36,12 +67,7 @@ export interface InspectDocument {
     supported: AepBinding[];
     [key: string]: unknown;
   };
-  claims?: {
-    required?: string[];
-    preferred?: string[];
-    optional?: string[];
-    [key: string]: unknown;
-  };
+  claims?: AepInspectClaims;
   commands: {
     supported: AepCommand[];
     grant_types?: AepGrantType[];
@@ -82,6 +108,9 @@ export interface AepProblemDetails {
   detail?: string;
   instance?: string;
   code: AepExtensibleString<AepErrorCode>;
+  owner_action_required?: "true";
+  requirements_pending?: string[];
+  verification_pending?: string[];
   [key: string]: unknown;
 }
 
@@ -101,7 +130,7 @@ export type AepErrorCode =
 
 export interface EnrollRequest {
   agent_did: string;
-  claims?: Record<string, unknown>;
+  claims?: AepClaimValues;
   idempotency_key: string;
   [key: string]: unknown;
 }

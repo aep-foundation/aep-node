@@ -8,6 +8,8 @@ import {
   AEP_WELL_KNOWN_PATH,
   AepAuthorizationCarrierError,
   commandPathFromInspect,
+  missingAepRequiredClaimNames,
+  parseAepClaimValues,
   parseBuiltInGrantResponse,
   parseClientAssertionClaims,
   parseEnrollResponse,
@@ -29,6 +31,8 @@ import type {
   AepAuthenticatedCommand,
   AepAssertionOperation,
   AepAuthenticationMethod,
+  AepClaimName,
+  AepClaimValues,
   AepClientAssertionClaims,
   AepHttpCommand,
   AepGrantType,
@@ -263,7 +267,7 @@ export interface AepCommandOptions {
 
 export interface EnrollServiceOptions extends AepCommandOptions {
   agentDid: string;
-  claims?: Record<string, unknown>;
+  claims?: AepClaimValues;
   idempotencyKey: string;
 }
 
@@ -451,7 +455,7 @@ export interface AgentServiceSessionOptions {
 }
 
 export interface AgentEnrollSessionOptions {
-  claims?: Record<string, unknown>;
+  claims?: AepClaimValues;
   idempotencyKey?: string;
 }
 
@@ -617,6 +621,16 @@ export class AepCommandError extends Error {
     if (problem !== undefined) {
       this.problem = problem;
     }
+  }
+}
+
+export class AepClaimRequirementsError extends Error {
+  readonly missingRequiredClaimNames: AepClaimName[];
+
+  constructor(missingRequiredClaimNames: readonly AepClaimName[]) {
+    super(`Cannot satisfy required AEP Claim Names: ${missingRequiredClaimNames.join(", ")}.`);
+    this.name = "AepClaimRequirementsError";
+    this.missingRequiredClaimNames = [...missingRequiredClaimNames];
   }
 }
 
@@ -2152,10 +2166,20 @@ export async function enrollService(options: EnrollServiceOptions): Promise<Enro
   const fetchImpl = requireFetch();
   const inspect = await resolveInspect(options);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "enroll");
+  const claimValues =
+    options.claims === undefined ? undefined : parseAepClaimValues(options.claims);
+  const missingRequiredClaimNames = missingAepRequiredClaimNames(
+    inspect.document.claims?.required ?? [],
+    claimValues
+  );
+  if (missingRequiredClaimNames.length > 0) {
+    throw new AepClaimRequirementsError(missingRequiredClaimNames);
+  }
+
   const clientAssertion = await resolveClientAssertion(options, inspect, "enroll");
   const body = {
     agent_did: options.agentDid,
-    ...(options.claims === undefined ? {} : { claims: structuredClone(options.claims) }),
+    ...(claimValues === undefined ? {} : { claims: structuredClone(claimValues) }),
     idempotency_key: options.idempotencyKey
   };
   const response = await fetchImpl(commandUrl, {

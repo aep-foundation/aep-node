@@ -35,7 +35,7 @@ ETag: "aep-inspect-20260627"
     "grant_types_config": {
       "api-key": {
         "default_lifetime_seconds": "2592000",
-        "header_names": ["aep-service-key"],
+        "header_names": ["x-api-key"],
         "scopes_supported": ["read", "write"],
         "supports_per_credential_revoke": "true"
       },

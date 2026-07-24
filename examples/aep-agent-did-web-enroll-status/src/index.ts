@@ -1,7 +1,17 @@
 import { randomUUID } from "node:crypto";
 
 import { createAepAgent, createPlatformIdentityProvider } from "@aep-foundation/agent";
-import type { AepBuiltInGrantType } from "@aep-foundation/core";
+import {
+  AEP_CLAIM_NAME_CONTACT_EMAIL,
+  AEP_CLAIM_NAME_PERSON_USERNAME,
+  evaluateAepClaimSupport
+} from "@aep-foundation/core";
+import type {
+  AepBuiltInGrantType,
+  AepClaimName,
+  AepClaimValues,
+  AepInspectClaims
+} from "@aep-foundation/core";
 
 import { isBuiltInGrantType } from "../../_shared/aep-examples.js";
 
@@ -20,7 +30,13 @@ const agent = createAepAgent({
 const session = agent.serviceSession({ serviceUrl });
 const inspect = await session.inspect();
 const identity = await session.identity();
+const availableClaims: AepClaimValues = {
+  [AEP_CLAIM_NAME_CONTACT_EMAIL]: "example-agent@example.com",
+  [AEP_CLAIM_NAME_PERSON_USERNAME]: "example-agent"
+};
+const claims = claimsForEnrollment(inspect.document.claims, availableClaims);
 const enroll = await session.enroll({
+  ...(Object.keys(claims).length === 0 ? {} : { claims }),
   idempotencyKey: randomUUID()
 });
 const status = await session.status();
@@ -33,7 +49,10 @@ const grant =
         idempotencyKey: randomUUID(),
         requestedScopes: ["read:resource", "write:profile"]
       });
-const protectedHeaders = (): Promise<Record<string, string>> => session.authenticationHeaders();
+const protectedHeaders = (url: URL): Promise<Record<string, string>> =>
+  session.authenticationHeaders({
+    resource: String(url)
+  });
 const resource = await fetchProtectedJson(
   new URL("/api/resource", serviceUrl),
   {},
@@ -63,6 +82,7 @@ console.log(
       profile,
       resource,
       serviceDid: inspect.document.service.did,
+      submittedClaimNames: Object.keys(claims).sort(),
       status: status.body
     },
     null,
@@ -73,11 +93,11 @@ console.log(
 async function fetchProtectedJson(
   url: URL,
   init: RequestInit = {},
-  authenticationHeaders: () => Promise<Record<string, string>>
+  authenticationHeaders: (url: URL) => Promise<Record<string, string>>
 ): Promise<unknown> {
   const headers = new Headers(init.headers);
 
-  for (const [name, value] of Object.entries(await authenticationHeaders())) {
+  for (const [name, value] of Object.entries(await authenticationHeaders(url))) {
     headers.set(name, value);
   }
 
@@ -95,4 +115,33 @@ async function fetchProtectedJson(
 
 function advertisedBuiltInGrantType(): AepBuiltInGrantType | undefined {
   return inspect.document.commands.grant_types?.find(isBuiltInGrantType);
+}
+
+function claimsForEnrollment(
+  requested: AepInspectClaims | undefined,
+  available: AepClaimValues
+): AepClaimValues {
+  const support = evaluateAepClaimSupport(requested, Object.keys(available));
+
+  if (!support.canSatisfyRequired) {
+    throw new Error(
+      `Example Agent cannot satisfy required AEP Claim Names: ${support.unsupportedRequired.join(
+        ", "
+      )}.`
+    );
+  }
+
+  const selectedClaimNames = new Set<AepClaimName>([
+    ...(requested?.required ?? []),
+    ...support.supportedPreferred
+  ]);
+  const submitted = structuredClone(available);
+
+  for (const claimName of Object.keys(submitted)) {
+    if (!selectedClaimNames.has(claimName)) {
+      delete submitted[claimName];
+    }
+  }
+
+  return submitted;
 }

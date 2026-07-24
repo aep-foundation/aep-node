@@ -33,6 +33,7 @@ import {
   signClientAssertion,
   AepPendingSignError,
   AepPendingSignResolverError,
+  AepClaimRequirementsError,
   protectedResourceAuthenticationHeaders,
   statusService
 } from "../src/index.js";
@@ -664,6 +665,53 @@ describe("@aep-foundation/agent command clients", () => {
     });
   });
 
+  it("rejects malformed and missing required Claim Values before sending Enroll", async () => {
+    const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
+    const fetch = (input: URL | string, init?: RequestInit) => {
+      calls.push(fetchCall(input, init));
+      return jsonResponsePromise({ status: "active" });
+    };
+    const requiredClaimsInspect = inspectResult({
+      ...minimalInspectDocument,
+      claims: {
+        ...minimalInspectDocument.claims,
+        required: ["contact.email"]
+      }
+    });
+
+    await expect(
+      withFetch(fetch, () =>
+        enrollService({
+          agentDid: "did:web:agent.example.com:agents:123",
+          claims: { "contact.email": "not-email" },
+          clientAssertion: "jwt.enroll",
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
+          inspect: requiredClaimsInspect,
+          serviceUrl: "https://api.example.com"
+        })
+      )
+    ).rejects.toThrow("Invalid AEP claim values");
+
+    const missingRequiredEnrollment = withFetch(fetch, () =>
+      enrollService({
+        agentDid: "did:web:agent.example.com:agents:123",
+        clientAssertion: "jwt.enroll",
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000001",
+        inspect: requiredClaimsInspect,
+        serviceUrl: "https://api.example.com"
+      })
+    );
+    await expect(missingRequiredEnrollment).rejects.toBeInstanceOf(AepClaimRequirementsError);
+    await expect(missingRequiredEnrollment).rejects.toEqual(
+      expect.objectContaining({
+        missingRequiredClaimNames: ["contact.email"],
+        name: "AepClaimRequirementsError"
+      })
+    );
+
+    expect(calls).toEqual([]);
+  });
+
   it("gets Status requests without a body", async () => {
     const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
     const fetch = (input: URL | string, init?: RequestInit) => {
@@ -797,6 +845,9 @@ describe("@aep-foundation/agent command clients", () => {
     await withFetch(fetch, () =>
       enrollService({
         agentDid: "did:web:agent.example.com:agents:123",
+        claims: {
+          "contact.email": "agent@example.com"
+        },
         clientAssertion: "jwt.enroll",
         idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
         serviceUrl: "https://api.example.com"
@@ -859,6 +910,9 @@ describe("@aep-foundation/agent command clients", () => {
     await withFetch(fetch, async () => {
       await expect(
         session.enroll({
+          claims: {
+            "contact.email": "agent@example.com"
+          },
           idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         })
       ).resolves.toMatchObject({

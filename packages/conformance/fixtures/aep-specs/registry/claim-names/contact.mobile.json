@@ -1,0 +1,29 @@
+{
+  "id": "urn:aep:claim-name:aep:contact:mobile#v=1.0.0",
+  "kind": "claim_name",
+  "name": "Contact Mobile",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "contact.mobile",
+  "value_type": "string",
+  "specification": {
+    "draft": "draft-kavian-aep-claims-00",
+    "path": "ietf/specs/core/draft-kavian-aep-claims-00.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-claims/"
+  },
+  "summary": "Mobile telephone number for the Owner or Agent operator.",
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/claims-negotiation.md"],
+    "schemas": ["ietf/schemas/claim-values.schema.json"],
+    "test_vectors": [
+      "ietf/test-vectors/claims/invalid-mobile.json",
+      "ietf/test-vectors/claims/person-contact-catalog.json",
+      "ietf/test-vectors/enroll/request-claims-catalog.json",
+      "ietf/test-vectors/inspect/claims-catalog-advertisement.json"
+    ]
+  }
+}

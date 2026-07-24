@@ -1,0 +1,17 @@
+{
+  "id": "invalid-email-domain",
+  "title": "Contact email with an invalid domain label",
+  "description": "An RFC 5321 domain label cannot begin with a hyphen.",
+  "drafts": ["draft-kavian-aep-claims-00"],
+  "category": "claims",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {
+    "claim_values": {
+      "contact.email": "owner@-example.com"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}
