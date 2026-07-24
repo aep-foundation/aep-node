@@ -55,7 +55,7 @@ Host: api.example.com
 Authorization: AEP eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9...
 ```
 
-OAuth Bearer and Basic credentials use their registered `Authorization` schemes. An API key uses the exact `header` returned by Grant, for example `Aep-Service-Key`; the header name is not fixed by AEP.
+OAuth Bearer and Basic credentials use their registered `Authorization` schemes. An API key uses the exact `header` returned by Grant, for example `x-api-key`; the header name is not fixed by AEP.
 
 ## Redirects
 

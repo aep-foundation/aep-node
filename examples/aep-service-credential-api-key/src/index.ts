@@ -28,7 +28,7 @@ import {
 } from "../../_shared/aep-examples.js";
 
 const adapterName = "api-key";
-const apiKeyHeader = "x-aep-api-key";
+const apiKeyHeader = "x-api-key";
 const host = process.env["HOST"] ?? "127.0.0.1";
 const port = parsePort(process.env["PORT"] ?? "3000");
 const listenUrl = exampleListenUrl(host, port);

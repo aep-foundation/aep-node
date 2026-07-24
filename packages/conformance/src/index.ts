@@ -4,6 +4,7 @@ import path from "node:path";
 
 import {
   parseBuiltInGrantResponse,
+  parseAepClaimValues,
   parseEnrollRequest,
   parseEnrollResponse,
   parseGrantRequest,
@@ -13,6 +14,7 @@ import {
   parseRevokeResponse,
   parseStatusResponse,
   validateBuiltInGrantResponse,
+  validateAepClaimValues,
   validateEnrollRequest,
   validateEnrollResponse,
   validateGrantRequest,
@@ -24,6 +26,8 @@ import {
 } from "@aep-foundation/core";
 import type {
   AepBuiltInGrantResponse,
+  AepClaimName,
+  AepClaimValues,
   AepGrantType,
   AepProblemDetails,
   EnrollRequest,
@@ -162,6 +166,10 @@ export function validateBuiltInGrantResponseConformance(
   return validateBuiltInGrantResponse(grantType, value);
 }
 
+export function validateClaimValuesConformance(value: unknown): ValidationResult<AepClaimValues> {
+  return validateAepClaimValues(value);
+}
+
 export function validateProblemDetailsConformance(
   value: unknown
 ): ValidationResult<AepProblemDetails> {
@@ -275,6 +283,16 @@ export function assertBuiltInGrantResponseConformance(
   return result.value;
 }
 
+export function assertClaimValuesConformance(value: unknown): AepClaimValues {
+  const result = validateAepClaimValues(value);
+
+  if (!result.ok) {
+    throw new AepConformanceError("Claim values failed AEP conformance validation.", result.issues);
+  }
+
+  return result.value;
+}
+
 export function assertProblemDetailsConformance(value: unknown): AepProblemDetails {
   const result = validateProblemDetails(value);
 
@@ -304,6 +322,100 @@ export async function loadMinimalEnrollRequestTestVector(): Promise<
 > {
   const vector = await loadTestVector<unknown, Record<string, unknown>>(
     "enroll/request-minimal.json"
+  );
+
+  return {
+    ...vector,
+    input: parseEnrollRequest(vector.input)
+  };
+}
+
+export async function loadClaimValuesTestVector(): Promise<
+  AepTestVector<Record<string, never>, AepClaimValues>
+> {
+  const vector = await loadTestVector<Record<string, never>, unknown>(
+    "claims/person-contact-catalog.json"
+  );
+
+  return {
+    ...vector,
+    expected: parseAepClaimValues(vector.expected)
+  };
+}
+
+export type AepClaimValueValidationVectorId =
+  | "forward-compatible-address"
+  | "invalid-address"
+  | "invalid-birthdate"
+  | "invalid-country-shape"
+  | "invalid-email-domain"
+  | "invalid-email-dot-string"
+  | "invalid-email-format"
+  | "invalid-empty-email"
+  | "invalid-mobile"
+  | "invalid-value-type"
+  | "minimal-email"
+  | "quoted-email";
+
+export interface AepClaimValueValidationExpectation {
+  valid: boolean;
+  unknown_object_members?: "ignore";
+}
+
+export async function loadClaimValueValidationTestVector(
+  id: AepClaimValueValidationVectorId
+): Promise<AepTestVector<{ claim_values: unknown }, AepClaimValueValidationExpectation>> {
+  return loadTestVector<{ claim_values: unknown }, AepClaimValueValidationExpectation>(
+    `claims/${id}.json`
+  );
+}
+
+export function loadClaimNegotiationCompatibilityTestVector(): Promise<
+  AepTestVector<
+    {
+      inspect: {
+        optional: AepClaimName[];
+        preferred: AepClaimName[];
+        required: AepClaimName[];
+      };
+      submitted: AepClaimValues;
+    },
+    {
+      enrollment_requirement_satisfied: boolean;
+      omitted_preferred_allowed: boolean;
+      unknown_optional_action: "ignore";
+      unknown_preferred_action: "ignore";
+      unknown_submitted_default_action: "ignore";
+    }
+  >
+> {
+  return loadTestVector("claims/negotiation-compatibility.json");
+}
+
+export function loadUnknownRequiredClaimTestVector(): Promise<
+  AepTestVector<{ required: AepClaimName[]; understood: AepClaimName[] }, { can_satisfy: boolean }>
+> {
+  return loadTestVector("claims/unknown-required-claim.json");
+}
+
+export async function loadClaimsCatalogInspectTestVector(): Promise<
+  AepTestVector<Record<string, never>, InspectDocument>
+> {
+  const vector = await loadTestVector<Record<string, never>, unknown>(
+    "inspect/claims-catalog-advertisement.json"
+  );
+
+  return {
+    ...vector,
+    expected: parseInspectDocument(vector.expected)
+  };
+}
+
+export async function loadClaimsCatalogEnrollRequestTestVector(): Promise<
+  AepTestVector<EnrollRequest, Record<string, unknown>>
+> {
+  const vector = await loadTestVector<unknown, Record<string, unknown>>(
+    "enroll/request-claims-catalog.json"
   );
 
   return {

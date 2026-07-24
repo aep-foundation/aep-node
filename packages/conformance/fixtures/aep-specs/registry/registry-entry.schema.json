@@ -19,7 +19,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^urn:aep:(?:grant-type|authentication-method|http-field|ext|binding|identity-method|command|policy|proof|attestation|other):[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?::[a-z0-9][a-z0-9-]*)*(?:-[a-z0-9]+)*#v=[0-9]+\\.[0-9]+\\.[0-9]+$"
+      "pattern": "^urn:aep:(?:grant-type|authentication-method|http-field|ext|binding|identity-method|claim-name|command|policy|proof|attestation|other):[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*(?::[a-z0-9][a-z0-9-]*)*(?:-[a-z0-9]+)*#v=[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
     "kind": {
       "type": "string",
@@ -30,6 +30,7 @@
         "extension",
         "binding",
         "identity_method",
+        "claim_name",
         "command",
         "policy",
         "proof",
@@ -51,7 +52,11 @@
     },
     "wire_identifier": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(?::[a-z0-9]+)*(?:-[a-z0-9]+)*$"
+      "pattern": "^[a-z0-9]+(?:(?:[:._-])[a-z0-9]+)*$"
+    },
+    "value_type": {
+      "type": "string",
+      "enum": ["array", "boolean", "integer", "null", "number", "object", "string"]
     },
     "specification": {
       "type": "object",

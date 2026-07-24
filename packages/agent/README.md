@@ -66,6 +66,11 @@ await session.revoke({
 });
 ```
 
+Known Claim Values are validated before Enroll. If the Inspect document
+advertises a required Claim Name that is absent from the submitted values,
+Enroll throws `AepClaimRequirementsError` before sending the request. Unknown
+preferred and optional Claim Names do not block enrollment.
+
 To keep Grant and protected-resource fetch calls alive while delegated signing
 is pending, configure a generic resolver. It receives the complete pending
 result and a continuation that preserves its opaque Platform context:

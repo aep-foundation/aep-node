@@ -1,0 +1,23 @@
+{
+  "id": "forward-compatible-address",
+  "title": "Address claim with an unknown optional member",
+  "description": "A consumer accepts the defined address members and ignores an additional object member it does not understand.",
+  "drafts": ["draft-kavian-aep-claims-00"],
+  "category": "claims",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {
+    "claim_values": {
+      "contact.address.primary": {
+        "city": "San Francisco",
+        "country": "US",
+        "delivery_instructions": "Reception desk",
+        "line1": "123 Market Street"
+      }
+    }
+  },
+  "expected": {
+    "valid": true,
+    "unknown_object_members": "ignore"
+  }
+}

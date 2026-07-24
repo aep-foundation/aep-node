@@ -1,3 +1,4 @@
+export * from "./claims.js";
 export * from "./constants.js";
 export * from "./did-web.js";
 export * from "./errors.js";

@@ -5,6 +5,8 @@ import {
   AEP_AUTH_SCHEME,
   AEP_AUTHORIZATION_HEADER,
   AEP_BUILT_IN_GRANT_TYPES,
+  AEP_CLAIM_NAME_CONTACT_EMAIL,
+  AEP_CLAIM_NAMES,
   AEP_GRANT_TYPE_API_KEY,
   AEP_GRANT_TYPE_BASIC,
   AEP_GRANT_TYPE_OAUTH_BEARER,
@@ -13,12 +15,17 @@ import {
   AEP_VERSION,
   AEP_WELL_KNOWN_PATH,
   AepValidationError,
+  claimValuesSchema,
   commandPath,
   commandPathFromInspect,
   createProblemDetails,
   decodeJwtUnverified,
   didWebDocumentUrl,
+  evaluateAepClaimSupport,
   inspectDocumentSchema,
+  isAepClaimValues,
+  missingAepRequiredClaimNames,
+  parseAepClaimValues,
   parseBuiltInGrantResponse,
   parseClientAssertionClaims,
   parseEnrollRequest,
@@ -34,12 +41,13 @@ import {
   renderProtectedResourceAuthorization,
   resolveDidWebPublicKey,
   validateClientAssertionClaims,
+  validateAepClaimValues,
   validateEnrollRequest,
   validateGrantRequest,
   verifyClientAssertionJwt,
   validateInspectDocument
 } from "../src/index.js";
-import type { AepClientAssertionClaims, InspectDocument } from "../src/index.js";
+import type { AepClaimValues, AepClientAssertionClaims, InspectDocument } from "../src/index.js";
 
 const minimalInspectDocument = {
   aep_version: "1.0",
@@ -121,6 +129,145 @@ describe("@aep-foundation/core constants", () => {
     expect(AEP_AUTH_SCHEME).toBe("AEP");
     expect(AEP_WELL_KNOWN_PATH).toBe("/.well-known/aep");
     expect(AEP_BUILT_IN_GRANT_TYPES).toEqual(["oauth-bearer", "api-key", "basic"]);
+  });
+});
+
+describe("AEP claim values", () => {
+  const claimValues = {
+    "contact.address.primary": {
+      city: "San Francisco",
+      country: "US",
+      line1: "123 Market Street",
+      postal_code: "94105",
+      region: "CA",
+      future_field: "accepted"
+    },
+    "contact.email": "owner@example.com",
+    "contact.mobile": "+14155550100",
+    "person.birthdate": "1990-04-12",
+    "person.first_name": "Ada",
+    "person.last_name": "Lovelace",
+    "person.username": "ada",
+    "custom.future_claim": {
+      value: "accepted"
+    }
+  } satisfies AepClaimValues;
+
+  it("exports registered claim names and schema metadata", () => {
+    expect(AEP_CLAIM_NAME_CONTACT_EMAIL).toBe("contact.email");
+    expect(AEP_CLAIM_NAMES).toEqual([
+      "contact.address.primary",
+      "contact.email",
+      "contact.mobile",
+      "person.birthdate",
+      "person.first_name",
+      "person.last_name",
+      "person.username"
+    ]);
+    expect(claimValuesSchema.$id).toBe(
+      "https://www.aep.foundation/schemas/claim-values.schema.json"
+    );
+  });
+
+  it("accepts known catalog values while preserving private claim names", () => {
+    expect(validateAepClaimValues(claimValues).ok).toBe(true);
+    expect(isAepClaimValues(claimValues)).toBe(true);
+    expect(parseAepClaimValues(claimValues)).toEqual(claimValues);
+  });
+
+  it("accepts the minimum email shape and evaluates forward-compatible negotiation", () => {
+    expect(validateAepClaimValues({ "contact.email": "a@b" }).ok).toBe(true);
+    expect(
+      evaluateAepClaimSupport(
+        {
+          required: ["contact.email", "example.future.required"],
+          preferred: ["contact.mobile", "example.future.preferred"],
+          optional: ["person.username", "example.future.optional"]
+        },
+        AEP_CLAIM_NAMES
+      )
+    ).toEqual({
+      canSatisfyRequired: false,
+      supportedOptional: ["person.username"],
+      supportedPreferred: ["contact.mobile"],
+      unsupportedRequired: ["example.future.required"]
+    });
+  });
+
+  it("validates RFC 5321 Mailbox syntax", () => {
+    for (const email of [
+      "owner@example.com",
+      "first.last+tag@example-domain.com",
+      '"quoted local"@example.com',
+      '"escaped\\"quote"@example.com',
+      "owner@[192.0.2.1]",
+      "owner@[IPv6:2001:db8::1]"
+    ]) {
+      expect(validateAepClaimValues({ "contact.email": email }).ok, email).toBe(true);
+    }
+
+    for (const email of [
+      ".owner@example.com",
+      "owner.@example.com",
+      "owner..name@example.com",
+      "owner@-example.com",
+      "owner@example-.com",
+      "owner@example..com",
+      '"unterminated@example.com',
+      "owner@[256.0.2.1]",
+      "owner@[IPv6:2001:::1]",
+      "ownér@example.com"
+    ]) {
+      expect(validateAepClaimValues({ "contact.email": email }).ok, email).toBe(false);
+    }
+  });
+
+  it("finds required Claim Names that are absent from submitted values", () => {
+    expect(
+      missingAepRequiredClaimNames(["contact.email", "person.first_name"], {
+        "contact.email": "a@b"
+      })
+    ).toEqual(["person.first_name"]);
+  });
+
+  it("reports stable issue paths for malformed known claims", () => {
+    const result = validateAepClaimValues({
+      "contact.address.primary": {
+        country: "USA",
+        line1: ""
+      },
+      "contact.email": "not-email",
+      "contact.mobile": "4155550100",
+      "person.birthdate": "1990-99-99",
+      "person.first_name": ""
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toEqual([
+      {
+        path: "$.contact.address.primary.line1",
+        message: "Expected at least 1 character(s)."
+      },
+      { path: "$.contact.address.primary.city", message: "Expected a string." },
+      {
+        path: "$.contact.address.primary.country",
+        message: "Expected string to match ^[A-Z]{2}$."
+      },
+      {
+        path: "$.contact.email",
+        message: "Expected an RFC 5321 Mailbox."
+      },
+      { path: "$.contact.mobile", message: "Expected string to match ^\\+[1-9][0-9]{1,14}$." },
+      {
+        path: "$.person.birthdate",
+        message: "Expected an RFC 3339 full-date."
+      },
+      { path: "$.person.first_name", message: "Expected at least 1 character(s)." }
+    ]);
+  });
+
+  it("throws AepValidationError from parseAepClaimValues", () => {
+    expect(() => parseAepClaimValues(null)).toThrow(AepValidationError);
   });
 });
 
@@ -303,6 +450,24 @@ describe("Protocol message validation", () => {
       { path: "$.agent_did", message: "Expected at least 1 character(s)." },
       { path: "$.claims", message: "Expected an object." },
       { path: "$.idempotency_key", message: "Expected at least 1 character(s)." }
+    ]);
+  });
+
+  it("validates known claim values in Enroll requests", () => {
+    const result = validateEnrollRequest({
+      agent_did: "did:web:agent.example.com:agents:123",
+      claims: {
+        "contact.email": "not-email"
+      },
+      idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.issues).toEqual([
+      {
+        path: "$.claims.contact.email",
+        message: "Expected an RFC 5321 Mailbox."
+      }
     ]);
   });
 

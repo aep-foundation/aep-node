@@ -1,0 +1,36 @@
+{
+  "id": "request-claims-catalog",
+  "title": "Enroll request with person and contact claims",
+  "description": "An Enroll request body carrying person and contact claim values.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-02", "draft-kavian-aep-claims-00"],
+  "category": "enroll",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {
+    "agent_did": "did:web:agent.example.com:agents:123",
+    "claims": {
+      "contact.address.primary": {
+        "line1": "123 Market Street",
+        "city": "San Francisco",
+        "region": "CA",
+        "postal_code": "94105",
+        "country": "US"
+      },
+      "contact.email": "owner@example.com",
+      "contact.mobile": "+14155550100",
+      "person.birthdate": "1990-04-12",
+      "person.first_name": "Ada",
+      "person.last_name": "Lovelace",
+      "person.username": "ada"
+    },
+    "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000001"
+  },
+  "expected": {
+    "method": "POST",
+    "path": "/aep/enroll",
+    "content_type": "application/aep+json",
+    "authorization_scheme": "AEP",
+    "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000001",
+    "client_assertion_op": "enroll"
+  }
+}

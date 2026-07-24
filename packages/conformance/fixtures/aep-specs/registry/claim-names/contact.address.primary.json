@@ -1,0 +1,31 @@
+{
+  "id": "urn:aep:claim-name:aep:contact:address:primary#v=1.0.0",
+  "kind": "claim_name",
+  "name": "Primary Contact Address",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "contact.address.primary",
+  "value_type": "object",
+  "specification": {
+    "draft": "draft-kavian-aep-claims-00",
+    "path": "ietf/specs/core/draft-kavian-aep-claims-00.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-claims/"
+  },
+  "summary": "Primary postal address for the Owner or Agent operator.",
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/claims-negotiation.md"],
+    "schemas": ["ietf/schemas/claim-values.schema.json"],
+    "test_vectors": [
+      "ietf/test-vectors/claims/forward-compatible-address.json",
+      "ietf/test-vectors/claims/invalid-address.json",
+      "ietf/test-vectors/claims/invalid-country-shape.json",
+      "ietf/test-vectors/claims/person-contact-catalog.json",
+      "ietf/test-vectors/enroll/request-claims-catalog.json",
+      "ietf/test-vectors/inspect/claims-catalog-advertisement.json"
+    ]
+  }
+}

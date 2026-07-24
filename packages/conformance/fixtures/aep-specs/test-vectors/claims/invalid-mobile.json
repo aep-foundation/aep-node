@@ -1,0 +1,17 @@
+{
+  "id": "invalid-mobile",
+  "title": "Mobile number outside E.164 form",
+  "description": "A formatted national telephone number is rejected because it is not in E.164 form.",
+  "drafts": ["draft-kavian-aep-claims-00"],
+  "category": "claims",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {
+    "claim_values": {
+      "contact.mobile": "(415) 555-0100"
+    }
+  },
+  "expected": {
+    "valid": false
+  }
+}

@@ -75,7 +75,13 @@ const service = createAepService({
     basicGrantType()
   ],
   claims: {
-    required: ["contact.email"]
+    required: ["contact.email"],
+    limits: {
+      maxEncodedBytes: 65_536,
+      maxMemberCount: 128,
+      maxObjectDepth: 8,
+      maxStringLength: 4_096
+    }
   }
 });
 
@@ -119,6 +125,18 @@ const revoke = await service.revoke(
   }
 );
 ```
+
+For new enrollments, the Service validates known Claim Values and returns
+`requirements_unmet` with `requirements_pending` when a Claim Name advertised
+in `claims.required` is absent. Unknown submitted Claim Names and unknown
+members of object-valued Claims are preserved for forward compatibility.
+Before policy evaluation or storage, the Service also enforces Claim Value
+resource limits. The values shown above are the secure defaults exported as
+`DEFAULT_AEP_SERVICE_CLAIM_VALUE_LIMITS`; configure lower or higher positive
+safe integers under `claims.limits` to match local policy. Member count covers
+JSON object members across the Claims tree, object depth includes the top-level
+Claims object, string length also applies to Claim Names and object member
+names, and encoded size is the UTF-8 JSON size.
 
 For Platform-hosted Agent identities, use hosted verification instead of local
 DID resolution:

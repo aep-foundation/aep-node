@@ -1,7 +1,17 @@
+import {
+  AEP_CLAIM_NAME_CONTACT_ADDRESS_PRIMARY,
+  AEP_CLAIM_NAME_CONTACT_EMAIL,
+  AEP_CLAIM_NAME_CONTACT_MOBILE,
+  AEP_CLAIM_NAME_PERSON_BIRTHDATE,
+  AEP_CLAIM_NAME_PERSON_FIRST_NAME,
+  AEP_CLAIM_NAME_PERSON_LAST_NAME,
+  AEP_CLAIM_NAME_PERSON_USERNAME
+} from "@aep-foundation/core";
 import { registerExpressAepRoutes } from "@aep-foundation/express";
 import {
   authenticateProtectedResource,
   createAepService,
+  createInMemoryEnrollmentStore,
   createDidWebClientAssertionVerifier,
   didWebIdentityMethod,
   isActiveProtectedResourceAuthentication
@@ -22,11 +32,23 @@ const host = process.env["HOST"] ?? "127.0.0.1";
 const port = parsePort(process.env["PORT"] ?? "3000");
 const listenUrl = exampleListenUrl(host, port);
 const serviceDid = requiredExampleConfig("SERVICE_DID", process.env["SERVICE_DID"]);
+const enrollmentStore = createInMemoryEnrollmentStore();
 
 const service = createAepService({
   authenticationMethods: ["aep-jwt"],
   ...exampleServicePorts(),
+  claims: {
+    optional: [
+      AEP_CLAIM_NAME_CONTACT_ADDRESS_PRIMARY,
+      AEP_CLAIM_NAME_CONTACT_MOBILE,
+      AEP_CLAIM_NAME_PERSON_BIRTHDATE,
+      AEP_CLAIM_NAME_PERSON_FIRST_NAME,
+      AEP_CLAIM_NAME_PERSON_LAST_NAME
+    ],
+    preferred: [AEP_CLAIM_NAME_CONTACT_EMAIL, AEP_CLAIM_NAME_PERSON_USERNAME]
+  },
   clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  enrollmentStore,
   identityMethods: [didWebIdentityMethod()],
   serviceDid
 });
@@ -50,8 +72,10 @@ app.use((request, response, next) => {
   next();
 });
 registerExpressAepRoutes(app, service);
-app.get("/api/resource", requireAepJwt, (_request, response) => {
-  response.json(resourceBody());
+app.get("/api/resource", requireAepJwt, (_request, response, next) => {
+  void resourceBody(authenticatedAgentDid(response))
+    .then((body) => response.json(body))
+    .catch(next);
 });
 app.post("/api/profile", requireAepJwt, (request, response) => {
   response.json(profileBody());
@@ -78,11 +102,16 @@ async function authenticateProtectedRoute(request: Request, response: Response):
     return false;
   }
 
+  response.locals["aepAgentDid"] = status.principal.agentDid;
   return true;
 }
 
-function resourceBody(): Record<string, unknown> {
+async function resourceBody(agentDid: string): Promise<Record<string, unknown>> {
+  const enrollment = await enrollmentStore.findEnrollment(agentDid);
+
   return {
+    agent_did: agentDid,
+    claim_names: Object.keys(enrollment?.claims ?? {}).sort(),
     widgets: [1, 2, 3]
   };
 }
@@ -91,6 +120,16 @@ function profileBody(): Record<string, unknown> {
   return {
     status: "received"
   };
+}
+
+function authenticatedAgentDid(response: Response): string {
+  const agentDid: unknown = response.locals["aepAgentDid"];
+
+  if (typeof agentDid !== "string" || agentDid.length === 0) {
+    throw new Error("AEP authentication did not provide an Agent DID.");
+  }
+
+  return agentDid;
 }
 
 function parsePort(value: string): number {

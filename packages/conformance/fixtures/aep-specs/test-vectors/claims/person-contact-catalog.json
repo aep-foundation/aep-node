@@ -1,0 +1,25 @@
+{
+  "id": "person-contact-catalog",
+  "title": "Person and contact claim values",
+  "description": "An interoperable set of person and contact claim values.",
+  "drafts": ["draft-kavian-aep-claims-00"],
+  "category": "claims",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {},
+  "expected": {
+    "contact.address.primary": {
+      "line1": "123 Market Street",
+      "city": "San Francisco",
+      "region": "CA",
+      "postal_code": "94105",
+      "country": "US"
+    },
+    "contact.email": "owner@example.com",
+    "contact.mobile": "+14155550100",
+    "person.birthdate": "1990-04-12",
+    "person.first_name": "Ada",
+    "person.last_name": "Lovelace",
+    "person.username": "ada"
+  }
+}

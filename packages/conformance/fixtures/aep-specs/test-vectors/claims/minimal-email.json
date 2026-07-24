@@ -1,0 +1,17 @@
+{
+  "id": "minimal-email",
+  "title": "Minimal email address shape",
+  "description": "The three-character mailbox a@b satisfies the minimum email wire shape.",
+  "drafts": ["draft-kavian-aep-claims-00"],
+  "category": "claims",
+  "applies_to": ["agent", "service"],
+  "profile": "claims",
+  "input": {
+    "claim_values": {
+      "contact.email": "a@b"
+    }
+  },
+  "expected": {
+    "valid": true
+  }
+}

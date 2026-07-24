@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/claim-values.schema.json",
+  "title": "Claim Values",
+  "description": "Person and contact claim values. Unknown claim names are permitted for forward compatibility.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "contact.address.primary": {
+      "type": "object",
+      "required": ["city", "country", "line1"],
+      "additionalProperties": true,
+      "properties": {
+        "line1": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line2": {
+          "type": "string"
+        },
+        "city": {
+          "type": "string",
+          "minLength": 1
+        },
+        "region": {
+          "type": "string"
+        },
+        "postal_code": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        }
+      }
+    },
+    "contact.email": {
+      "type": "string",
+      "minLength": 3,
+      "format": "email"
+    },
+    "contact.mobile": {
+      "type": "string",
+      "pattern": "^\\+[1-9][0-9]{1,14}$"
+    },
+    "person.birthdate": {
+      "type": "string",
+      "format": "date"
+    },
+    "person.first_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "person.last_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "person.username": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

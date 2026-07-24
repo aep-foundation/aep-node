@@ -32,7 +32,7 @@ Content-Type: application/aep+json
   "api_key": "aep_live_7Jm5Example",
   "credential_id": "key_01HZY8W7Q2F8J7D3P9G9Z1N6TT",
   "expires_at": "2026-12-01T00:00:00Z",
-  "header": "aep-service-key",
+  "header": "x-api-key",
   "scopes": ["read"]
 }
 ```
@@ -42,7 +42,7 @@ Content-Type: application/aep+json
 ```http
 GET /v1/orders HTTP/1.1
 Host: api.example.com
-aep-service-key: aep_live_7Jm5Example
+x-api-key: aep_live_7Jm5Example
 ```
 
 ## 3. Revoke One API-key Credential
