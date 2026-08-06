@@ -8,7 +8,7 @@ Start `../aep-platform-ephemeral` first, then:
 
 ```bash
 pnpm build
-SERVICE_DID=did:web:127.0.0.1%3A4100:services:example-service PORT=3000 pnpm start
+SERVICE_DID=did:web:127.0.0.1%3A3000:services:example-service PORT=3000 pnpm start
 ```
 
 The process logs AEP route and protected API interactions after each request.

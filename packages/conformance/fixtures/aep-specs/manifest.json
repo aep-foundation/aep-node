@@ -100,6 +100,7 @@
       "idempotency/enroll-conflict.json",
       "inspect/claims-catalog-advertisement.json",
       "inspect/minimal-http.json",
+      "inspect/service-did-origin-binding.json",
       "inspect/transport-requirements.json",
       "openapi/path-matching.json",
       "openapi/security-inheritance.json",

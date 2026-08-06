@@ -77,3 +77,9 @@ ETag: "aep-inspect-20260627"
   }
 }
 ```
+
+The Inspect response origin and the origin encoded by `service.did` are both
+`https://api.example.com`. An Agent rejects the document before provisioning,
+signing, or credential transmission if those origins differ. A path-bearing DID,
+such as `did:web:api.example.com:services:primary`, has the same origin and is
+also valid for this Inspect URL.

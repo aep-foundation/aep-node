@@ -19,12 +19,12 @@ Then start this service:
 
 ```bash
 pnpm build
-SERVICE_DID=did:web:127.0.0.1%3A4100:services:example-service PORT=3000 pnpm start
+SERVICE_DID=did:web:127.0.0.1%3A3000:services:example-service PORT=3000 pnpm start
 ```
 
-`SERVICE_DID` is the Service identity assigned by the example Platform. The
-Service does not need `PLATFORM_URL`; the Agent uses the Platform URL to
-provision and sign with its hosted Agent identity.
+`SERVICE_DID` is bound to the Service origin. The Service does not need
+`PLATFORM_URL`; the Agent uses the Platform URL to provision and sign with its
+hosted Agent identity.
 
 The process logs AEP route and protected API interactions after each request.
 It does not print JWTs or other bearer material.

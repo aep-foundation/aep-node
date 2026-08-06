@@ -1,6 +1,6 @@
 # @aep-foundation/agent
 
-Service references may be DIDs, hosts, host paths, or absolute resource URLs. `resolveServiceReference` derives a trusted origin, while `inspectService` applies bounded same-origin redirects, media-type validation, abort support, and a one-mebibyte default response limit.
+Service references may be DIDs, hosts, host paths, or absolute resource URLs. `resolveServiceReference` derives a trusted origin, while `inspectService` applies bounded same-origin redirects, media-type validation, `did:web` Service-origin binding, abort support, and a one-mebibyte default response limit. A mismatch fails with `service_identity_mismatch` before the Agent provisions identity material, requests an assertion, or sends credentials.
 
 Platform delegated signers return a `completed` or `pending` result. Pending results carry opaque `platformContext` and numeric `retryAfterSeconds`.
 

@@ -13,6 +13,8 @@ import { Hono } from "hono";
 
 import {
   exampleListenUrl,
+  exampleServiceDidDocument,
+  exampleServiceDidPath,
   exampleServicePorts,
   logExampleServiceUrls,
   logExampleServiceInteraction,
@@ -35,6 +37,9 @@ const service = createAepService({
 const app = new Hono();
 
 registerHonoAepRoutes(app, service);
+app.get(exampleServiceDidPath(serviceDid), (context) =>
+  context.json(exampleServiceDidDocument(serviceDid))
+);
 app.get("/api/resource", async (context) => {
   const denied = await deniedProtectedResponse(context.req.raw);
 

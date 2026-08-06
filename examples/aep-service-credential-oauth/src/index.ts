@@ -17,6 +17,8 @@ import {
   exampleListenUrl,
   exampleOpenApi,
   exampleOpenApiAdvertisement,
+  exampleServiceDidDocument,
+  exampleServiceDidPath,
   exampleServicePorts,
   logExampleCredentialIssued,
   logExampleServiceInteraction,
@@ -84,6 +86,9 @@ app.use((request, response, next) => {
   next();
 });
 registerExpressAepRoutes(app, service);
+app.get(exampleServiceDidPath(serviceDid), (_request, response) =>
+  response.json(exampleServiceDidDocument(serviceDid))
+);
 app.get("/openapi.json", (_request, response) => response.json(exampleOpenApi("oauth-bearer")));
 app.get("/api/resource", requireCredential, (_request, response) => {
   response.json(resourceBody());

@@ -244,6 +244,59 @@ describe("@aep-foundation/agent Inspect client", () => {
     expect(result.etag).toBe('"inspect-1"');
   });
 
+  it("accepts path-bearing did:web Service identities on the Inspect origin", async () => {
+    const document = {
+      ...minimalInspectDocument,
+      service: { did: "did:web:api.example.com:services:primary" }
+    } satisfies InspectDocument;
+
+    const result = await withFetch(
+      () => jsonResponsePromise(document),
+      () => inspectService({ serviceUrl: "https://api.example.com" })
+    );
+
+    expect(result.document.service.did).toBe("did:web:api.example.com:services:primary");
+  });
+
+  it("rejects and evicts a did:web Service identity from another origin", async () => {
+    let calls = 0;
+    const cache = createInMemoryPublicDocumentCache();
+    const document = {
+      ...minimalInspectDocument,
+      service: { did: "did:web:other.example.com" }
+    } satisfies InspectDocument;
+    const inspect = () =>
+      withFetch(
+        () => {
+          calls += 1;
+          return jsonResponsePromise(document, { headers: { "cache-control": "max-age=300" } });
+        },
+        () =>
+          inspectService({
+            publicDocumentCache: cache,
+            serviceUrl: "https://api.example.com"
+          })
+      );
+
+    await expect(inspect()).rejects.toMatchObject({ code: "service_identity_mismatch" });
+    await expect(inspect()).rejects.toMatchObject({ code: "service_identity_mismatch" });
+    expect(calls).toBe(2);
+  });
+
+  it("rejects a Service DID method without a supported origin binding", async () => {
+    const document = {
+      ...minimalInspectDocument,
+      service: { did: "did:key:example" }
+    } satisfies InspectDocument;
+
+    await expect(
+      withFetch(
+        () => jsonResponsePromise(document),
+        () => inspectService({ serviceUrl: "https://api.example.com" })
+      )
+    ).rejects.toMatchObject({ code: "service_identity_mismatch" });
+  });
+
   it("throws AepInspectError on non-2xx responses", async () => {
     await expect(
       withFetch(

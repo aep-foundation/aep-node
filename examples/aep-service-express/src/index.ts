@@ -21,6 +21,8 @@ import type { Request, RequestHandler, Response } from "express";
 
 import {
   exampleListenUrl,
+  exampleServiceDidDocument,
+  exampleServiceDidPath,
   exampleServicePorts,
   logExampleServiceUrls,
   logExampleServiceInteraction,
@@ -72,6 +74,9 @@ app.use((request, response, next) => {
   next();
 });
 registerExpressAepRoutes(app, service);
+app.get(exampleServiceDidPath(serviceDid), (_request, response) =>
+  response.json(exampleServiceDidDocument(serviceDid))
+);
 app.get("/api/resource", requireAepJwt, (_request, response, next) => {
   void resourceBody(authenticatedAgentDid(response))
     .then((body) => response.json(body))
