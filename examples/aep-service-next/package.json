@@ -12,7 +12,7 @@
     "@aep-foundation/core": "workspace:^",
     "@aep-foundation/next": "workspace:^",
     "@aep-foundation/service": "workspace:^",
-    "next": "^15.5.19",
+    "next": "^15.5.21",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
