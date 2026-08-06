@@ -12,6 +12,8 @@ import {
 
 import {
   exampleListenUrl,
+  exampleServiceDidDocument,
+  exampleServiceDidPath,
   exampleServicePorts,
   logExampleServiceUrls,
   logExampleServiceInteraction,
@@ -70,6 +72,10 @@ async function routeResponse(request: Request): Promise<Response> {
 
   if (request.method === "GET" && url.pathname === "/.well-known/aep") {
     return requireHandler(routes.inspect.GET)(request);
+  }
+
+  if (request.method === "GET" && url.pathname === exampleServiceDidPath(serviceDid)) {
+    return jsonResponse(200, exampleServiceDidDocument(serviceDid));
   }
 
   if (request.method === "POST" && url.pathname === "/aep/enroll") {

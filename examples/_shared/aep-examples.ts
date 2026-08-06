@@ -1,4 +1,4 @@
-import { AEP_BUILT_IN_GRANT_TYPES } from "@aep-foundation/core";
+import { AEP_BUILT_IN_GRANT_TYPES, didWebDocumentUrl } from "@aep-foundation/core";
 import type { AepBuiltInGrantResponse, AepBuiltInGrantType } from "@aep-foundation/core";
 import type {
   AepServiceCredentialRecord,
@@ -16,6 +16,17 @@ export function exampleListenUrl(host: string, port: number): string {
   return `http://${host}:${port}`;
 }
 
+export function exampleServiceDidDocument(serviceDid: string): Record<string, unknown> {
+  return {
+    "@context": ["https://www.w3.org/ns/did/v1"],
+    id: serviceDid
+  };
+}
+
+export function exampleServiceDidPath(serviceDid: string): string {
+  return didWebDocumentUrl(serviceDid).pathname;
+}
+
 export function logExampleServiceUrls(
   service: string,
   listenUrl: string,
@@ -23,6 +34,7 @@ export function logExampleServiceUrls(
 ): void {
   console.log(`AEP ${service} service listening on ${listenUrl}`);
   console.log(`Service DID: ${serviceDid}`);
+  console.log(`Service DID document: ${String(didWebDocumentUrl(serviceDid))}`);
   console.log("AEP discovery:");
   console.log(`  GET  ${listenUrl}/.well-known/aep`);
   console.log(`  GET  ${listenUrl}/openapi.json`);

@@ -118,7 +118,7 @@ pnpm --filter @aep-foundation/example-aep-platform-ephemeral start
 
 # 2. Service
 pnpm --filter @aep-foundation/example-aep-service-credential-jwt build
-SERVICE_DID=did:web:127.0.0.1%3A4100:services:example-service \
+SERVICE_DID=did:web:127.0.0.1%3A3000:services:example-service \
   pnpm --filter @aep-foundation/example-aep-service-credential-jwt start
 
 # 3. Agent

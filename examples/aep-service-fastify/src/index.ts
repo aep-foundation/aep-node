@@ -11,6 +11,8 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 import {
   exampleListenUrl,
+  exampleServiceDidDocument,
+  exampleServiceDidPath,
   exampleServicePorts,
   logExampleServiceUrls,
   logExampleServiceInteraction,
@@ -44,6 +46,7 @@ app.addContentTypeParser("application/aep+json", { parseAs: "string" }, (_reques
   }
 });
 await app.register(createFastifyAepRoutesPlugin(service));
+app.get(exampleServiceDidPath(serviceDid), () => exampleServiceDidDocument(serviceDid));
 app.get("/api/resource", { preHandler: requireAepJwt }, () => resourceBody());
 app.post("/api/profile", { preHandler: requireAepJwt }, () => profileBody());
 

@@ -63,7 +63,6 @@ try {
 async function main() {
   const platformPort = await unusedPort();
   const platformUrl = `http://${host}:${platformPort}`;
-  const serviceDid = `did:web:${encodeURIComponent(`${host}:${platformPort}`)}:services:example-service`;
   const platform = startProcess(
     "aep-platform-ephemeral",
     "examples/aep-platform-ephemeral/dist/index.js",
@@ -75,20 +74,20 @@ async function main() {
   );
 
   await waitForHttp(`${platformUrl}/health`, platform);
-  await smokeClaimsExample({ platformUrl, serviceDid });
+  await smokeClaimsExample({ platformUrl });
 
   for (const service of serviceExamples) {
     await smokeService({
       platformUrl,
-      service,
-      serviceDid
+      service
     });
   }
 }
 
-async function smokeClaimsExample({ platformUrl, serviceDid }) {
+async function smokeClaimsExample({ platformUrl }) {
   const servicePort = await unusedPort();
   const serviceUrl = `http://${host}:${servicePort}`;
+  const serviceDid = didForServiceUrl(serviceUrl);
   const serviceProcess = startProcess(
     "aep-service-express claims",
     "examples/aep-service-express/dist/index.js",
@@ -132,9 +131,10 @@ async function smokeClaimsExample({ platformUrl, serviceDid }) {
   }
 }
 
-async function smokeService({ platformUrl, service, serviceDid }) {
+async function smokeService({ platformUrl, service }) {
   const servicePort = await unusedPort();
   const serviceUrl = `http://${host}:${servicePort}`;
+  const serviceDid = didForServiceUrl(serviceUrl);
   const serviceProcess = startProcess(service.name, service.script, {
     PORT: String(servicePort),
     SERVICE_DID: serviceDid
@@ -172,6 +172,12 @@ async function smokeService({ platformUrl, service, serviceDid }) {
   } finally {
     await stopChild(serviceProcess);
   }
+}
+
+function didForServiceUrl(serviceUrl) {
+  const host = new URL(serviceUrl).host;
+
+  return `did:web:${encodeURIComponent(host)}:services:example-service`;
 }
 
 function startProcess(name, script, env) {

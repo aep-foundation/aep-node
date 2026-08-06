@@ -8,6 +8,7 @@ import {
   AEP_WELL_KNOWN_PATH,
   AepAuthorizationCarrierError,
   commandPathFromInspect,
+  didWebDocumentUrl,
   missingAepRequiredClaimNames,
   parseAepClaimValues,
   parseBuiltInGrantResponse,
@@ -557,6 +558,7 @@ export type AepInspectErrorCode =
   | "invalid_media_type"
   | "invalid_redirect"
   | "response_too_large"
+  | "service_identity_mismatch"
   | "validation_failed";
 export class AepInspectError extends Error {
   readonly code: AepInspectErrorCode;
@@ -1960,6 +1962,7 @@ export async function inspectService(
   const serviceUrl = resolveServiceReference(options.serviceUrl);
   if (options.publicDocumentCache !== undefined) {
     const inspectUrl = new URL(AEP_WELL_KNOWN_PATH, serviceUrl);
+    let finalUrl: URL | undefined;
     try {
       const fetched = await fetchAepPublicDocument({
         accept: AEP_MEDIA_TYPE,
@@ -1975,8 +1978,9 @@ export async function inspectService(
         ...(options.signal === undefined ? {} : { signal: options.signal }),
         url: inspectUrl
       });
+      finalUrl = fetched.finalUrl;
       const document = fetched.value;
-      return {
+      return validateServiceIdentity({
         document,
         inspectUrl,
         finalUrl: fetched.finalUrl,
@@ -1984,8 +1988,15 @@ export async function inspectService(
         ...(fetched.cacheControl === undefined ? {} : { cacheControl: fetched.cacheControl }),
         ...(fetched.etag === undefined ? {} : { etag: fetched.etag }),
         ...(fetched.lastModified === undefined ? {} : { lastModified: fetched.lastModified })
-      };
+      });
     } catch (error) {
+      if (error instanceof AepInspectError) {
+        await options.publicDocumentCache.delete("inspect", String(inspectUrl));
+        if (finalUrl !== undefined && String(finalUrl) !== String(inspectUrl)) {
+          await options.publicDocumentCache.delete("inspect", String(finalUrl));
+        }
+        throw error;
+      }
       throw new AepInspectError(
         error instanceof Error ? error.message : "AEP Inspect failed.",
         "http_error"
@@ -1995,7 +2006,15 @@ export async function inspectService(
   const cacheKey = String(serviceUrl);
   const now = (options.clock ?? (() => new Date()))();
   const cached = await options.inspectCache?.get(cacheKey);
-  if (cached !== undefined && inspectCacheFresh(cached, now)) return cached;
+  if (cached !== undefined) {
+    try {
+      validateServiceIdentity(cached);
+    } catch (error) {
+      await options.inspectCache?.delete(cacheKey);
+      throw error;
+    }
+    if (inspectCacheFresh(cached, now)) return cached;
+  }
   const fetched = await fetchInspectService({ ...options, serviceUrl }, cached);
   if ("notModified" in fetched) {
     if (cached === undefined)
@@ -2011,15 +2030,45 @@ export async function inspectService(
       ...(fetched.etag === undefined ? {} : { etag: fetched.etag }),
       ...(fetched.lastModified === undefined ? {} : { lastModified: fetched.lastModified })
     };
-    if (inspectCacheNoStore(refreshed.cacheControl)) await options.inspectCache?.delete(cacheKey);
-    else await options.inspectCache?.set(cacheKey, refreshed);
-    return refreshed;
+    const inspected = validateServiceIdentity(refreshed);
+    if (inspectCacheNoStore(inspected.cacheControl)) await options.inspectCache?.delete(cacheKey);
+    else await options.inspectCache?.set(cacheKey, inspected);
+    return inspected;
   }
-  const inspected = fetched;
+  const inspected = validateServiceIdentity(fetched);
   if (options.inspectCache !== undefined && !inspectCacheNoStore(inspected.cacheControl)) {
     await options.inspectCache.set(cacheKey, { ...inspected, cachedAt: now.toISOString() });
   } else if (options.inspectCache !== undefined) await options.inspectCache.delete(cacheKey);
   return inspected;
+}
+
+function validateServiceIdentity<Result extends InspectServiceResult>(result: Result): Result {
+  const serviceDid = result.document.service.did;
+  if (!serviceDid.startsWith("did:web:")) {
+    throw new AepInspectError(
+      "AEP Inspect Service DID method does not define a supported origin binding.",
+      "service_identity_mismatch"
+    );
+  }
+
+  let serviceOrigin: string;
+  try {
+    serviceOrigin = didWebDocumentUrl(serviceDid).origin;
+  } catch {
+    throw new AepInspectError(
+      "AEP Inspect Service DID does not encode a valid web origin.",
+      "service_identity_mismatch"
+    );
+  }
+
+  const inspectOrigin = (result.finalUrl ?? result.inspectUrl).origin;
+  if (serviceOrigin !== inspectOrigin) {
+    throw new AepInspectError(
+      "AEP Inspect Service DID does not match the Inspect origin.",
+      "service_identity_mismatch"
+    );
+  }
+  return result;
 }
 
 interface InspectNotModifiedResult {

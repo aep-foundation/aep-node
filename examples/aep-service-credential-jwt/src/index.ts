@@ -13,6 +13,8 @@ import {
   exampleListenUrl,
   exampleOpenApi,
   exampleOpenApiAdvertisement,
+  exampleServiceDidDocument,
+  exampleServiceDidPath,
   exampleServicePorts,
   logExampleServiceUrls,
   logExampleServiceInteraction,
@@ -53,6 +55,9 @@ app.use((request, response, next) => {
   next();
 });
 registerExpressAepRoutes(app, service);
+app.get(exampleServiceDidPath(serviceDid), (_request, response) =>
+  response.json(exampleServiceDidDocument(serviceDid))
+);
 app.get("/openapi.json", (_request, response) => response.json(exampleOpenApi("aep-jwt")));
 app.get("/api/resource", requireAepJwt, (_request, response) => {
   response.json({
