@@ -69,8 +69,12 @@ jobs:
         run: pnpm verify-publish
 
       - name: Changeset check
-        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main' && matrix.node == 22
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main' && github.actor != 'dependabot[bot]' && matrix.node == 22
         run: pnpm changeset status --since=origin/main
+
+      - name: Dependabot Changeset check
+        if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]' && matrix.node == 22
+        run: node scripts/check-dependabot-changeset.mjs origin/main
 
       - name: Upload coverage
         uses: actions/upload-artifact@v6
