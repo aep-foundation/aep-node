@@ -1,5 +1,11 @@
 # @aep-foundation/agent
 
+## 0.3.1
+
+### Patch Changes
+
+- [#16](https://github.com/aep-foundation/aep-node/pull/16) [`5cf1b3a`](https://github.com/aep-foundation/aep-node/commit/5cf1b3a278940cba06cf3cafd0166d74b905cce8) Thanks [@nkavian](https://github.com/nkavian)! - Reject AEP Inspect documents whose `did:web` Service identity does not match the Inspect origin.
+
 ## 0.3.0
 
 ### Minor Changes
