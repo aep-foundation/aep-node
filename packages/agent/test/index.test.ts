@@ -844,6 +844,32 @@ describe("@aep-foundation/agent command clients", () => {
     });
   });
 
+  it("normalizes null API-key Grant scopes", async () => {
+    const result = await withFetch(
+      () =>
+        jsonResponsePromise({
+          api_key: "api-key",
+          credential_id: "cred_123",
+          expires_at: "2026-05-28T12:00:00Z",
+          header: "X-API-Key",
+          scopes: null
+        }),
+      () =>
+        grantService({
+          clientAssertion: "jwt.grant",
+          grantType: "api-key",
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-grant0000001",
+          inspect: inspectResult(),
+          serviceUrl: "https://api.example.com"
+        })
+    );
+
+    expect(result.body).toMatchObject({
+      header: "X-API-Key",
+      scopes: []
+    });
+  });
+
   it("posts Revoke requests using exactly one selector", async () => {
     const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
     const fetch = (input: URL | string, init?: RequestInit) => {

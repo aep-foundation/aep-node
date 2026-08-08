@@ -3,7 +3,7 @@
   "$id": "https://www.aep.foundation/schemas/basic-grant-response.schema.json",
   "title": "AEP Basic Grant Response",
   "type": "object",
-  "required": ["credential_id", "expires_at", "password", "scopes", "username"],
+  "required": ["credential_id", "expires_at", "password", "username"],
   "additionalProperties": true,
   "properties": {
     "credential_id": {
@@ -23,7 +23,7 @@
       "minLength": 1
     },
     "scopes": {
-      "type": "array",
+      "type": ["array", "null"],
       "items": {
         "type": "string"
       }

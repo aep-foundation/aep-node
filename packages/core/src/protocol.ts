@@ -236,9 +236,12 @@ export function validateOAuthBearerGrantResponse(
   requireString(value, "credential_id", issues, { minLength: 1 });
   requireString(value, "expires_at", issues, { minLength: 1 });
   requireDateTime(value["expires_at"], "$.expires_at", issues);
-  requireStringArray(value["scopes"], "$.scopes", issues);
+  optionalNullableStringArray(value["scopes"], "$.scopes", issues);
   requireString(value, "token_type", issues, { allowedValues: new Set(["Bearer"]) });
-  return result(value as OAuthBearerGrantResponse, issues);
+  return result(
+    { ...(value as OAuthBearerGrantResponse), scopes: normalizedScopes(value["scopes"]) },
+    issues
+  );
 }
 
 export function validateApiKeyGrantResponse(value: unknown): ValidationResult<ApiKeyGrantResponse> {
@@ -252,8 +255,11 @@ export function validateApiKeyGrantResponse(value: unknown): ValidationResult<Ap
   requireString(value, "expires_at", issues, { minLength: 1 });
   requireDateTime(value["expires_at"], "$.expires_at", issues);
   requireString(value, "header", issues, { minLength: 1 });
-  requireStringArray(value["scopes"], "$.scopes", issues);
-  return result(value as ApiKeyGrantResponse, issues);
+  optionalNullableStringArray(value["scopes"], "$.scopes", issues);
+  return result(
+    { ...(value as ApiKeyGrantResponse), scopes: normalizedScopes(value["scopes"]) },
+    issues
+  );
 }
 
 export function validateBasicGrantResponse(value: unknown): ValidationResult<BasicGrantResponse> {
@@ -267,9 +273,12 @@ export function validateBasicGrantResponse(value: unknown): ValidationResult<Bas
   requireDateTime(value["expires_at"], "$.expires_at", issues);
   requireString(value, "password", issues, { minLength: 1 });
   optionalString(value["realm"], "$.realm", issues, { minLength: 1 });
-  requireStringArray(value["scopes"], "$.scopes", issues);
+  optionalNullableStringArray(value["scopes"], "$.scopes", issues);
   requireString(value, "username", issues, { minLength: 1 });
-  return result(value as BasicGrantResponse, issues);
+  return result(
+    { ...(value as BasicGrantResponse), scopes: normalizedScopes(value["scopes"]) },
+    issues
+  );
 }
 
 export function validateBuiltInGrantResponse(
@@ -410,6 +419,24 @@ function optionalStringArray(value: unknown, path: string, issues: ValidationIss
   }
 
   requireStringArray(value, path, issues);
+}
+
+function optionalNullableStringArray(
+  value: unknown,
+  path: string,
+  issues: ValidationIssue[]
+): void {
+  if (value === undefined || value === null) {
+    return;
+  }
+
+  requireStringArray(value, path, issues);
+}
+
+function normalizedScopes(value: unknown): string[] {
+  return Array.isArray(value) && value.every((scope) => typeof scope === "string")
+    ? [...value]
+    : [];
 }
 
 function optionalNonEmptyStringArray(
