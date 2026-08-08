@@ -1,5 +1,11 @@
 # @aep-foundation/core
 
+## 0.4.0
+
+### Minor Changes
+
+- [#22](https://github.com/aep-foundation/aep-node/pull/22) [`6e252bb`](https://github.com/aep-foundation/aep-node/commit/6e252bb0a0f4c5700b989b43a0f3400bd76099e2) Thanks [@nkavian](https://github.com/nkavian)! - Accept missing and null Grant response scopes and normalize them to an empty array.
+
 ## 0.3.0
 
 ### Minor Changes
