@@ -627,10 +627,11 @@ describe("Protocol message validation", () => {
         credential_id: "cred_123",
         expires_at: "2026-05-28T12:00:00Z",
         header: "X-API-Key",
-        scopes: []
+        scopes: null
       })
     ).toMatchObject({
-      header: "X-API-Key"
+      header: "X-API-Key",
+      scopes: []
     });
 
     expect(
@@ -638,12 +639,22 @@ describe("Protocol message validation", () => {
         credential_id: "cred_123",
         expires_at: "2026-05-28T12:00:00Z",
         password: "password",
-        scopes: [],
         username: "username"
       })
     ).toMatchObject({
+      scopes: [],
       username: "username"
     });
+
+    expect(() =>
+      parseBuiltInGrantResponse(AEP_GRANT_TYPE_API_KEY, {
+        api_key: "api-key",
+        credential_id: "cred_123",
+        expires_at: "2026-05-28T12:00:00Z",
+        header: "X-API-Key",
+        scopes: [null]
+      })
+    ).toThrow(AepValidationError);
 
     expect(() => parseBuiltInGrantResponse("custom", {})).toThrow(AepValidationError);
   });

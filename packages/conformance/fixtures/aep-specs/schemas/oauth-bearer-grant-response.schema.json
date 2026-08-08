@@ -3,7 +3,7 @@
   "$id": "https://www.aep.foundation/schemas/oauth-bearer-grant-response.schema.json",
   "title": "AEP OAuth Bearer Grant Response",
   "type": "object",
-  "required": ["access_token", "credential_id", "expires_at", "scopes", "token_type"],
+  "required": ["access_token", "credential_id", "expires_at", "token_type"],
   "additionalProperties": true,
   "properties": {
     "access_token": {
@@ -19,7 +19,7 @@
       "format": "date-time"
     },
     "scopes": {
-      "type": "array",
+      "type": ["array", "null"],
       "items": {
         "type": "string"
       }

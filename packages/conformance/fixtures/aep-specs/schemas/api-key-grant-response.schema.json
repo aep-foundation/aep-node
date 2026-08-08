@@ -3,7 +3,7 @@
   "$id": "https://www.aep.foundation/schemas/api-key-grant-response.schema.json",
   "title": "AEP API-key Grant Response",
   "type": "object",
-  "required": ["api_key", "credential_id", "expires_at", "header", "scopes"],
+  "required": ["api_key", "credential_id", "expires_at", "header"],
   "additionalProperties": true,
   "properties": {
     "api_key": {
@@ -23,7 +23,7 @@
       "minLength": 1
     },
     "scopes": {
-      "type": "array",
+      "type": ["array", "null"],
       "items": {
         "type": "string"
       }
