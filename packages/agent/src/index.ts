@@ -7,6 +7,7 @@ import {
   AEP_SIGNING_ALGORITHMS,
   AEP_WELL_KNOWN_PATH,
   AepAuthorizationCarrierError,
+  AepValidationError,
   commandPathFromInspect,
   didWebDocumentUrl,
   missingAepRequiredClaimNames,
@@ -48,7 +49,8 @@ import type {
   OAuthBearerGrantResponse,
   RevokeRequest,
   RevokeResponse,
-  StatusResponse
+  StatusResponse,
+  ValidationIssue
 } from "@aep-foundation/core";
 import type {
   PlatformAgentIdentity,
@@ -633,6 +635,16 @@ export class AepClaimRequirementsError extends Error {
     super(`Cannot satisfy required AEP Claim Names: ${missingRequiredClaimNames.join(", ")}.`);
     this.name = "AepClaimRequirementsError";
     this.missingRequiredClaimNames = [...missingRequiredClaimNames];
+  }
+}
+
+export class AepClaimValuesError extends Error {
+  readonly issues: ValidationIssue[];
+
+  constructor(issues: readonly ValidationIssue[]) {
+    super("AEP Claim Values failed validation.");
+    this.name = "AepClaimValuesError";
+    this.issues = issues.map((issue) => ({ ...issue }));
   }
 }
 
@@ -2215,8 +2227,13 @@ export async function enrollService(options: EnrollServiceOptions): Promise<Enro
   const fetchImpl = requireFetch();
   const inspect = await resolveInspect(options);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "enroll");
-  const claimValues =
-    options.claims === undefined ? undefined : parseAepClaimValues(options.claims);
+  let claimValues: AepClaimValues | undefined;
+  try {
+    claimValues = options.claims === undefined ? undefined : parseAepClaimValues(options.claims);
+  } catch (error) {
+    if (error instanceof AepValidationError) throw new AepClaimValuesError(error.issues);
+    throw error;
+  }
   const missingRequiredClaimNames = missingAepRequiredClaimNames(
     inspect.document.claims?.required ?? [],
     claimValues

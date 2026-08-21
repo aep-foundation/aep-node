@@ -137,8 +137,11 @@ describe("AEP claim values", () => {
     "contact.address.primary": {
       city: "San Francisco",
       country: "US",
+      first_name: "Grace",
+      last_name: "Hopper",
       line1: "123 Market Street",
-      postal_code: "94105",
+      line3: "Attention: Receiving",
+      postcode: "94105",
       region: "CA",
       future_field: "accepted"
     },
@@ -173,6 +176,42 @@ describe("AEP claim values", () => {
     expect(validateAepClaimValues(claimValues).ok).toBe(true);
     expect(isAepClaimValues(claimValues)).toBe(true);
     expect(parseAepClaimValues(claimValues)).toEqual(claimValues);
+  });
+
+  it("accepts an address without a city", () => {
+    expect(
+      validateAepClaimValues({
+        "contact.address.primary": {
+          country: "US",
+          first_name: "Grace",
+          last_name: "Hopper",
+          line1: "Rural Route 5"
+        }
+      }).ok
+    ).toBe(true);
+  });
+
+  it("rejects the legacy postal_code address member", () => {
+    const result = validateAepClaimValues({
+      "contact.address.primary": {
+        city: "San Francisco",
+        country: "US",
+        first_name: "Grace",
+        last_name: "Hopper",
+        line1: "123 Market Street",
+        postal_code: "94105"
+      }
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      issues: [
+        {
+          message: "Expected the postcode member.",
+          path: "$.contact.address.primary.postal_code"
+        }
+      ]
+    });
   });
 
   it("accepts the minimum email shape and evaluates forward-compatible negotiation", () => {
@@ -234,6 +273,7 @@ describe("AEP claim values", () => {
     const result = validateAepClaimValues({
       "contact.address.primary": {
         country: "USA",
+        first_name: "",
         line1: ""
       },
       "contact.email": "not-email",
@@ -245,13 +285,17 @@ describe("AEP claim values", () => {
     expect(result.ok).toBe(false);
     expect(result.issues).toEqual([
       {
-        path: "$.contact.address.primary.line1",
-        message: "Expected at least 1 character(s)."
-      },
-      { path: "$.contact.address.primary.city", message: "Expected a string." },
-      {
         path: "$.contact.address.primary.country",
         message: "Expected string to match ^[A-Z]{2}$."
+      },
+      {
+        path: "$.contact.address.primary.first_name",
+        message: "Expected at least 1 character(s)."
+      },
+      { path: "$.contact.address.primary.last_name", message: "Expected a string." },
+      {
+        path: "$.contact.address.primary.line1",
+        message: "Expected at least 1 character(s)."
       },
       {
         path: "$.contact.email",

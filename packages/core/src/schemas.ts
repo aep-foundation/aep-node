@@ -146,9 +146,25 @@ export const claimValuesSchema = {
   properties: {
     "contact.address.primary": {
       type: "object",
-      required: ["city", "country", "line1"],
+      required: ["country", "first_name", "last_name", "line1"],
       additionalProperties: true,
       properties: {
+        city: {
+          type: "string",
+          minLength: 1
+        },
+        country: {
+          type: "string",
+          pattern: "^[A-Z]{2}$"
+        },
+        first_name: {
+          type: "string",
+          minLength: 1
+        },
+        last_name: {
+          type: "string",
+          minLength: 1
+        },
         line1: {
           type: "string",
           minLength: 1
@@ -156,19 +172,15 @@ export const claimValuesSchema = {
         line2: {
           type: "string"
         },
-        city: {
-          type: "string",
-          minLength: 1
+        line3: {
+          type: "string"
         },
+        postcode: {
+          type: "string"
+        },
+        postal_code: false,
         region: {
           type: "string"
-        },
-        postal_code: {
-          type: "string"
-        },
-        country: {
-          type: "string",
-          pattern: "^[A-Z]{2}$"
         }
       }
     },

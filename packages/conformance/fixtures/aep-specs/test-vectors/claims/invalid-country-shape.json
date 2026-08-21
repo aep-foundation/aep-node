@@ -11,6 +11,8 @@
       "contact.address.primary": {
         "city": "San Francisco",
         "country": "us",
+        "first_name": "Grace",
+        "last_name": "Hopper",
         "line1": "123 Market Street"
       }
     }

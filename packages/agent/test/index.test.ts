@@ -33,6 +33,7 @@ import {
   signClientAssertion,
   AepPendingSignError,
   AepPendingSignResolverError,
+  AepClaimValuesError,
   AepClaimRequirementsError,
   protectedResourceAuthenticationHeaders,
   statusService
@@ -732,18 +733,23 @@ describe("@aep-foundation/agent command clients", () => {
       }
     });
 
-    await expect(
-      withFetch(fetch, () =>
-        enrollService({
-          agentDid: "did:web:agent.example.com:agents:123",
-          claims: { "contact.email": "not-email" },
-          clientAssertion: "jwt.enroll",
-          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
-          inspect: requiredClaimsInspect,
-          serviceUrl: "https://api.example.com"
-        })
-      )
-    ).rejects.toThrow("Invalid AEP claim values");
+    const malformedClaimValues = withFetch(fetch, () =>
+      enrollService({
+        agentDid: "did:web:agent.example.com:agents:123",
+        claims: { "contact.email": "not-email" },
+        clientAssertion: "jwt.enroll",
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
+        inspect: requiredClaimsInspect,
+        serviceUrl: "https://api.example.com"
+      })
+    );
+    await expect(malformedClaimValues).rejects.toBeInstanceOf(AepClaimValuesError);
+    await expect(malformedClaimValues).rejects.toEqual(
+      expect.objectContaining({
+        issues: [{ message: "Expected an RFC 5321 Mailbox.", path: "$.contact.email" }],
+        name: "AepClaimValuesError"
+      })
+    );
 
     const missingRequiredEnrollment = withFetch(fetch, () =>
       enrollService({

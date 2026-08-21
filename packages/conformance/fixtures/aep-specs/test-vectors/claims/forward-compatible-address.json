@@ -12,6 +12,8 @@
         "city": "San Francisco",
         "country": "US",
         "delivery_instructions": "Reception desk",
+        "first_name": "Grace",
+        "last_name": "Hopper",
         "line1": "123 Market Street"
       }
     }
