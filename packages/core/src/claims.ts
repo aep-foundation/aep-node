@@ -144,12 +144,18 @@ function optionalAddress(value: unknown, path: string, issues: ValidationIssue[]
     return;
   }
 
+  optionalString(value["city"], `${path}.city`, issues, { minLength: 1 });
+  requireString(value, "country", `${path}.country`, issues, { pattern: COUNTRY_PATTERN });
+  requireString(value, "first_name", `${path}.first_name`, issues, { minLength: 1 });
+  requireString(value, "last_name", `${path}.last_name`, issues, { minLength: 1 });
   requireString(value, "line1", `${path}.line1`, issues, { minLength: 1 });
   optionalString(value["line2"], `${path}.line2`, issues);
-  requireString(value, "city", `${path}.city`, issues, { minLength: 1 });
+  optionalString(value["line3"], `${path}.line3`, issues);
+  optionalString(value["postcode"], `${path}.postcode`, issues);
+  if (Object.hasOwn(value, "postal_code")) {
+    issues.push({ path: `${path}.postal_code`, message: "Expected the postcode member." });
+  }
   optionalString(value["region"], `${path}.region`, issues);
-  optionalString(value["postal_code"], `${path}.postal_code`, issues);
-  requireString(value, "country", `${path}.country`, issues, { pattern: COUNTRY_PATTERN });
 }
 
 function requireString(

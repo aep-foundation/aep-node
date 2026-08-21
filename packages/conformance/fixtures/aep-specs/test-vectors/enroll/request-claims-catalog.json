@@ -10,11 +10,14 @@
     "agent_did": "did:web:agent.example.com:agents:123",
     "claims": {
       "contact.address.primary": {
-        "line1": "123 Market Street",
         "city": "San Francisco",
-        "region": "CA",
-        "postal_code": "94105",
-        "country": "US"
+        "country": "US",
+        "first_name": "Grace",
+        "last_name": "Hopper",
+        "line1": "123 Market Street",
+        "line3": "Attention: Receiving",
+        "postcode": "94105",
+        "region": "CA"
       },
       "contact.email": "owner@example.com",
       "contact.mobile": "+14155550100",

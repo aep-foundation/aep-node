@@ -24,11 +24,14 @@ export type AepRegisteredClaimName = (typeof AEP_CLAIM_NAMES)[number];
 export type AepClaimName = AepExtensibleString<AepRegisteredClaimName>;
 
 export interface AepContactAddressPrimaryClaimValue {
-  city: string;
+  city?: string;
   country: string;
+  first_name: string;
+  last_name: string;
   line1: string;
   line2?: string;
-  postal_code?: string;
+  line3?: string;
+  postcode?: string;
   region?: string;
   [key: string]: unknown;
 }
