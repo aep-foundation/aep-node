@@ -46,6 +46,10 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Changed-line coverage
+        if: github.event_name == 'pull_request' && matrix.node == 22
+        run: pnpm coverage:changed
+
       - name: Upload coverage to Codecov
         if: matrix.node == 22
         uses: codecov/codecov-action@v7
