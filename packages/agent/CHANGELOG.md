@@ -1,5 +1,15 @@
 # @aep-foundation/agent
 
+## 0.3.3
+
+### Patch Changes
+
+- [#24](https://github.com/aep-foundation/aep-node/pull/24) [`77daf0a`](https://github.com/aep-foundation/aep-node/commit/77daf0a6830aafeabcd14afd6efaccfdc88bad48) Thanks [@nkavian](https://github.com/nkavian)! - Report malformed Enroll Claim Values with a claim-specific typed error.
+
+- Updated dependencies [[`77daf0a`](https://github.com/aep-foundation/aep-node/commit/77daf0a6830aafeabcd14afd6efaccfdc88bad48)]:
+  - @aep-foundation/core@0.5.0
+  - @aep-foundation/platform@0.2.3
+
 ## 0.3.2
 
 ### Patch Changes
