@@ -1,5 +1,12 @@
 # @aep-foundation/service-policy
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [[`77daf0a`](https://github.com/aep-foundation/aep-node/commit/77daf0a6830aafeabcd14afd6efaccfdc88bad48)]:
+  - @aep-foundation/core@0.5.0
+
 ## 0.1.4
 
 ### Patch Changes

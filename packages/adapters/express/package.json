@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/express",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Express adapter for AEP Service handlers.",
   "homepage": "https://www.aep.foundation/",
   "type": "module",

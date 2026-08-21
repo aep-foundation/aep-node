@@ -1,5 +1,11 @@
 # @aep-foundation/core
 
+## 0.5.0
+
+### Minor Changes
+
+- [#24](https://github.com/aep-foundation/aep-node/pull/24) [`77daf0a`](https://github.com/aep-foundation/aep-node/commit/77daf0a6830aafeabcd14afd6efaccfdc88bad48) Thanks [@nkavian](https://github.com/nkavian)! - Use address-specific recipient names and `postcode` for postal addresses, support an optional third address line, and make the city optional.
+
 ## 0.4.0
 
 ### Minor Changes

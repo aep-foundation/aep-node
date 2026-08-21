@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/hono",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Hono adapter for AEP Service handlers.",
   "homepage": "https://www.aep.foundation/",
   "type": "module",
