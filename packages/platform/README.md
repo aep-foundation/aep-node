@@ -2,10 +2,22 @@
 
 Platform-side helpers for managed Agent identity support.
 
+## Install
+
+```sh
+pnpm add @aep-foundation/platform
+```
+
+Use this package when operating a hosted identity Platform on behalf of
+Agents. Agent applications that only consume a Platform should use
+`createPlatformIdentityProvider()` from `@aep-foundation/agent` instead.
+
 For production storage, authorization, replay, and key-custody guidance, see
 the repository [Integration Guide](../../INTEGRATION.md).
 
-Current helpers cover the AEP Platform Hosted Identity Profile:
+## What It Provides
+
+The package covers the AEP Platform Hosted Identity Profile:
 
 - create a Platform engine with pluggable persistence, key custody, replay
   storage, authorization, lifecycle policy, and Service DID resolution
@@ -22,7 +34,7 @@ Current helpers cover the AEP Platform Hosted Identity Profile:
 - verify hosted client assertions without requiring Services to resolve
   Platform-managed Agent DID documents
 
-## Example
+## Create a Platform
 
 ```ts
 import { createAepPlatform } from "@aep-foundation/platform";
@@ -107,6 +119,11 @@ Callers provide those through `PlatformIdentityStore`,
 `PlatformServiceDidResolver`, `PlatformAuthorizer`, and
 `PlatformLifecyclePolicy`. The example Platform in this repository uses
 in-memory implementations for those interfaces.
+
+Provision, Sign, lifecycle, list, and hosted-verification endpoints are part of
+the application integration. Publish the Platform discovery document at
+`/.well-known/aep-platform` and publish each managed Agent DID document at the
+URL derived from that identity's `did:web` value.
 
 Provision, Sign, and hosted Verification require both an `idempotencyKey` and
 stable authorization `subject` in `PlatformRequestContext`. Idempotency records
