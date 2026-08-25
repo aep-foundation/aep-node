@@ -1,6 +1,13 @@
 # @aep-foundation/service-policy
 
-Future Service Policy extension package for AEP.
+Package identity for the AEP Service Policy extension.
 
-This package is scaffolded but should remain implementation-light until core
-Agent and Service workflows show concrete extension pressure.
+## Install
+
+```sh
+pnpm add @aep-foundation/service-policy
+```
+
+The current package exports `packageName`. It does not add policy evaluation
+to `@aep-foundation/service`; Service lifecycle policy remains available
+through the Service SDK's `AepEnrollmentPolicy` interface.

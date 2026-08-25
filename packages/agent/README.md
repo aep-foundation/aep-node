@@ -6,6 +6,17 @@ Platform delegated signers return a `completed` or `pending` result. Pending res
 
 Agent-side workflows for AEP.
 
+## Install
+
+```sh
+pnpm add @aep-foundation/agent
+```
+
+Use this package when your application acts as the Agent. It owns Service
+discovery and AEP command transport; your application supplies identity
+custody, persistence, and any user-approval experience required by the hosted
+identity Platform.
+
 ## Responsibilities
 
 - fetch and validate Service Inspect documents from Service URLs
@@ -22,7 +33,7 @@ identity custody; they do not provide custom Inspect or command transports.
 For production storage and tenancy guidance, see the repository
 [Integration Guide](../../INTEGRATION.md).
 
-## High-Level API
+## Enroll and Use a Service
 
 ```ts
 import {
@@ -65,6 +76,11 @@ await session.revoke({
   credentialId: grant.body.credential_id
 });
 ```
+
+Call `inspect()` before presenting capabilities to the Agent. `identity()`
+returns the Service-scoped identity used by the remaining lifecycle commands.
+`authenticationHeaders()` selects a usable stored credential or creates an
+AEP client assertion when the Service supports assertion-only access.
 
 Known Claim Values are validated before Enroll. If the Inspect document
 advertises a required Claim Name that is absent from the submitted values,
@@ -163,6 +179,12 @@ In-memory implementations are provided for examples and tests.
 Production applications should provide durable stores scoped to the current
 principal. If one process hosts multiple Agent principals, create one Agent
 instance per principal or include the principal in every store lookup key.
+
+Inspect documents default to a four-hour freshness window when the Service
+does not provide HTTP cache directives. Platform Discovery and OpenAPI
+documents use their own cache entries. Supply `AepPublicDocumentCache` when
+validated documents must survive process restarts or be shared by Agent
+instances.
 
 ## Low-Level Primitives
 

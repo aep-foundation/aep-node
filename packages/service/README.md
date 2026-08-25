@@ -2,6 +2,16 @@
 
 Service-side workflows for AEP.
 
+## Install
+
+```sh
+pnpm add @aep-foundation/service
+```
+
+Add one framework adapter when the Service uses Express, Fastify, Hono, or
+Next.js. The Service package contains the protocol engine; adapters only bind
+that engine to framework routes.
+
 Protected-resource authentication selects `AEP-Authorization` when present and
 otherwise accepts `Authorization`. Invalid dedicated fields and recognizable
 AEP credentials in both fields fail closed as `not_recognized`; unrelated
@@ -10,7 +20,7 @@ AEP credentials in both fields fail closed as `not_recognized`; unrelated
 For production storage, idempotency, replay, and key-custody guidance, see the
 repository [Integration Guide](../../INTEGRATION.md).
 
-Initial responsibilities:
+## What the Service Owns
 
 - construct Inspect documents
 - explicitly enable supported identity methods and grant types
@@ -25,7 +35,7 @@ Initial responsibilities:
 - provide built-in helpers for issuing and revoking standard session
   credentials through user-provided persistence
 
-## Initial API
+## Create a Service
 
 ```ts
 import {
@@ -126,6 +136,11 @@ const revoke = await service.revoke(
 );
 ```
 
+The same `service` instance should serve `/.well-known/aep`, the advertised
+command routes, and protected-resource authentication. Reusing the instance
+keeps the Inspect document, enabled grant types, and authentication behavior
+consistent.
+
 For new enrollments, the Service validates known Claim Values and returns
 `requirements_unmet` with `requirements_pending` when a Claim Name advertised
 in `claims.required` is absent. Unknown submitted Claim Names and unknown
@@ -174,6 +189,21 @@ In-memory implementations are provided for examples and tests. Production
 Services should provide durable stores for enrollment state and command
 idempotency, and an atomic replay store appropriate for the Service's
 deployment.
+
+## Minimum Integration
+
+A Service integration needs to:
+
+1. choose a stable Service DID bound to its public origin;
+2. enable at least one identity method and client-assertion verifier;
+3. provide durable enrollment, idempotency, and replay stores;
+4. mount Inspect plus each advertised command route; and
+5. call `authenticateProtectedResource()` before application authorization on
+   protected routes.
+
+Grant and Revoke are optional. Omit grant types when AEP client assertions are
+sufficient for protected-resource access. The generated Inspect document then
+omits those unsupported commands.
 
 Authenticated command methods require `clientAssertion`. Services pass the
 assertion to `clientAssertionVerifier`, then enforce baseline AEP claims for

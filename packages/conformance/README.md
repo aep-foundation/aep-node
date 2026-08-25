@@ -1,12 +1,18 @@
 # @aep-foundation/conformance
 
-Finalized schemas, registries, examples, and vectors are synchronized here.
-`loadRegistryArtifact()` and `loadExampleArtifact()` expose the added groups.
-
 SDK-facing conformance helpers for checking AEP behavior against schemas,
 examples, and test vectors.
 
-Initial responsibilities:
+## Install
+
+```sh
+pnpm add -D @aep-foundation/conformance
+```
+
+Use this package in implementation and integration test suites. It is not
+required to run the Agent or Service SDK.
+
+## What It Provides
 
 - load AEP schemas and test vectors
 - validate AEP Claim Value catalog payloads
@@ -18,7 +24,7 @@ Initial responsibilities:
 - validate AEP Problem Details error responses and idempotency conflict fixtures
 - load Platform Hosted Identity schemas and test vectors through stable helpers
 
-## Initial API
+## Example
 
 ```ts
 import {
@@ -61,12 +67,16 @@ const platformProvisionVector = await loadPlatformProvisionRequestTestVector();
 const hostedVerificationVector = await loadPlatformVerificationResponseRecognizedTestVector();
 ```
 
-The initial conformance surface loads synced spec artifacts from
+The conformance surface loads synchronized specification artifacts from
 `fixtures/aep-specs`, validates Claim Values, Inspect, Enroll, Status, Grant,
 Revoke, built-in credential response objects, Problem Details errors, and
 idempotency conflict fixtures through `@aep-foundation/core`, exposes Platform
 Hosted Identity test-vector loaders, and exposes stable fixture path helpers
 for package and SDK tests.
+
+`loadRegistryArtifact()` and `loadExampleArtifact()` expose registry and
+descriptive example artifacts when a test needs data beyond the stable named
+loaders.
 
 ## Spec Artifacts
 
