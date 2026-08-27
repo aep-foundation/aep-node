@@ -2,7 +2,7 @@
   "id": "invalid-country-shape",
   "title": "Country code with the wrong wire shape",
   "description": "A lowercase country code is rejected because the wire shape requires two uppercase ASCII letters.",
-  "drafts": ["draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

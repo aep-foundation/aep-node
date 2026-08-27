@@ -2,7 +2,7 @@
   "id": "person-contact-catalog",
   "title": "Person and contact claim values",
   "description": "An interoperable set of person and contact claim values.",
-  "drafts": ["draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

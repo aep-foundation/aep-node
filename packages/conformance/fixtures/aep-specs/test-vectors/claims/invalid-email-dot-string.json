@@ -2,7 +2,7 @@
   "id": "invalid-email-dot-string",
   "title": "Contact email with an invalid dot-string",
   "description": "Consecutive dots are not valid in an RFC 5321 Dot-string local-part.",
-  "drafts": ["draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

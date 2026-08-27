@@ -1,9 +1,12 @@
 import {
   AEP_MEDIA_TYPE,
   AEP_PROBLEM_MEDIA_TYPE,
+  AEP_SIGNING_ALGORITHMS,
+  AEP_VERSION,
   createProblemDetails,
   decodeJwtUnverified,
   didWebDocumentUrl,
+  isAepVersionCompatible,
   signClientAssertionJwt,
   verifyClientAssertionJwt
 } from "@aep-foundation/core";
@@ -17,7 +20,7 @@ import type {
 } from "@aep-foundation/core";
 
 export const packageName = "@aep-foundation/platform";
-export const platformHostedIdentityDraft = "draft-kavian-aep-platform-hosted-identity-00";
+export const platformHostedIdentityDraft = "draft-kavian-aep-platform-hosted-identity-01";
 
 export const defaultAssertionLifetimeSeconds = 300;
 
@@ -677,18 +680,34 @@ export function createPlatformDiscoveryDocument(
   options: PlatformDiscoveryDocumentOptions
 ): PlatformDiscoveryDocument {
   assertNonEmpty("didUrlTemplate", options.didUrlTemplate);
-  assertNonEmpty("endpointBase", options.endpointBase);
-  assertNonEmpty("lifecycle endpoint", options.endpoints.lifecycle);
-  assertNonEmpty("list endpoint", options.endpoints.list);
+  if (!options.didUrlTemplate.startsWith("https://"))
+    throw new TypeError("didUrlTemplate must be an HTTPS URL template.");
+  assertEndpointPath("endpointBase", options.endpointBase);
+  assertEndpointPath("lifecycle endpoint", options.endpoints.lifecycle);
+  assertEndpointPath("list endpoint", options.endpoints.list);
   assertNonEmpty("platformName", options.platformName);
-  assertNonEmpty("provision endpoint", options.endpoints.provision);
-  assertNonEmpty("sign endpoint", options.endpoints.sign);
+  assertEndpointPath("provision endpoint", options.endpoints.provision);
+  assertEndpointPath("sign endpoint", options.endpoints.sign);
+  if (options.endpoints.hostedVerification !== undefined)
+    assertEndpointPath("hosted verification endpoint", options.endpoints.hostedVerification);
+  if (options.platformDid !== undefined && !options.platformDid.startsWith("did:"))
+    throw new TypeError("platformDid must be a DID.");
+  const aepVersion = options.aepVersion ?? AEP_VERSION;
+  if (!isAepVersionCompatible(aepVersion)) {
+    throw new TypeError("aepVersion must identify a supported AEP major version.");
+  }
   const defaultLifetimeSeconds = options.defaultLifetimeSeconds ?? defaultAssertionLifetimeSeconds;
   validateLifetimeSeconds(defaultLifetimeSeconds, options.maxLifetimeSeconds);
 
   if (options.signingAlgorithms.length === 0) {
     throw new TypeError("signingAlgorithms must include at least one algorithm.");
   }
+  if (
+    options.signingAlgorithms.some(
+      (algorithm) => !AEP_SIGNING_ALGORITHMS.some((supported) => supported === algorithm)
+    )
+  )
+    throw new TypeError("signingAlgorithms contains an unsupported algorithm.");
 
   const didMethods = [...(options.didMethods ?? ["did:web"])];
 
@@ -697,7 +716,7 @@ export function createPlatformDiscoveryDocument(
   }
 
   return {
-    aep_version: options.aepVersion ?? "1.0",
+    aep_version: aepVersion,
     endpoints: {
       ...(options.endpoints.hostedVerification === undefined
         ? {}
@@ -1640,6 +1659,10 @@ function assertNonEmpty(label: string, value: string): void {
   if (value.trim().length === 0) {
     throw new TypeError(`${label} must be a non-empty string.`);
   }
+}
+
+function assertEndpointPath(label: string, value: string): void {
+  if (!value.startsWith("/")) throw new TypeError(`${label} must start with '/'.`);
 }
 
 function cloneManagedAgentIdentity(identity: ManagedAgentIdentity): ManagedAgentIdentity {

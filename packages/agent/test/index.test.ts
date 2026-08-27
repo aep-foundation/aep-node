@@ -1279,6 +1279,46 @@ describe("@aep-foundation/agent public documents and OpenAPI", () => {
     expect(policy).toMatchObject({ state: "public", freshness: "fetched" });
   });
 
+  it("requires the OpenAPI 3.1 vendor media-type parameter", async () => {
+    const inspect = inspectResult({
+      ...minimalInspectDocument,
+      http: {
+        ...minimalInspectDocument.http,
+        openapi: { path_matching: { trailing_slash: "strict" }, url: "/openapi.json" }
+      }
+    });
+    const inspectPolicy = () =>
+      inspectOpenApiPolicy({
+        inspect,
+        url: "https://api.example.com/items"
+      });
+
+    await expect(
+      withFetch(
+        () =>
+          jsonResponsePromise(
+            { openapi: "3.1.0", paths: {} },
+            { headers: { "content-type": "application/vnd.oai.openapi+json" } }
+          ),
+        inspectPolicy
+      )
+    ).rejects.toThrow("media type");
+    await expect(
+      withFetch(
+        () =>
+          jsonResponsePromise(
+            { openapi: "3.1.0", paths: {} },
+            {
+              headers: {
+                "content-type": "application/vnd.oai.openapi+json; charset=utf-8; version=3.1"
+              }
+            }
+          ),
+        inspectPolicy
+      )
+    ).resolves.toMatchObject({ state: "fallback" });
+  });
+
   it("shares fresh serializable documents and single-flights fetches", async () => {
     const cache = createInMemoryPublicDocumentCache();
     let calls = 0;
@@ -1411,6 +1451,46 @@ describe("@aep-foundation/agent public documents and OpenAPI", () => {
       "must not contain user information"
     );
     await expect(request("http://api.example.com/openapi.json")).rejects.toThrow("require HTTPS");
+  });
+
+  it("bounds public-document completion time and streamed response bytes", async () => {
+    const request = (options: { maxResponseBytes?: number; timeoutMs?: number } = {}) =>
+      fetchAepPublicDocument({
+        accept: "application/json",
+        namespace: "openapi",
+        parse: (value) => value,
+        url: "https://api.example.com/openapi.json",
+        ...options
+      });
+    const oversized = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"value":'));
+          controller.enqueue(new TextEncoder().encode("true}"));
+          controller.close();
+        }
+      }),
+      { headers: { "content-type": "application/json" } }
+    );
+
+    await expect(
+      withFetch(
+        () => Promise.resolve(oversized),
+        () => request({ maxResponseBytes: 8 })
+      )
+    ).rejects.toThrow("too large");
+    await expect(
+      withFetch(
+        (_input, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+              once: true
+            });
+          }),
+        () => request({ timeoutMs: 1 })
+      )
+    ).rejects.toBeDefined();
+    await expect(request({ timeoutMs: 0 })).rejects.toThrow("positive integer");
   });
 
   it("interprets inherited, public, and strict-slash OpenAPI policy", () => {
@@ -1696,6 +1776,39 @@ describe("@aep-foundation/agent Platform clients", () => {
     expect(String(discovery.endpointUrl("provision"))).toBe(
       "https://platform.example.com/v1/aep/agent-identities"
     );
+  });
+
+  it("rejects Platform discovery documents outside the complete wire contract", async () => {
+    const discover = (document: unknown) =>
+      withFetch(
+        () => jsonResponsePromise(document),
+        () => discoverPlatform({ platformUrl: "https://platform.example.com/" })
+      );
+
+    await expect(
+      discover({ ...minimalPlatformDiscoveryDocument, aep_version: "2.0" })
+    ).rejects.toThrow("unsupported AEP major version");
+    await expect(
+      discover({
+        ...minimalPlatformDiscoveryDocument,
+        endpoints: { ...minimalPlatformDiscoveryDocument.endpoints, sign: "v1/aep/sign" }
+      })
+    ).rejects.toThrow("must start with '/'");
+    await expect(
+      discover({
+        ...minimalPlatformDiscoveryDocument,
+        identity: { ...minimalPlatformDiscoveryDocument.identity, did_methods: [] }
+      })
+    ).rejects.toThrow("did_methods must not be empty");
+    await expect(
+      discover({
+        ...minimalPlatformDiscoveryDocument,
+        signing: {
+          ...minimalPlatformDiscoveryDocument.signing,
+          default_lifetime_seconds: "301"
+        }
+      })
+    ).rejects.toThrow("default_lifetime_seconds is invalid");
   });
 
   it("provisions Platform-hosted did:web identities", async () => {

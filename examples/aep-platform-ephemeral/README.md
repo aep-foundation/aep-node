@@ -22,6 +22,8 @@ did:web:127.0.0.1%3A4100:services:example-service
 ```
 
 Set `DID_HOST` when the DID host should differ from the host in `PUBLIC_BASE_URL`.
+Set `DID_URL_TEMPLATE` to the HTTPS location that publishes provisioned Agent
+DID documents. It defaults to `https://{DID_HOST}/agents/{agent_did_id}/did.json`.
 Protected Platform API routes expect `Authorization: Bearer demo-agent` by
 default. Override that with `PLATFORM_AUTHORIZATION`.
 

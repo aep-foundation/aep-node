@@ -23,6 +23,7 @@ import {
   didWebDocumentUrl,
   evaluateAepClaimSupport,
   inspectDocumentSchema,
+  isAepVersionCompatible,
   isAepClaimValues,
   missingAepRequiredClaimNames,
   parseAepClaimValues,
@@ -394,18 +395,141 @@ describe("Inspect document validation", () => {
     });
   });
 
+  it("rejects closed Inspect objects and invalid OpenAPI references", () => {
+    const result = validateInspectDocument({
+      ...minimalInspectDocument,
+      authentication: {
+        methods: Array.from({ length: 17 }, (_, index) => `method-${index}`),
+        unsupported: true
+      },
+      http: {
+        openapi: {
+          path_matching: { trailing_slash: "strict", unsupported: true },
+          unsupported: true,
+          url: "not a URI"
+        }
+      }
+    });
+
+    expect(result.issues).toContainEqual({
+      path: "$.authentication.unsupported",
+      message: "Expected no additional property."
+    });
+    expect(result.issues).toContainEqual({
+      path: "$.authentication.methods",
+      message: "Expected at most 16 item(s)."
+    });
+    expect(result.issues).toContainEqual({
+      path: "$.http.openapi.unsupported",
+      message: "Expected no additional property."
+    });
+    expect(result.issues).toContainEqual({
+      path: "$.http.openapi.path_matching.unsupported",
+      message: "Expected no additional property."
+    });
+    expect(result.issues).toContainEqual({
+      path: "$.http.openapi.url",
+      message: "Expected a URI reference."
+    });
+  });
+
   it("exports the Inspect JSON Schema metadata", () => {
     expect(inspectDocumentSchema.$id).toBe(
       "https://www.aep.foundation/schemas/inspect-document.schema.json"
     );
     expect(inspectDocumentSchema.required).toContain("service");
+    expect("required" in inspectDocumentSchema.properties.http).toBe(false);
+    expect(inspectDocumentSchema.properties.core.required).toContain("signing_algorithms");
+  });
+
+  it("accepts an Inspect-only Service without an endpoint base or identity method", () => {
+    const document = {
+      ...minimalInspectDocument,
+      commands: { supported: ["inspect"] },
+      http: {},
+      identity: { methods: [] }
+    } satisfies InspectDocument;
+
+    expect(validateInspectDocument(document).ok).toBe(true);
+    expect(commandPathFromInspect(document, "status")).toBe("/aep/status");
+  });
+
+  it("accepts future same-major advertisements without inferring support", () => {
+    const document = {
+      ...minimalInspectDocument,
+      aep_version: "1.7",
+      bindings: { supported: ["http", "future-binding"] },
+      commands: { supported: ["inspect", "future-command"] },
+      future_section: { enabled: true },
+      http: {},
+      identity: { methods: [] }
+    } satisfies InspectDocument;
+
+    expect(validateInspectDocument(document).ok).toBe(true);
+  });
+
+  it("enforces protocol version syntax and major-version compatibility", () => {
+    expect(isAepVersionCompatible("1.0")).toBe(true);
+    expect(isAepVersionCompatible("1.7")).toBe(true);
+    expect(isAepVersionCompatible("1.0", "1.7")).toBe(true);
+    expect(isAepVersionCompatible("2.0")).toBe(false);
+    expect(isAepVersionCompatible("01.0")).toBe(false);
+
+    expect(
+      validateInspectDocument({ ...minimalInspectDocument, aep_version: "2.0" }).issues
+    ).toContainEqual({
+      path: "$.aep_version",
+      message: "Unsupported AEP major version: 2.0."
+    });
+  });
+
+  it("enforces authenticated-command and grant-type advertisements", () => {
+    const missingIdentity = validateInspectDocument({
+      ...minimalInspectDocument,
+      identity: { methods: [] }
+    });
+    expect(missingIdentity.issues).toContainEqual({
+      path: "$.identity.methods",
+      message: "Expected at least one identity method for authenticated commands."
+    });
+
+    const missingGrantTypes = validateInspectDocument({
+      ...minimalInspectDocument,
+      commands: { supported: ["inspect", "grant"] }
+    });
+    expect(missingGrantTypes.issues).toContainEqual({
+      path: "$.commands.grant_types",
+      message: "Expected at least one grant type when Grant or Revoke is advertised."
+    });
+  });
+
+  it("enforces mandatory signing algorithms and registered-value syntax", () => {
+    const result = validateInspectDocument({
+      ...minimalInspectDocument,
+      claims: { required: ["Contact.Email"] },
+      core: { signing_algorithms: ["ES256"] },
+      extensions: { supported: ["openapi-authentication"] }
+    });
+
+    expect(result.issues).toContainEqual({
+      path: "$.claims.required[0]",
+      message: "Expected string to match ^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)*$."
+    });
+    expect(result.issues).toContainEqual({
+      path: "$.core.signing_algorithms",
+      message: "Expected EdDSA to be advertised."
+    });
+    expect(result.issues).toContainEqual({
+      path: "$.extensions.supported[0]",
+      message: "Expected an absolute URI."
+    });
   });
 
   it("reports stable issue paths for invalid Inspect documents", () => {
     const result = validateInspectDocument({
       ...minimalInspectDocument,
       commands: {
-        supported: ["inspect", "update"]
+        supported: ["inspect", "Invalid Command"]
       },
       identity: {
         methods: []
@@ -417,8 +541,10 @@ describe("Inspect document validation", () => {
 
     expect(result.ok).toBe(false);
     expect(result.issues).toEqual([
-      { path: "$.commands.supported[1]", message: "Expected a registered AEP value." },
-      { path: "$.identity.methods", message: "Expected at least 1 item(s)." },
+      {
+        path: "$.commands.supported[1]",
+        message: "Expected string to match ^[a-z0-9]+(?:-[a-z0-9]+)*$."
+      },
       { path: "$.service.did", message: "Expected string to match ^did:." }
     ]);
   });

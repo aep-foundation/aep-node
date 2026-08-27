@@ -2,7 +2,7 @@
   "id": "invalid-email-format",
   "title": "Contact email without a mailbox separator",
   "description": "A non-empty string without an at-sign is rejected by the email format.",
-  "drafts": ["draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

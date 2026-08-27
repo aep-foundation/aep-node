@@ -2,7 +2,7 @@
   "applies_to": ["agent", "platform"],
   "category": "platform",
   "description": "A Platform returns the updated public metadata for a Service-scoped Agent identity after a lifecycle state change.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": {
     "agent_did": "did:web:p.example:a:4Yf7p2xQd9",
     "agent_identity_id": "pai_01J0AEPPLATFORM000000000001",

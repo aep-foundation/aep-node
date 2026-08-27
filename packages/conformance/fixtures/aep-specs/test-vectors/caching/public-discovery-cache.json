@@ -3,8 +3,8 @@
   "title": "Inspect and Platform Discovery caching",
   "description": "Public discovery documents share validator, freshness, no-cache, no-store, redirect, and final-URL cache-key behavior.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-02",
-    "draft-kavian-aep-platform-hosted-identity-00"
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-platform-hosted-identity-01"
   ],
   "category": "caching",
   "applies_to": ["agent", "platform", "service"],

@@ -2,7 +2,7 @@
   "applies_to": ["agent", "platform", "service"],
   "category": "platform",
   "description": "A Platform advertising hosted identity provisioning, DID publication, delegated signing, custody, and hosted verification capabilities.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": {
     "aep_version": "1.0",
     "endpoints": {

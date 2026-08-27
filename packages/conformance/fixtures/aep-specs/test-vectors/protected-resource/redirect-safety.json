@@ -2,7 +2,7 @@
   "id": "redirect-safety",
   "title": "Protected-resource redirect credential safety",
   "description": "Same-origin redirects require resource rebinding and cross-origin redirects restart anonymously without credential forwarding.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "protected-resource",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

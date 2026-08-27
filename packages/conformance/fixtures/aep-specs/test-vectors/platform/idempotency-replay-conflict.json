@@ -2,7 +2,7 @@
   "id": "idempotency-replay-conflict",
   "title": "Platform idempotency replay and conflict",
   "description": "Provision, Sign, and hosted Verification share principal-scoped header idempotency with exact replay and cross-operation conflict.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "category": "platform",
   "applies_to": ["agent", "platform", "service"],
   "profile": "platform-hosted-identity",

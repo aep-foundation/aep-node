@@ -10,6 +10,8 @@ import type {
 export type AepCommand = (typeof AEP_COMMANDS)[number];
 export type AepBinding = (typeof AEP_BINDINGS)[number];
 export type AepExtensibleString<TValue extends string> = TValue | (string & Record<never, never>);
+export type AepAdvertisedCommand = AepExtensibleString<AepCommand>;
+export type AepAdvertisedBinding = AepExtensibleString<AepBinding>;
 export type AepSigningAlgorithm = AepExtensibleString<(typeof AEP_SIGNING_ALGORITHMS)[number]>;
 export type AepBuiltInGrantType = (typeof AEP_BUILT_IN_GRANT_TYPES)[number];
 export type AepGrantType = AepExtensibleString<AepBuiltInGrantType>;
@@ -67,18 +69,18 @@ export interface InspectDocument {
   aep_version: string;
   authentication?: { methods: AepAuthenticationMethod[] };
   bindings: {
-    supported: AepBinding[];
+    supported: AepAdvertisedBinding[];
     [key: string]: unknown;
   };
   claims?: AepInspectClaims;
   commands: {
-    supported: AepCommand[];
+    supported: AepAdvertisedCommand[];
     grant_types?: AepGrantType[];
     grant_types_config?: Record<string, unknown>;
     [key: string]: unknown;
   };
   core: {
-    signing_algorithms?: AepSigningAlgorithm[];
+    signing_algorithms: AepSigningAlgorithm[];
     [key: string]: unknown;
   };
   extensions?: {
@@ -86,7 +88,7 @@ export interface InspectDocument {
     [key: string]: unknown;
   };
   http: {
-    endpoint_base: string;
+    endpoint_base?: string;
     openapi?: {
       url: string;
       path_matching: { trailing_slash: AepOpenApiTrailingSlashMode };

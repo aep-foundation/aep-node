@@ -2,7 +2,7 @@
   "id": "path-matching",
   "title": "OpenAPI operation and trailing-slash matching",
   "description": "Method, templates, query exclusion, slash modes, ambiguity diagnostics, and stale contradictions are deterministic.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "openapi",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

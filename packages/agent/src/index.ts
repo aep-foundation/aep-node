@@ -10,6 +10,7 @@ import {
   AepValidationError,
   commandPathFromInspect,
   didWebDocumentUrl,
+  isAepVersionCompatible,
   missingAepRequiredClaimNames,
   parseAepClaimValues,
   parseBuiltInGrantResponse,
@@ -144,6 +145,7 @@ export interface InspectServiceOptions {
   serviceUrl: string | URL;
   signal?: AbortSignal;
   maxResponseBytes?: number;
+  timeoutMs?: number;
   inspectCache?: AgentInspectCache;
   publicDocumentCache?: AepPublicDocumentCache;
   clock?: () => Date;
@@ -166,6 +168,7 @@ export interface InspectOpenApiPolicyOptions {
   signal?: AbortSignal;
   url: string | URL;
   maxResponseBytes?: number;
+  timeoutMs?: number;
 }
 
 export async function inspectOpenApiPolicy(
@@ -177,7 +180,7 @@ export async function inspectOpenApiPolicy(
   const base = options.inspect.finalUrl ?? options.inspect.inspectUrl;
   const fetched = await fetchAepPublicDocument({
     accept: "application/vnd.oai.openapi+json;version=3.1, application/json",
-    acceptedMediaTypes: ["application/vnd.oai.openapi+json", "application/json"],
+    acceptedMediaTypes: ["application/vnd.oai.openapi+json;version=3.1", "application/json"],
     ...(options.publicDocumentCache === undefined ? {} : { cache: options.publicDocumentCache }),
     ...(options.maxResponseBytes === undefined
       ? {}
@@ -185,6 +188,7 @@ export async function inspectOpenApiPolicy(
     namespace: "openapi",
     parse: (value) => value,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     url: new URL(advertisement.url, base)
   });
   return interpretAepOpenApiOperation(
@@ -202,6 +206,7 @@ export interface DiscoverPlatformOptions {
   platformUrl: string | URL;
   publicDocumentCache?: AepPublicDocumentCache;
   signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface DiscoverPlatformResult {
@@ -1149,6 +1154,7 @@ export async function discoverPlatform(
     parse: parsePlatformDiscoveryDocument,
     sameOriginRedirects: true,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     url: discoveryUrl
   });
   const document = fetched.value;
@@ -1988,6 +1994,7 @@ export async function inspectService(
         parse: parseInspectDocument,
         sameOriginRedirects: true,
         ...(options.signal === undefined ? {} : { signal: options.signal }),
+        ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
         url: inspectUrl
       });
       finalUrl = fetched.finalUrl;
@@ -2099,6 +2106,7 @@ async function fetchInspectService(
   const serviceUrl = resolveServiceReference(options.serviceUrl);
   const inspectUrl = new URL(AEP_WELL_KNOWN_PATH, serviceUrl);
   const maxBytes = options.maxResponseBytes ?? 1024 * 1024;
+  const signal = completionSignal(options.signal, options.timeoutMs);
   let current = inspectUrl;
   let response: ResponseLike;
   try {
@@ -2112,7 +2120,7 @@ async function fetchInspectService(
             : { "If-Modified-Since": cached.lastModified })
         },
         redirect: "manual",
-        ...(options.signal === undefined ? {} : { signal: options.signal })
+        signal
       });
       if (![301, 302, 303, 307, 308].includes(response.status)) break;
       if (redirects >= 5)
@@ -2189,6 +2197,13 @@ async function fetchInspectService(
     ...(etag === undefined ? {} : { etag }),
     ...(lastModified === undefined ? {} : { lastModified })
   };
+}
+
+function completionSignal(signal?: AbortSignal, timeoutMs = 30_000): AbortSignal {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1)
+    throw new RangeError("timeoutMs must be a positive integer.");
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
 }
 
 async function readBoundedResponse(response: ResponseLike, maxBytes: number): Promise<string> {
@@ -2377,41 +2392,72 @@ function parsePlatformDiscoveryDocument(value: unknown): PlatformDiscoveryDocume
   const signing = requireRecord(document["signing"], "Platform discovery signing metadata");
   const algorithms = requireStringArray(signing, "algorithms");
   const didMethods = requireStringArray(identity, "did_methods");
+  const aepVersion = requireString(document, "aep_version");
+  if (!isAepVersionCompatible(aepVersion))
+    throw new TypeError("Platform discovery uses an unsupported AEP major version.");
+  const hostedVerification =
+    endpoints["hosted_verification"] === undefined
+      ? undefined
+      : requireDiscoveryPath(endpoints, "hosted_verification");
+  const platformDid = platform["did"] === undefined ? undefined : requireString(platform, "did");
+  if (platformDid !== undefined && !platformDid.startsWith("did:"))
+    throw new TypeError("Platform discovery did must be a DID.");
+  const didUrlTemplate = requireString(identity, "did_url_template");
+  if (!didUrlTemplate.startsWith("https://"))
+    throw new TypeError("Platform discovery did_url_template must use HTTPS.");
+  if (didMethods.length === 0)
+    throw new TypeError("Platform discovery did_methods must not be empty.");
+  if (
+    algorithms.length === 0 ||
+    algorithms.some(
+      (algorithm) => !AEP_SIGNING_ALGORITHMS.some((supported) => supported === algorithm)
+    )
+  )
+    throw new TypeError("Platform discovery signing algorithms are invalid.");
+  const lifetime = requireString(signing, "default_lifetime_seconds");
+  if (!/^(?:[1-9][0-9]?|[12][0-9]{2}|300)$/u.test(lifetime))
+    throw new TypeError("Platform discovery default_lifetime_seconds is invalid.");
+  const platformName = requireString(platform, "name");
+  if (platformName.length === 0) throw new TypeError("Platform discovery name must not be empty.");
 
   return {
     ...document,
-    aep_version: requireString(document, "aep_version"),
+    aep_version: aepVersion,
     endpoints: {
       ...endpoints,
-      ...(endpoints["hosted_verification"] === undefined
-        ? {}
-        : { hosted_verification: requireString(endpoints, "hosted_verification") }),
-      lifecycle: requireString(endpoints, "lifecycle"),
-      list: requireString(endpoints, "list"),
-      provision: requireString(endpoints, "provision"),
-      sign: requireString(endpoints, "sign")
+      ...(hostedVerification === undefined ? {} : { hosted_verification: hostedVerification }),
+      lifecycle: requireDiscoveryPath(endpoints, "lifecycle"),
+      list: requireDiscoveryPath(endpoints, "list"),
+      provision: requireDiscoveryPath(endpoints, "provision"),
+      sign: requireDiscoveryPath(endpoints, "sign")
     },
     http: {
       ...http,
-      endpoint_base: requireString(http, "endpoint_base")
+      endpoint_base: requireDiscoveryPath(http, "endpoint_base")
     },
     identity: {
       ...identity,
       did_methods: didMethods,
-      did_url_template: requireString(identity, "did_url_template")
+      did_url_template: didUrlTemplate
     },
     platform: {
       ...platform,
-      ...(platform["did"] === undefined ? {} : { did: requireString(platform, "did") }),
+      ...(platformDid === undefined ? {} : { did: platformDid }),
       hosted_verification: requireBoolean(platform, "hosted_verification"),
-      name: requireString(platform, "name")
+      name: platformName
     },
     signing: {
       ...signing,
       algorithms,
-      default_lifetime_seconds: requireString(signing, "default_lifetime_seconds")
+      default_lifetime_seconds: lifetime
     }
   };
+}
+
+function requireDiscoveryPath(record: Record<string, unknown>, key: string): string {
+  const value = requireString(record, key);
+  if (!value.startsWith("/")) throw new TypeError(`${key} must start with '/'.`);
+  return value;
 }
 
 function parsePlatformAgentIdentity(value: unknown): PlatformAgentIdentity {
@@ -2584,9 +2630,7 @@ async function resolveClientAssertion(
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.assertionClock === undefined ? {} : { clock: options.assertionClock }),
     ...(options.assertionJti === undefined ? {} : { jti: options.assertionJti }),
-    ...(inspect.document.core.signing_algorithms === undefined
-      ? {}
-      : { signingAlgorithms: inspect.document.core.signing_algorithms }),
+    signingAlgorithms: inspect.document.core.signing_algorithms,
     ...(options.assertionTtlSeconds === undefined
       ? {}
       : { ttlSeconds: options.assertionTtlSeconds })

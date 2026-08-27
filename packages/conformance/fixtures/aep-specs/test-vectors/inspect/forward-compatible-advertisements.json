@@ -1,0 +1,27 @@
+{
+  "id": "forward-compatible-advertisements",
+  "title": "Inspect document with future same-major advertisements",
+  "description": "An Agent accepts syntactically valid unknown bindings, commands, and additive fields without inferring support.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "category": "inspect",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "document": {
+      "aep_version": "1.7",
+      "bindings": { "supported": ["http", "future-binding"] },
+      "commands": { "supported": ["inspect", "future-command"] },
+      "core": { "signing_algorithms": ["EdDSA", "ES256"] },
+      "future_section": { "enabled": true },
+      "http": {},
+      "identity": { "methods": [] },
+      "service": { "did": "did:web:api.example.com" }
+    }
+  },
+  "expected": {
+    "unknown_binding": "ignore",
+    "unknown_command": "ignore",
+    "unknown_field": "ignore",
+    "valid": true
+  }
+}

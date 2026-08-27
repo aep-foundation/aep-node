@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/claim-values.schema.json",
+  "title": "Claim Values",
+  "description": "Person and contact claim values. Unknown claim names are permitted for forward compatibility.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "contact.address.primary": {
+      "type": "object",
+      "required": ["country", "first_name", "last_name", "line1"],
+      "additionalProperties": true,
+      "properties": {
+        "city": {
+          "type": "string",
+          "minLength": 1
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$"
+        },
+        "first_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "last_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line1": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line2": {
+          "type": "string"
+        },
+        "line3": {
+          "type": "string"
+        },
+        "postcode": {
+          "type": "string"
+        },
+        "postal_code": false,
+        "region": {
+          "type": "string"
+        }
+      }
+    },
+    "contact.email": {
+      "type": "string",
+      "minLength": 3,
+      "format": "email"
+    },
+    "contact.mobile": {
+      "type": "string",
+      "pattern": "^\\+[1-9][0-9]{1,14}$"
+    },
+    "person.birthdate": {
+      "type": "string",
+      "format": "date"
+    },
+    "person.first_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "person.last_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "person.username": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

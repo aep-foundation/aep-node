@@ -29,6 +29,7 @@ import {
   updateManagedAgentIdentity
 } from "../src/index.js";
 import type {
+  PlatformDiscoveryDocumentOptions,
   PlatformIdentityRecord,
   PlatformIdentityStore,
   PlatformIdempotencyRecord,
@@ -42,7 +43,7 @@ describe("@aep-foundation/platform", () => {
   });
 
   it("exports the Platform Hosted Identity draft name", () => {
-    expect(platformHostedIdentityDraft).toBe("draft-kavian-aep-platform-hosted-identity-00");
+    expect(platformHostedIdentityDraft).toBe("draft-kavian-aep-platform-hosted-identity-01");
   });
 
   it("builds Platform discovery documents", () => {
@@ -88,6 +89,56 @@ describe("@aep-foundation/platform", () => {
         default_lifetime_seconds: "300"
       }
     });
+  });
+
+  it("rejects malformed and unsupported Platform discovery versions", () => {
+    const options = {
+      didUrlTemplate: "https://platform.example.com/agents/{agent_did_id}/did.json",
+      endpointBase: "/v1/aep",
+      endpoints: {
+        lifecycle: "/v1/aep/agent-identities/{agent_identity_id}",
+        list: "/v1/aep/agent-identities",
+        provision: "/v1/aep/agent-identities",
+        sign: "/v1/aep/agent-identities/{agent_identity_id}/sign"
+      },
+      platformName: "Example Platform",
+      signingAlgorithms: ["EdDSA", "ES256"]
+    } satisfies PlatformDiscoveryDocumentOptions;
+
+    expect(() => createPlatformDiscoveryDocument({ ...options, aepVersion: "01.0" })).toThrow(
+      "supported AEP major version"
+    );
+    expect(() => createPlatformDiscoveryDocument({ ...options, aepVersion: "2.0" })).toThrow(
+      "supported AEP major version"
+    );
+  });
+
+  it("rejects Platform discovery output that violates its wire schema", () => {
+    const options = {
+      didUrlTemplate: "https://platform.example.com/agents/{agent_did_id}/did.json",
+      endpointBase: "/v1/aep",
+      endpoints: {
+        lifecycle: "/v1/aep/agent-identities/{agent_identity_id}",
+        list: "/v1/aep/agent-identities",
+        provision: "/v1/aep/agent-identities",
+        sign: "/v1/aep/agent-identities/{agent_identity_id}/sign"
+      },
+      platformName: "Example Platform",
+      signingAlgorithms: ["EdDSA", "ES256"]
+    } satisfies PlatformDiscoveryDocumentOptions;
+
+    expect(() => createPlatformDiscoveryDocument({ ...options, endpointBase: "v1/aep" })).toThrow(
+      "must start with '/'"
+    );
+    expect(() =>
+      createPlatformDiscoveryDocument({ ...options, didUrlTemplate: "http://platform.example/did" })
+    ).toThrow("HTTPS URL template");
+    expect(() =>
+      createPlatformDiscoveryDocument({ ...options, platformDid: "platform.example" })
+    ).toThrow("platformDid must be a DID");
+    expect(() =>
+      createPlatformDiscoveryDocument({ ...options, signingAlgorithms: ["RS256"] })
+    ).toThrow("unsupported algorithm");
   });
 
   it("builds Service-scoped Agent DIDs", () => {
@@ -767,6 +818,14 @@ describe("@aep-foundation/platform", () => {
       status: "active",
       verified: true
     });
+
+    expect(() =>
+      createPlatformVerificationRequest({
+        clientAssertion: "signed.jwt",
+        command: "authenticate",
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toThrow("resource is required");
   });
 
   it("validates pending Sign retry bounds and preserves opaque context", () => {

@@ -2,7 +2,7 @@
   "applies_to": ["agent", "platform"],
   "category": "platform",
   "description": "An authenticated caller asks the Platform to sign an AEP client assertion for a Service-scoped Agent DID.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": { "idempotency_key_header": "01J0AEPSIGNINITIAL0000000001" },
   "id": "sign-request",
   "input": {

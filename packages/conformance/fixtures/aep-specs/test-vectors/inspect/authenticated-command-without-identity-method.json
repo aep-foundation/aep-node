@@ -1,0 +1,21 @@
+{
+  "id": "authenticated-command-without-identity-method",
+  "title": "Authenticated command without an identity method",
+  "description": "A Service advertising an authenticated command also advertises at least one accepted identity method.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "category": "inspect",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "document": {
+      "aep_version": "1.0",
+      "bindings": { "supported": ["http"] },
+      "commands": { "supported": ["inspect", "status"] },
+      "core": { "signing_algorithms": ["EdDSA", "ES256"] },
+      "http": {},
+      "identity": { "methods": [] },
+      "service": { "did": "did:web:api.example.com" }
+    }
+  },
+  "expected": { "valid": false }
+}

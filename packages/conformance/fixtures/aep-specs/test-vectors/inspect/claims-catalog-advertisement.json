@@ -2,7 +2,7 @@
   "id": "claims-catalog-advertisement",
   "title": "Inspect advertises person and contact claim names",
   "description": "A Service requests person and contact claims while preserving the core Inspect document shape.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02", "draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-claims-01"],
   "category": "inspect",
   "applies_to": ["agent", "service"],
   "profile": "claims",
@@ -24,7 +24,7 @@
       "supported": ["enroll", "inspect", "status"]
     },
     "core": {
-      "signing_algorithms": ["ES256"]
+      "signing_algorithms": ["EdDSA", "ES256"]
     },
     "extensions": {
       "supported": []

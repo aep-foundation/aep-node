@@ -2,7 +2,7 @@
   "id": "negotiation-compatibility",
   "title": "Claim negotiation compatibility behavior",
   "description": "Unknown and omitted claims follow the required, preferred, optional, and submitted-claim rules.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02", "draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

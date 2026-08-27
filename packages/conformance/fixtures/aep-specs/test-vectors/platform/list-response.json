@@ -2,7 +2,7 @@
   "applies_to": ["agent", "platform"],
   "category": "platform",
   "description": "A Platform returns the authenticated caller's Service-scoped Agent identities filtered by Service DID and lifecycle state.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": {
     "count": "1",
     "data": [

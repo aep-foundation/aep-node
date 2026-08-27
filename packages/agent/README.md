@@ -180,11 +180,16 @@ Production applications should provide durable stores scoped to the current
 principal. If one process hosts multiple Agent principals, create one Agent
 instance per principal or include the principal in every store lookup key.
 
-Inspect documents default to a four-hour freshness window when the Service
-does not provide HTTP cache directives. Platform Discovery and OpenAPI
-documents use their own cache entries. Supply `AepPublicDocumentCache` when
+Public documents default to a five-minute freshness window when the provider
+does not supply HTTP cache directives. Inspect, Platform Discovery, and OpenAPI
+documents use separate cache entries. Supply `AepPublicDocumentCache` when
 validated documents must survive process restarts or be shared by Agent
 instances.
+
+Public-document requests allow at most five redirects, one mebibyte of decoded
+response data, and 30 seconds of total completion time by default. The
+low-level Inspect, Platform Discovery, and OpenAPI functions expose the
+applicable response-size and timeout overrides.
 
 ## Low-Level Primitives
 

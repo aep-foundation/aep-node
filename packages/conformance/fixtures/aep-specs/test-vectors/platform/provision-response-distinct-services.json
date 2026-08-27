@@ -2,7 +2,7 @@
   "applies_to": ["agent", "platform"],
   "category": "platform",
   "description": "A Platform returns distinct opaque Agent DIDs for the same Agent when provisioning identities for two unrelated Services.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": {
     "first_response": {
       "agent_did": "did:web:p.example:a:4Yf7p2xQd9",

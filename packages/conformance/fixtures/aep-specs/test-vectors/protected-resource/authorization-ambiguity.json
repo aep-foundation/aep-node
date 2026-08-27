@@ -2,7 +2,7 @@
   "id": "authorization-ambiguity",
   "title": "Authorization carrier ambiguity fails closed",
   "description": "Two AEP-recognized carriers, invalid dedicated credentials, duplicate lines, and combined credentials are rejected without fallback or disclosure.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "protected-resource",
   "applies_to": ["agent", "service"],
   "profile": "core-http",
