@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/platform",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Platform-side helpers for managed Agent identity support in AEP.",
   "homepage": "https://www.aep.foundation/",
   "type": "module",
