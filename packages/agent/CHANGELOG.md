@@ -1,5 +1,15 @@
 # @aep-foundation/agent
 
+## 0.3.4
+
+### Patch Changes
+
+- [#29](https://github.com/aep-foundation/aep-node/pull/29) [`5f1e0f0`](https://github.com/aep-foundation/aep-node/commit/5f1e0f0614d85de2388e3ec96b1e675b7dbfc33c) Thanks [@nkavian](https://github.com/nkavian)! - Align Inspect validation, generated schemas, conformance artifacts, endpoint defaults, and OpenAPI media-type handling with the published AEP drafts.
+
+- Updated dependencies [[`5f1e0f0`](https://github.com/aep-foundation/aep-node/commit/5f1e0f0614d85de2388e3ec96b1e675b7dbfc33c)]:
+  - @aep-foundation/core@0.5.1
+  - @aep-foundation/platform@0.2.4
+
 ## 0.3.3
 
 ### Patch Changes
