@@ -1,0 +1,17 @@
+{
+  "id": "verification-authenticate-missing-resource",
+  "title": "Authenticate verification request missing its resource",
+  "description": "A hosted verification request for authenticate must bind the assertion to a resource URI.",
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "category": "platform",
+  "applies_to": ["platform", "service"],
+  "profile": "platform-hosted-identity",
+  "input": {
+    "request": {
+      "client_assertion": "header.payload.signature",
+      "op": "authenticate",
+      "service_did": "did:web:api.service.example"
+    }
+  },
+  "expected": { "valid": false }
+}

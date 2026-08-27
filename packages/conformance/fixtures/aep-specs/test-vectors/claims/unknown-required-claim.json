@@ -2,7 +2,7 @@
   "id": "unknown-required-claim",
   "title": "Unknown required claim cannot be satisfied",
   "description": "An Agent without extension or local-policy support cannot satisfy an unknown required claim.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02", "draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent"],
   "profile": "claims",

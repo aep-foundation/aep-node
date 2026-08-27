@@ -265,7 +265,7 @@ function mockService(): AepService {
         grant_types: ["oauth-bearer"],
         supported: ["enroll", "grant", "inspect", "revoke", "status"]
       },
-      core: {},
+      core: { signing_algorithms: ["EdDSA", "ES256"] },
       http: { endpoint_base: "/aep/" },
       identity: { methods: ["did:web"] },
       service: { did: "did:web:service.example" }

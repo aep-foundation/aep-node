@@ -2,7 +2,7 @@
   "id": "url-resolution",
   "title": "OpenAPI URL resolution and anonymous retrieval",
   "description": "Relative references resolve against final Inspect URLs and anonymous cross-origin HTTPS references are allowed.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "openapi",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

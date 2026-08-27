@@ -1,0 +1,21 @@
+{
+  "id": "missing-signing-algorithm",
+  "title": "Inspect document missing a required signing algorithm",
+  "description": "A baseline AEP Service advertises both EdDSA and ES256 even when it advertises additional algorithms.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "category": "inspect",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": {
+    "document": {
+      "aep_version": "1.0",
+      "bindings": { "supported": ["http"] },
+      "commands": { "supported": ["inspect"] },
+      "core": { "signing_algorithms": ["ES256"] },
+      "http": {},
+      "identity": { "methods": [] },
+      "service": { "did": "did:web:api.example.com" }
+    }
+  },
+  "expected": { "valid": false }
+}

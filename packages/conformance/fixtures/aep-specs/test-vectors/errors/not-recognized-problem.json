@@ -2,7 +2,7 @@
   "id": "not-recognized-problem",
   "title": "not_recognized Problem Details response",
   "description": "A uniform authentication-recognition failure represented as an AEP Problem Details response.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "errors",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

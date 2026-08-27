@@ -7,8 +7,8 @@
   "wire_identifier": "person.birthdate",
   "value_type": "string",
   "specification": {
-    "draft": "draft-kavian-aep-claims-00",
-    "path": "ietf/specs/core/draft-kavian-aep-claims-00.md",
+    "draft": "draft-kavian-aep-claims-01",
+    "path": "ietf/specs/core/draft-kavian-aep-claims-01.md",
     "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-claims/"
   },
   "summary": "Full-calendar birth date for a person.",

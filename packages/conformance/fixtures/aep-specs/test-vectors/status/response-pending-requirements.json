@@ -2,7 +2,7 @@
   "id": "response-pending-requirements",
   "title": "Status with pending requirements",
   "description": "A successful Status response lists requirements the Agent still needs to satisfy.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "status",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

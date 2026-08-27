@@ -2,7 +2,7 @@
   "id": "repeated-existing",
   "title": "Enroll for an existing identity",
   "description": "A new Enroll command for an already-enrolled Agent returns the existing lifecycle state without replacing the enrollment.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "enroll",
   "applies_to": ["service"],
   "profile": "core-http",

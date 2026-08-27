@@ -2,7 +2,7 @@
   "applies_to": ["agent", "platform", "service"],
   "category": "platform",
   "description": "A Platform returns a signed AEP client assertion and public issuance metadata.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": {
     "agent_did": "did:web:p.example:a:4Yf7p2xQd9",
     "client_assertion": "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRpZDp3ZWI6cC5leGFtcGxlOmE6NFlmN3AyeFFkOSJ9.eyJhdWQiOiJkaWQ6d2ViOnMuZXhhbXBsZSIsImV4cCI6MTc4MzQyNTkwMCwiaWF0IjoxNzgzNDI1NjAwLCJpc3MiOiJkaWQ6d2ViOnAuZXhhbXBsZTphOjRZZjdwMnhRZDkiLCJqdGkiOiIwMUowQUVQQVNTRVJUSU9OMDAwMDAwMDAwMSIsIm9wIjoiZW5yb2xsIiwic3ViIjoiZGlkOndlYjpwLmV4YW1wbGU6YTo0WWY3cDJ4UWQ5In0.signature",

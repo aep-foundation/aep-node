@@ -1,0 +1,27 @@
+{
+  "id": "protocol-version",
+  "title": "AEP protocol version syntax and compatibility",
+  "description": "AEP versions use major.minor syntax and compatibility is determined by the major version.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "category": "inspect",
+  "applies_to": ["agent", "service"],
+  "profile": "core-http",
+  "input": { "supported": "1.0" },
+  "expected": {
+    "cases": [
+      { "compatible": true, "name": "initial-version", "received": "1.0", "valid": true },
+      { "compatible": true, "name": "newer-minor", "received": "1.7", "valid": true },
+      {
+        "compatible": true,
+        "name": "older-minor",
+        "received": "1.0",
+        "supported": "1.7",
+        "valid": true
+      },
+      { "compatible": false, "name": "unsupported-major", "received": "2.0", "valid": true },
+      { "compatible": false, "name": "missing-minor", "received": "1", "valid": false },
+      { "compatible": false, "name": "leading-zero", "received": "01.0", "valid": false },
+      { "compatible": false, "name": "semantic-version", "received": "1.0.0", "valid": false }
+    ]
+  }
+}

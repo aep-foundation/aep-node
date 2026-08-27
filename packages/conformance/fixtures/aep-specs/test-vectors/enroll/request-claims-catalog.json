@@ -2,7 +2,7 @@
   "id": "request-claims-catalog",
   "title": "Enroll request with person and contact claims",
   "description": "An Enroll request body carrying person and contact claim values.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02", "draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-claims-01"],
   "category": "enroll",
   "applies_to": ["agent", "service"],
   "profile": "claims",

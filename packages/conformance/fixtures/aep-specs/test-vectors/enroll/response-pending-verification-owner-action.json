@@ -2,7 +2,7 @@
   "id": "response-pending-verification-owner-action",
   "title": "Pending Enroll verification with Owner action",
   "description": "A successful pending Enroll response distinguishes submitted claims under verification from unmet requirements.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "enroll",
   "applies_to": ["agent", "service"],
   "profile": "core-http",

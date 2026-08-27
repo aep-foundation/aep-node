@@ -2,8 +2,11 @@ import {
   AEP_CLAIM_NAMES,
   claimValuesSchema,
   evaluateAepClaimSupport,
+  inspectDocumentSchema,
+  isAepVersionCompatible,
   validateAepClaimValues
 } from "@aep-foundation/core";
+import type { InspectDocument } from "@aep-foundation/core";
 import {
   apiKeyGrantType,
   basicGrantType,
@@ -559,6 +562,12 @@ describe("@aep-foundation/conformance Grant, Revoke, and credential checks", () 
 });
 
 describe("@aep-foundation/conformance Inspect checks", () => {
+  it("keeps runtime Inspect schema metadata identical to the synced schema", async () => {
+    await expect(loadSchemaArtifact("inspect-document.schema.json")).resolves.toEqual(
+      inspectDocumentSchema
+    );
+  });
+
   it("validates the synced minimal Inspect test vector", async () => {
     const vector = await loadMinimalInspectTestVector();
 
@@ -566,6 +575,67 @@ describe("@aep-foundation/conformance Inspect checks", () => {
     expect(vector.expected.service.did).toBe("did:web:api.example.com");
     expect(validateInspectConformance(vector.expected).ok).toBe(true);
     expect(assertInspectConformance(vector.expected)).toEqual(vector.expected);
+  });
+
+  it("enforces the corrected Inspect omission and command relationships", async () => {
+    const defaultEndpoint = await loadTestVector<
+      Record<string, never>,
+      { document: InspectDocument; endpoint_base: string; valid: boolean }
+    >("inspect/default-endpoint-base.json");
+    const missingGrantTypes = await loadTestVector<
+      { document: Record<string, unknown> },
+      { valid: boolean }
+    >("inspect/grant-without-grant-types.json");
+
+    expect(validateInspectConformance(defaultEndpoint.expected.document).ok).toBe(true);
+    expect(validateInspectConformance(missingGrantTypes.input.document).ok).toBe(false);
+  });
+
+  it("executes the corrected Inspect validation vectors", async () => {
+    const invalidVectorNames = [
+      "authenticated-command-without-identity-method",
+      "authentication-method-limit",
+      "command-without-inspect",
+      "grant-without-grant-types",
+      "invalid-advertisement-identifiers",
+      "invalid-openapi-reference",
+      "missing-signing-algorithm"
+    ];
+    for (const name of invalidVectorNames) {
+      const vector = await loadTestVector<
+        { document: Record<string, unknown> },
+        { valid: boolean }
+      >(`inspect/${name}.json`);
+      expect(vector.expected.valid, name).toBe(false);
+      expect(validateInspectConformance(vector.input.document).ok, name).toBe(false);
+    }
+
+    const forwardCompatible = await loadTestVector<
+      { document: Record<string, unknown> },
+      { valid: boolean }
+    >("inspect/forward-compatible-advertisements.json");
+    expect(forwardCompatible.expected.valid).toBe(true);
+    expect(validateInspectConformance(forwardCompatible.input.document).ok).toBe(true);
+  });
+
+  it("executes the protocol-version compatibility vector", async () => {
+    const vector = await loadTestVector<
+      { supported: string },
+      {
+        cases: Array<{
+          compatible: boolean;
+          received: string;
+          supported?: string;
+          valid: boolean;
+        }>;
+      }
+    >("inspect/protocol-version.json");
+
+    for (const testCase of vector.expected.cases) {
+      expect(
+        isAepVersionCompatible(testCase.received, testCase.supported ?? vector.input.supported)
+      ).toBe(testCase.compatible && testCase.valid);
+    }
   });
 
   it("compares @aep-foundation/service Inspect output against the synced minimal vector", async () => {

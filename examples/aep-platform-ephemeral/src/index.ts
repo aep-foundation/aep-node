@@ -35,6 +35,8 @@ const host = process.env["HOST"] ?? "127.0.0.1";
 const port = parsePort(process.env["PORT"] ?? "4100");
 const publicBaseUrl = process.env["PUBLIC_BASE_URL"] ?? `http://${host}:${port}`;
 const didHost = process.env["DID_HOST"] ?? new URL(publicBaseUrl).host;
+const didUrlTemplate =
+  process.env["DID_URL_TEMPLATE"] ?? `https://${didHost}/agents/{agent_did_id}/did.json`;
 const encodedHost = encodeURIComponent(didHost);
 const platformDid = `did:web:${encodedHost}`;
 const serviceDid = `did:web:${encodedHost}:services:example-service`;
@@ -212,7 +214,7 @@ const platform = createAepPlatform({
     authorizeProvision: (_request, context) => isAuthorized(context)
   },
   didHost,
-  didUrlTemplate: `${publicBaseUrl}/agents/{agent_did_id}/did.json`,
+  didUrlTemplate,
   discovery: {
     endpointBase: "/v1/aep",
     endpoints: {

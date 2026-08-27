@@ -8,6 +8,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const prettierConfig = (await prettier.resolveConfig(path.join(repoRoot, "package.json"))) ?? {};
 const sourceRoot = await resolveSpecSource();
 const targetRoot = path.join(repoRoot, "packages/conformance/fixtures/aep-specs");
+const coreSchemaRoot = path.join(repoRoot, "packages/core/src/schemas");
+const coreSchemaNames = ["claim-values.schema.json", "inspect-document.schema.json"];
 
 const artifactGroups = [
   {
@@ -44,6 +46,11 @@ const manifest = {
 for (const group of artifactGroups) {
   const copied = await copyArtifactGroup(group.source, group.target);
   manifest.artifacts[group.name] = copied;
+}
+
+await mkdir(coreSchemaRoot, { recursive: true });
+for (const name of coreSchemaNames) {
+  await copyFormatted(path.join(sourceRoot, "schemas", name), path.join(coreSchemaRoot, name));
 }
 
 await writeJson(path.join(targetRoot, "manifest.json"), manifest);

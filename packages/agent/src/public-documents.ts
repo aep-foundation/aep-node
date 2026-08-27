@@ -49,6 +49,7 @@ export interface FetchAepPublicDocumentOptions<T> {
   clock?: () => Date;
   maxRedirects?: number;
   maxResponseBytes?: number;
+  timeoutMs?: number;
   signal?: AbortSignal;
   accept: string;
   acceptedMediaTypes?: string[];
@@ -70,6 +71,16 @@ const flights = new WeakMap<
   AepPublicDocumentCache,
   Map<string, Promise<AepPublicDocumentResult<unknown>>>
 >();
+
+interface PublicDocumentResponse {
+  ok: boolean;
+  status: number;
+  headers: { get(name: string): string | null };
+  arrayBuffer?(): Promise<ArrayBuffer>;
+  body?: ReadableStream<Uint8Array> | null;
+  json(): Promise<unknown>;
+  text?(): Promise<string>;
+}
 
 export async function fetchAepPublicDocument<T>(
   options: FetchAepPublicDocumentOptions<T>
@@ -98,7 +109,8 @@ async function fetchDocument<T>(
   if (cached !== undefined && isFresh(cached, now))
     return resultFromRecord(options, requestedUrl, cached, "fresh");
   let current = new URL(cached?.finalUrl ?? requestedUrl);
-  let response: Response;
+  const signal = completionSignal(options.signal, options.timeoutMs);
+  let response: PublicDocumentResponse;
   for (let redirects = 0; ; redirects += 1) {
     response = await fetch(current, {
       headers: {
@@ -107,7 +119,7 @@ async function fetchDocument<T>(
         ...(cached?.lastModified === undefined ? {} : { "If-Modified-Since": cached.lastModified })
       },
       redirect: "manual",
-      ...(options.signal === undefined ? {} : { signal: options.signal })
+      signal
     });
     if (![301, 302, 303, 307, 308].includes(response.status)) break;
     if (redirects >= (options.maxRedirects ?? 5))
@@ -137,20 +149,11 @@ async function fetchDocument<T>(
   }
   if (!response.ok) throw new TypeError(`AEP public document failed with HTTP ${response.status}.`);
   if (options.acceptedMediaTypes !== undefined) {
-    const mediaType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-    if (mediaType === undefined || !options.acceptedMediaTypes.includes(mediaType))
+    const mediaType = response.headers.get("content-type");
+    if (mediaType === null || !isAcceptedMediaType(mediaType, options.acceptedMediaTypes))
       throw new TypeError("AEP public document response media type is invalid.");
   }
-  const bytes =
-    typeof response.arrayBuffer === "function"
-      ? new Uint8Array(await response.arrayBuffer())
-      : new TextEncoder().encode(
-          typeof response.text === "function"
-            ? await response.text()
-            : JSON.stringify(await response.json())
-        );
-  if (bytes.byteLength > (options.maxResponseBytes ?? 1024 * 1024))
-    throw new TypeError("AEP public document response is too large.");
+  const bytes = await readBoundedBytes(response, options.maxResponseBytes ?? 1024 * 1024);
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(bytes));
@@ -168,7 +171,7 @@ function metadataRecord<T>(
   url: string,
   value: T,
   now: Date,
-  response: Response,
+  response: PublicDocumentResponse,
   prior?: AepPublicDocumentCacheRecord
 ): AepPublicDocumentCacheRecord<T> {
   const header = (name: string): string | undefined => response.headers.get(name) ?? undefined;
@@ -247,8 +250,93 @@ function safePublicUrl(url: URL): URL {
     throw new TypeError("AEP public document URLs require HTTPS except on exact loopback hosts.");
   return url;
 }
+
+function completionSignal(signal?: AbortSignal, timeoutMs = 30_000): AbortSignal {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1)
+    throw new RangeError("timeoutMs must be a positive integer.");
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
+}
+
+async function readBoundedBytes(
+  response: PublicDocumentResponse,
+  maximum: number
+): Promise<Uint8Array> {
+  if (!Number.isSafeInteger(maximum) || maximum < 1)
+    throw new RangeError("maxResponseBytes must be a positive integer.");
+  if (response.body === undefined || response.body === null) {
+    const bytes =
+      response.arrayBuffer === undefined
+        ? new TextEncoder().encode(
+            response.text === undefined
+              ? JSON.stringify(await response.json())
+              : await response.text()
+          )
+        : new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maximum)
+      throw new TypeError("AEP public document response is too large.");
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const part = await reader.read();
+    if (part.done) break;
+    const chunk = part.value;
+    size += chunk.byteLength;
+    if (size > maximum) {
+      await reader.cancel();
+      throw new TypeError("AEP public document response is too large.");
+    }
+    chunks.push(chunk);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
 function cacheKey(namespace: AepPublicDocumentNamespace, url: string): string {
   return `${namespace}\u0000${url}`;
+}
+
+function isAcceptedMediaType(value: string, accepted: string[]): boolean {
+  const actual = parseMediaType(value);
+  if (actual === undefined) return false;
+  return accepted.some((candidate) => {
+    const expected = parseMediaType(candidate);
+    if (expected === undefined || expected.type !== actual.type) return false;
+    return [...expected.parameters].every(
+      ([name, parameter]) => actual.parameters.get(name) === parameter
+    );
+  });
+}
+
+function parseMediaType(
+  value: string
+): { type: string; parameters: Map<string, string> } | undefined {
+  const [rawType, ...rawParameters] = value.split(";");
+  const type = rawType?.trim().toLowerCase();
+  if (type === undefined || !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/u.test(type))
+    return undefined;
+  const parameters = new Map<string, string>();
+  for (const rawParameter of rawParameters) {
+    const separator = rawParameter.indexOf("=");
+    if (separator < 1) return undefined;
+    const name = rawParameter.slice(0, separator).trim().toLowerCase();
+    const parameter = rawParameter
+      .slice(separator + 1)
+      .trim()
+      .replace(/^"|"$/gu, "")
+      .toLowerCase();
+    if (name.length === 0 || parameter.length === 0) return undefined;
+    parameters.set(name, parameter);
+  }
+  return { type, parameters };
 }
 
 export interface AepOpenApiOperationPolicy {

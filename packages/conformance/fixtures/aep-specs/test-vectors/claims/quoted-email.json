@@ -2,7 +2,7 @@
   "id": "quoted-email",
   "title": "Quoted RFC 5321 mailbox local-part",
   "description": "A quoted local-part containing a space is valid RFC 5321 Mailbox syntax.",
-  "drafts": ["draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

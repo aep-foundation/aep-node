@@ -2,7 +2,7 @@
   "applies_to": ["platform", "service"],
   "category": "platform",
   "description": "A Platform returns a generic hosted verification failure when assertion details are not recognized or cannot be safely disclosed.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-00"],
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": {
     "reason": "not_recognized",
     "service_did": "did:web:api.service.example",

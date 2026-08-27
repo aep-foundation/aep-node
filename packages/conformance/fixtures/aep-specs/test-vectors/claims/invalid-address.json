@@ -2,7 +2,7 @@
   "id": "invalid-address",
   "title": "Address missing a required member",
   "description": "A primary address without a country is rejected.",
-  "drafts": ["draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

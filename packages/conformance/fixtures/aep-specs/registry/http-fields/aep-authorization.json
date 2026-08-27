@@ -6,8 +6,8 @@
   "version": "1.0.0",
   "wire_identifier": "aep-authorization",
   "specification": {
-    "draft": "draft-kavian-agent-enrollment-protocol-02",
-    "path": "ietf/specs/core/draft-kavian-agent-enrollment-protocol-02.md",
+    "draft": "draft-kavian-agent-enrollment-protocol-04",
+    "path": "ietf/specs/core/draft-kavian-agent-enrollment-protocol-04.md",
     "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-agent-enrollment-protocol/"
   },
   "summary": "Dedicated protected-resource carrier for AEP-recognized credentials.",

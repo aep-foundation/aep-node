@@ -111,8 +111,8 @@ describe("@aep-foundation/service Inspect builder", () => {
           issuer: "https://issuer.example.com"
         })
       ],
-      signingAlgorithms: ["ES256"],
-      extensions: ["service-policy"]
+      signingAlgorithms: ["EdDSA", "ES256"],
+      extensions: ["https://service.example/extensions/service-policy"]
     });
 
     expect(document.identity.methods).toEqual(["did:web"]);
@@ -122,8 +122,10 @@ describe("@aep-foundation/service Inspect builder", () => {
         issuer: "https://issuer.example.com"
       }
     });
-    expect(document.core.signing_algorithms).toEqual(["ES256"]);
-    expect(document.extensions?.supported).toEqual(["service-policy"]);
+    expect(document.core.signing_algorithms).toEqual(["EdDSA", "ES256"]);
+    expect(document.extensions?.supported).toEqual([
+      "https://service.example/extensions/service-policy"
+    ]);
     expect(commandPathFromInspect(document, "enroll")).toBe("/custom-aep/enroll");
   });
 

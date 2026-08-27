@@ -2,7 +2,7 @@
   "id": "invalid-empty-email",
   "title": "Empty contact email",
   "description": "An empty contact email does not satisfy the RFC 5321 Mailbox syntax.",
-  "drafts": ["draft-kavian-aep-claims-00"],
+  "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
   "applies_to": ["agent", "service"],
   "profile": "claims",

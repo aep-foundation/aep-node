@@ -62,7 +62,7 @@ Each vector has this top-level shape:
   "id": "inspect-minimal-http",
   "title": "Minimal HTTP Inspect document",
   "description": "A Service advertising the baseline HTTP binding and current credential profiles.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-02"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "inspect",
   "applies_to": ["agent", "service"],
   "profile": "core-http",
