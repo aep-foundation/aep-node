@@ -1787,6 +1787,92 @@ describe("@aep-foundation/agent public documents and OpenAPI", () => {
     ).rejects.toMatchObject({ code: "invalid_redirect" });
   });
 
+  it("restarts anonymously and strips authentication and payment fields across origins", async () => {
+    const calls: Array<{ headers: Headers; url: string }> = [];
+    const transport: typeof globalThis.fetch = (input, init) => {
+      const url = new URL(
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url
+      );
+      const headers = new Headers(init?.headers);
+      calls.push({ headers, url: url.href });
+      if (!headers.has("AEP-Authorization")) {
+        if (url.hostname === "other.example") {
+          return Promise.resolve(new Response("ok"));
+        }
+        return Promise.resolve(
+          new Response(null, {
+            status: 401,
+            headers: {
+              "www-authenticate": `AEP service_did="did:web:${url.hostname}", inspect="${url.origin}/.well-known/aep"`
+            }
+          })
+        );
+      }
+      if (url.hostname === "api.example.com") {
+        return Promise.resolve(
+          new Response(null, {
+            status: 302,
+            headers: { location: "https://other.example/items" }
+          })
+        );
+      }
+      return Promise.resolve(new Response("ok"));
+    };
+    const agent: AepAgent = {
+      serviceSession: ({ serviceUrl }) => {
+        const origin = new URL(serviceUrl).origin;
+        const hostname = new URL(origin).hostname;
+        return resourceSession({
+          authenticationHeaders: () =>
+            Promise.resolve({ "AEP-Authorization": `AEP ${hostname}-credential` }),
+          inspect: () =>
+            Promise.resolve(
+              inspectResult({
+                ...minimalInspectDocument,
+                service: { did: `did:web:${hostname}` }
+              })
+            ),
+          openApiPolicy: () =>
+            Promise.resolve(
+              hostname === "api.example.com"
+                ? {
+                    freshness: "fetched",
+                    methods: ["aep-jwt"],
+                    source: "openapi",
+                    state: "required"
+                  }
+                : {
+                    freshness: "fetched",
+                    methods: [],
+                    source: "openapi",
+                    state: "fallback"
+                  }
+            )
+        });
+      }
+    };
+
+    const response = await fetchProtectedResource({
+      additionalAuthenticationHeaders: { "X-API-Key": "service-secret" },
+      agent,
+      fetch: transport,
+      headers: {
+        Authorization: "Payment mpp-credential",
+        "AEP-Authorization": "AEP stale-credential",
+        "PAYMENT-SIGNATURE": "x402-signature"
+      },
+      url: "https://api.example.com/items"
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(response.status).toBe(200);
+    expect(calls[1]?.url).toBe("https://other.example/items");
+    expect(calls[1]?.headers.has("Authorization")).toBe(false);
+    expect(calls[1]?.headers.has("AEP-Authorization")).toBe(false);
+    expect(calls[1]?.headers.has("PAYMENT-SIGNATURE")).toBe(false);
+    expect(calls[1]?.headers.has("X-API-Key")).toBe(false);
+  });
+
   it("rejects Grant before identity recovery without signing or calling Grant", async () => {
     let signCalls = 0;
     const agent = createAepAgent({
