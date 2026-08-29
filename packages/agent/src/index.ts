@@ -132,6 +132,9 @@ export interface AepAgentOptions {
   assertionJti?: () => string;
   assertionTtlSeconds?: number;
   credentialStore?: AgentCredentialStore;
+  fetch?: typeof globalThis.fetch;
+  readFetch?: typeof globalThis.fetch;
+  writeFetch?: typeof globalThis.fetch;
   identityProvider: AgentIdentityProvider;
   identityStore?: AgentIdentityStore;
   idempotencyKeys?: AgentIdempotencyKeyProvider;
@@ -143,6 +146,7 @@ export interface AepAgentOptions {
 
 export interface InspectServiceOptions {
   serviceUrl: string | URL;
+  fetch?: FetchLike;
   signal?: AbortSignal;
   maxResponseBytes?: number;
   timeoutMs?: number;
@@ -162,6 +166,7 @@ export interface InspectServiceResult {
 }
 
 export interface InspectOpenApiPolicyOptions {
+  fetch?: FetchLike;
   inspect: InspectServiceResult;
   method?: string;
   publicDocumentCache?: AepPublicDocumentCache;
@@ -186,6 +191,7 @@ export async function inspectOpenApiPolicy(
       ? {}
       : { maxResponseBytes: options.maxResponseBytes }),
     namespace: "openapi",
+    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     parse: (value) => value,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
@@ -266,6 +272,7 @@ export interface AepCommandOptions {
   assertionTtlSeconds?: number;
   clientAssertion?: string;
   clientAssertionSigner?: AepClientAssertionSigner;
+  fetch?: FetchLike;
   inspect?: InspectServiceResult;
   pendingSignResolver?: AepPendingSignResolver;
   platformContext?: Record<string, unknown>;
@@ -510,6 +517,7 @@ export interface AepServiceSession {
 
 export interface ProbeProtectedResourceOptions {
   body?: RequestInit["body"];
+  fetch?: typeof globalThis.fetch;
   headers?: RequestInit["headers"];
   method?: string;
   signal?: AbortSignal;
@@ -676,6 +684,9 @@ export function createAepAgent(options: AepAgentOptions): AepAgent {
         identityStore,
         inspectCache,
         publicDocumentCache,
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        ...(options.readFetch === undefined ? {} : { readFetch: options.readFetch }),
+        ...(options.writeFetch === undefined ? {} : { writeFetch: options.writeFetch }),
         ...(options.pendingSignResolver === undefined
           ? {}
           : { pendingSignResolver: options.pendingSignResolver }),
@@ -693,6 +704,9 @@ interface AepServiceSessionState {
   assertionJti?: () => string;
   assertionTtlSeconds?: number;
   credentialStore: AgentCredentialStore;
+  fetch?: typeof globalThis.fetch;
+  readFetch?: typeof globalThis.fetch;
+  writeFetch?: typeof globalThis.fetch;
   idempotencyKeys: AgentIdempotencyKeyProvider;
   identityProvider: AgentIdentityProvider;
   identityStore: AgentIdentityStore;
@@ -711,6 +725,8 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
   let identityPromise: Promise<AgentServiceIdentity> | undefined;
   let signerPromise: Promise<AepClientAssertionSigner> | undefined;
   let authoritativeActiveEnrollment = false;
+  const readFetch = state.readFetch ?? state.fetch;
+  const writeFetch = state.writeFetch ?? state.fetch;
 
   const inspectOnce = async (): Promise<InspectServiceResult> => {
     if (inspectPromise !== undefined) {
@@ -719,6 +735,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
 
     inspectPromise = (async () => {
       return inspectService({
+        ...(readFetch === undefined ? {} : { fetch: readFetch }),
         inspectCache: state.inspectCache,
         publicDocumentCache: state.publicDocumentCache,
         serviceUrl
@@ -780,8 +797,13 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
     });
   };
 
-  const commandOptions = async (): Promise<
-    Pick<EnrollServiceOptions, "agentDid" | "clientAssertionSigner" | "inspect" | "serviceUrl">
+  const commandOptions = async (
+    fetch = writeFetch
+  ): Promise<
+    Pick<
+      EnrollServiceOptions,
+      "agentDid" | "clientAssertionSigner" | "fetch" | "inspect" | "serviceUrl"
+    >
   > => {
     const inspected = await inspectOnce();
     const identity = await identityOnce();
@@ -790,6 +812,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
     return {
       agentDid: identity.agentDid,
       clientAssertionSigner: signer,
+      ...(fetch === undefined ? {} : { fetch }),
       inspect: inspected,
       serviceUrl
     };
@@ -906,6 +929,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
             ...assertionOptions(),
             agentDid: identity.agentDid,
             clientAssertionSigner: signer,
+            ...(readFetch === undefined ? {} : { fetch: readFetch }),
             inspect: inspected,
             serviceUrl,
             ...(options.signal === undefined ? {} : { signal: options.signal })
@@ -935,6 +959,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
           ...assertionOptions(),
           agentDid: identity.agentDid,
           clientAssertionSigner: signer,
+          ...(writeFetch === undefined ? {} : { fetch: writeFetch }),
           inspect: inspected,
           serviceUrl,
           grantType,
@@ -973,6 +998,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
     inspect: inspectOnce,
     async openApiPolicy(options) {
       return inspectOpenApiPolicy({
+        ...(readFetch === undefined ? {} : { fetch: readFetch }),
         inspect: await inspectOnce(),
         ...(options.method === undefined ? {} : { method: options.method }),
         publicDocumentCache: state.publicDocumentCache,
@@ -1008,7 +1034,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
     },
     async status() {
       const result = await statusService({
-        ...(await commandOptions()),
+        ...(await commandOptions(readFetch)),
         ...assertionOptions()
       });
       authoritativeActiveEnrollment = result.body.status === "active";
@@ -1735,7 +1761,7 @@ export async function protectedResourceAuthenticationHeaders(
 export async function probeProtectedResource(
   options: ProbeProtectedResourceOptions
 ): Promise<ProbeProtectedResourceResult> {
-  const response = await globalFetch()(options.url, {
+  const response = await (options.fetch ?? globalFetch())(options.url, {
     ...(options.body === undefined ? {} : { body: options.body }),
     ...(options.headers === undefined ? {} : { headers: options.headers }),
     method: options.method ?? "GET",
@@ -1787,6 +1813,7 @@ export async function fetchProtectedResource(
           ? undefined
           : await probeProtectedResource({
               ...(options.body === undefined ? {} : { body: options.body }),
+              ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
               ...(options.headers === undefined
                 ? {}
                 : { headers: withoutAuthenticationHeaders(options.headers) }),
@@ -1856,7 +1883,7 @@ export async function fetchProtectedResource(
           signal
         });
       }
-      const authenticated = await globalFetch()(target, {
+      const authenticated = await (options.fetch ?? globalFetch())(target, {
         ...(options.body === undefined ? {} : { body: options.body }),
         headers: mergeAuthoritativeHeaders(
           target.origin === initialOrigin
@@ -1992,6 +2019,7 @@ export async function inspectService(
           : { maxResponseBytes: options.maxResponseBytes }),
         namespace: "inspect",
         parse: parseInspectDocument,
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         sameOriginRedirects: true,
         ...(options.signal === undefined ? {} : { signal: options.signal }),
         ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
@@ -2101,7 +2129,7 @@ async function fetchInspectService(
   options: InspectServiceOptions,
   cached?: CachedInspectServiceResult
 ): Promise<InspectServiceResult | InspectNotModifiedResult> {
-  const fetchImpl = requireFetch();
+  const fetchImpl = options.fetch ?? requireFetch();
 
   const serviceUrl = resolveServiceReference(options.serviceUrl);
   const inspectUrl = new URL(AEP_WELL_KNOWN_PATH, serviceUrl);
@@ -2239,7 +2267,7 @@ async function readBoundedResponse(response: ResponseLike, maxBytes: number): Pr
 }
 
 export async function enrollService(options: EnrollServiceOptions): Promise<EnrollServiceResult> {
-  const fetchImpl = requireFetch();
+  const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "enroll");
   let claimValues: AepClaimValues | undefined;
@@ -2284,7 +2312,7 @@ export async function enrollService(options: EnrollServiceOptions): Promise<Enro
 }
 
 export async function grantService(options: GrantServiceOptions): Promise<GrantServiceResult> {
-  const fetchImpl = requireFetch();
+  const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "grant");
   const clientAssertion = await resolveClientAssertion(options, inspect, "grant");
@@ -2317,7 +2345,7 @@ export async function grantService(options: GrantServiceOptions): Promise<GrantS
 }
 
 export async function revokeService(options: RevokeServiceOptions): Promise<RevokeServiceResult> {
-  const fetchImpl = requireFetch();
+  const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "revoke");
   const clientAssertion = await resolveClientAssertion(options, inspect, "revoke");
@@ -2346,7 +2374,7 @@ export async function revokeService(options: RevokeServiceOptions): Promise<Revo
 }
 
 export async function statusService(options: StatusServiceOptions): Promise<StatusServiceResult> {
-  const fetchImpl = requireFetch();
+  const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "status");
   const clientAssertion = await resolveClientAssertion(options, inspect, "status");
@@ -2580,6 +2608,7 @@ async function resolveInspect(options: AepCommandOptions): Promise<InspectServic
   return (
     options.inspect ??
     (await inspectService({
+      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
       serviceUrl: options.serviceUrl,
       ...(options.signal === undefined ? {} : { signal: options.signal })
     }))

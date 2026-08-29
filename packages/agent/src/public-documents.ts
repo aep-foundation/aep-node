@@ -47,6 +47,7 @@ export interface FetchAepPublicDocumentOptions<T> {
   url: string | URL;
   cache?: AepPublicDocumentCache;
   clock?: () => Date;
+  fetch?: (input: URL | string, init?: RequestInit) => Promise<PublicDocumentResponse>;
   maxRedirects?: number;
   maxResponseBytes?: number;
   timeoutMs?: number;
@@ -112,7 +113,7 @@ async function fetchDocument<T>(
   const signal = completionSignal(options.signal, options.timeoutMs);
   let response: PublicDocumentResponse;
   for (let redirects = 0; ; redirects += 1) {
-    response = await fetch(current, {
+    response = await (options.fetch ?? globalThis.fetch)(current, {
       headers: {
         Accept: options.accept,
         ...(cached?.etag === undefined ? {} : { "If-None-Match": cached.etag }),
