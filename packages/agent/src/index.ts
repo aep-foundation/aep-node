@@ -1968,6 +1968,7 @@ function withoutAuthenticationHeaders(headers: RequestInit["headers"]): Headers 
   const sanitized = new Headers(headers);
   sanitized.delete("authorization");
   sanitized.delete(AEP_AUTHORIZATION_HEADER);
+  sanitized.delete("payment-signature");
   return sanitized;
 }
 
