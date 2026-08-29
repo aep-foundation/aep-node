@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 
-import { verifyClientAssertionJwt } from "@aep-foundation/core";
+import { AEP_MEDIA_TYPE, verifyClientAssertionJwt } from "@aep-foundation/core";
 import type { InspectDocument } from "@aep-foundation/core";
 import { describe, expect, it } from "vitest";
 
@@ -947,9 +947,48 @@ describe("@aep-foundation/agent command clients", () => {
 
   it("supports high-level service sessions on an agent instance", async () => {
     const signerEvents: string[] = [];
+    const readCalls: string[] = [];
+    const writeCalls: string[] = [];
     const signer: AepClientAssertionSigner = (claims) => {
       signerEvents.push(claims.op);
       return `jwt.${claims.op}.${claims.jti}`;
+    };
+    const requestUrl = (input: Parameters<typeof globalThis.fetch>[0]) =>
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const response = (input: Parameters<typeof globalThis.fetch>[0]) => {
+      const url = requestUrl(input);
+      const body = url.endsWith("/.well-known/aep")
+        ? minimalInspectDocument
+        : url.endsWith("/grant")
+          ? {
+              access_token: "access-token",
+              credential_id: "cred_123",
+              expires_at: "2026-05-28T12:00:00Z",
+              scopes: [],
+              token_type: "Bearer"
+            }
+          : url.endsWith("/revoke")
+            ? {}
+            : url.endsWith("/status")
+              ? {
+                  owner_action_required: "false",
+                  since: "2026-05-28T12:00:00Z",
+                  status: "active"
+                }
+              : {
+                  status: "active"
+                };
+      return Promise.resolve(
+        new Response(JSON.stringify(body), { headers: { "content-type": AEP_MEDIA_TYPE } })
+      );
+    };
+    const readFetch: typeof globalThis.fetch = (input) => {
+      readCalls.push(requestUrl(input));
+      return response(input);
+    };
+    const writeFetch: typeof globalThis.fetch = (input) => {
+      writeCalls.push(requestUrl(input));
+      return response(input);
     };
     const agent = createAepAgent({
       assertionClock: () => new Date("2026-05-28T12:00:00.000Z"),
@@ -962,77 +1001,62 @@ describe("@aep-foundation/agent command clients", () => {
           signingAlgorithms: ["ES256"]
         }),
         signerFor: () => signer
-      }
+      },
+      readFetch,
+      writeFetch
     });
     const session = agent.serviceSession({
       serviceUrl: "https://api.example.com"
     });
-    const fetch = (input: URL | string) =>
-      jsonResponsePromise(
-        String(input).endsWith("/.well-known/aep")
-          ? minimalInspectDocument
-          : String(input).endsWith("/grant")
-            ? {
-                access_token: "access-token",
-                credential_id: "cred_123",
-                expires_at: "2026-05-28T12:00:00Z",
-                scopes: [],
-                token_type: "Bearer"
-              }
-            : String(input).endsWith("/revoke")
-              ? {}
-              : String(input).endsWith("/status")
-                ? {
-                    owner_action_required: "false",
-                    since: "2026-05-28T12:00:00Z",
-                    status: "active"
-                  }
-                : {
-                    status: "active"
-                  }
-      );
 
-    await withFetch(fetch, async () => {
-      await expect(
-        session.enroll({
-          claims: {
-            "contact.email": "agent@example.com"
-          },
-          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
-        })
-      ).resolves.toMatchObject({
-        body: {
-          status: "active"
-        }
-      });
+    await expect(
+      session.enroll({
+        claims: {
+          "contact.email": "agent@example.com"
+        },
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
+      })
+    ).resolves.toMatchObject({
+      body: {
+        status: "active"
+      }
+    });
 
-      await expect(session.status()).resolves.toMatchObject({
-        body: {
-          status: "active"
-        }
-      });
+    await expect(session.status()).resolves.toMatchObject({
+      body: {
+        status: "active"
+      }
+    });
 
-      await expect(
-        session.grant({
-          grantType: "oauth-bearer",
-          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-agentgrant"
-        })
-      ).resolves.toMatchObject({
-        body: {
-          credential_id: "cred_123"
-        }
-      });
+    await expect(
+      session.grant({
+        grantType: "oauth-bearer",
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-agentgrant"
+      })
+    ).resolves.toMatchObject({
+      body: {
+        credential_id: "cred_123"
+      }
+    });
 
-      await expect(
-        session.revoke({
-          credentialId: "cred_123",
-          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-agentrevoke"
-        })
-      ).resolves.toMatchObject({
-        body: {}
-      });
+    await expect(
+      session.revoke({
+        credentialId: "cred_123",
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-agentrevoke"
+      })
+    ).resolves.toMatchObject({
+      body: {}
     });
     expect(signerEvents).toEqual(["enroll", "status", "grant", "revoke"]);
+    expect(readCalls).toEqual([
+      "https://api.example.com/.well-known/aep",
+      "https://api.example.com/aep/status"
+    ]);
+    expect(writeCalls).toEqual([
+      "https://api.example.com/aep/enroll",
+      "https://api.example.com/aep/grant",
+      "https://api.example.com/aep/revoke"
+    ]);
   });
 
   it("throws AepCommandError with Problem Details on command failures", async () => {
@@ -1626,6 +1650,52 @@ describe("@aep-foundation/agent public documents and OpenAPI", () => {
       "unrelated-authentication"
     ]);
     expect(classifications[3]?.challenge).toMatchObject({ reason: "expired" });
+  });
+
+  it("uses the caller transport for each anonymous and authenticated request attempt", async () => {
+    const calls: Array<{ headers: Headers; url: string }> = [];
+    const transport: typeof globalThis.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      calls.push({ headers: new Headers(init?.headers), url });
+      if (calls.length === 1) {
+        return Promise.resolve(
+          new Response(null, {
+            status: 401,
+            headers: {
+              "www-authenticate":
+                'AEP service_did="did:web:api.example.com", inspect="https://api.example.com/.well-known/aep"'
+            }
+          })
+        );
+      }
+      return Promise.resolve(new Response("ok"));
+    };
+    const agent = resourceAgent(
+      resourceSession({
+        authenticationHeaders: () => Promise.resolve({ "AEP-Authorization": "AEP credential" }),
+        inspect: () =>
+          Promise.resolve(
+            inspectResult({
+              ...minimalInspectDocument,
+              authentication: { methods: ["oauth-bearer"] }
+            })
+          ),
+        openApiPolicy: () =>
+          Promise.resolve({
+            freshness: "fetched",
+            methods: [],
+            source: "openapi",
+            state: "fallback"
+          })
+      })
+    );
+
+    await expect(
+      fetchProtectedResource({ agent, fetch: transport, url: "https://api.example.com/items" })
+    ).resolves.toMatchObject({ status: 200 });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.headers.has("AEP-Authorization")).toBe(false);
+    expect(calls[1]?.headers.get("AEP-Authorization")).toBe("AEP credential");
   });
 
   it("validates protected-resource challenge origins and Service identities", async () => {
