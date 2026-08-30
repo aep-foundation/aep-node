@@ -43,6 +43,7 @@ import type {
   AepClientAssertionSigner,
   AepClientAssertionSignerContext,
   AepInspectError,
+  AepSessionCredentialRecord,
   AepServiceSession,
   InspectServiceResult,
   ResponseLike
@@ -61,6 +62,11 @@ const minimalInspectDocument = {
   },
   commands: {
     grant_types: ["oauth-bearer", "api-key", "basic"],
+    grant_types_config: {
+      "api-key": { supports_per_credential_revoke: "true" },
+      basic: { supports_per_credential_revoke: "true" },
+      "oauth-bearer": { supports_per_credential_revoke: "true" }
+    },
     supported: ["enroll", "grant", "inspect", "revoke", "status"]
   },
   core: {
@@ -958,6 +964,25 @@ describe("@aep-foundation/agent command clients", () => {
     });
   });
 
+  it("requires advertised per-credential Revoke before targeting a credential", async () => {
+    await expect(
+      revokeService({
+        clientAssertion: "jwt.revoke",
+        credentialId: "cred_123",
+        grantType: "oauth-bearer",
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-revoke000000",
+        inspect: inspectResult({
+          ...minimalInspectDocument,
+          commands: {
+            grant_types: ["oauth-bearer"],
+            supported: ["inspect", "revoke"]
+          }
+        }),
+        serviceUrl: "https://api.example.com"
+      })
+    ).rejects.toThrow("does not advertise per-credential Revoke");
+  });
+
   it("can inspect before sending commands", async () => {
     const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
     const fetch = (input: URL | string, init?: RequestInit) => {
@@ -1008,7 +1033,7 @@ describe("@aep-foundation/agent command clients", () => {
           ? {
               access_token: "access-token",
               credential_id: "cred_123",
-              expires_at: "2026-05-28T12:00:00Z",
+              expires_at: "2999-05-28T12:00:00Z",
               scopes: [],
               token_type: "Bearer"
             }
@@ -1035,9 +1060,11 @@ describe("@aep-foundation/agent command clients", () => {
       writeCalls.push(requestUrl(input));
       return response(input);
     };
+    const credentialStore = createInMemorySessionCredentialStore();
     const agent = createAepAgent({
       assertionClock: () => new Date("2026-05-28T12:00:00.000Z"),
       assertionJti: () => `jti-${signerEvents.length + 1}`,
+      credentialStore,
       identityProvider: {
         getOrCreateIdentity: () => ({
           agentDid: "did:web:agent.example.com:agents:123",
@@ -1087,6 +1114,7 @@ describe("@aep-foundation/agent command clients", () => {
     await expect(
       session.revoke({
         credentialId: "cred_123",
+        grantType: "oauth-bearer",
         idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-agentrevoke"
       })
     ).resolves.toMatchObject({
@@ -1102,6 +1130,49 @@ describe("@aep-foundation/agent command clients", () => {
       "https://api.example.com/aep/grant",
       "https://api.example.com/aep/revoke"
     ]);
+    expect(await credentialStore.listCredentials("did:web:api.example.com")).toEqual([]);
+  });
+
+  it("removes locally stored credentials after bulk Revoke succeeds", async () => {
+    const serviceDid = "did:web:api.example.com";
+    const credentialStore = createInMemorySessionCredentialStore([
+      sessionCredentialRecord("oauth-1", "oauth-bearer"),
+      sessionCredentialRecord("oauth-2", "oauth-bearer"),
+      sessionCredentialRecord("api-key-1", "api-key")
+    ]);
+    const fetch: typeof globalThis.fetch = (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return Promise.resolve(
+        new Response(
+          JSON.stringify(url.endsWith("/.well-known/aep") ? minimalInspectDocument : {}),
+          {
+            headers: { "content-type": AEP_MEDIA_TYPE }
+          }
+        )
+      );
+    };
+    const agent = createAepAgent({
+      credentialStore,
+      fetch,
+      identityProvider: {
+        getOrCreateIdentity: () => ({
+          agentDid: "did:web:agent.example.com:agents:123",
+          identityKind: "sovereign",
+          serviceDid,
+          signingAlgorithms: ["ES256"]
+        }),
+        signerFor: () => () => "jwt.revoke"
+      }
+    });
+    const session = agent.serviceSession({ serviceUrl: "https://api.example.com" });
+
+    await session.revoke({ grantType: "oauth-bearer" });
+    expect(await credentialStore.listCredentials(serviceDid)).toMatchObject([
+      { credentialId: "api-key-1", grantType: "api-key" }
+    ]);
+
+    await session.revoke({ allGrantTypes: true });
+    expect(await credentialStore.listCredentials(serviceDid)).toEqual([]);
   });
 
   it("throws AepCommandError with Problem Details on command failures", async () => {
@@ -2423,6 +2494,38 @@ function jsonResponse(
     headers: headerMap({ "content-type": "application/aep+json", ...(options.headers ?? {}) }),
     json: () => Promise.resolve(body),
     ...(options.statusText === undefined ? {} : { statusText: options.statusText })
+  };
+}
+
+function sessionCredentialRecord(
+  credentialId: string,
+  grantType: "api-key" | "oauth-bearer"
+): AepSessionCredentialRecord {
+  const expiresAt = "2999-05-28T12:00:00Z";
+  const credential =
+    grantType === "api-key"
+      ? {
+          api_key: "api-key",
+          credential_id: credentialId,
+          expires_at: expiresAt,
+          header: "X-API-Key",
+          scopes: []
+        }
+      : {
+          access_token: "access-token",
+          credential_id: credentialId,
+          expires_at: expiresAt,
+          scopes: [],
+          token_type: "Bearer" as const
+        };
+  return {
+    credential,
+    credentialId,
+    expiresAt,
+    grantType,
+    issuedAt: "2026-05-28T12:00:00Z",
+    serviceDid: "did:web:api.example.com",
+    serviceUrl: "https://api.example.com"
   };
 }
 

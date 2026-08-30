@@ -6,13 +6,20 @@
   "additionalProperties": true,
   "oneOf": [
     {
-      "required": ["grant_type"]
+      "required": ["grant_type"],
+      "not": {
+        "anyOf": [{ "required": ["credential_id"] }, { "required": ["all_grant_types"] }]
+      }
     },
     {
-      "required": ["credential_id"]
+      "required": ["credential_id", "grant_type"],
+      "not": { "required": ["all_grant_types"] }
     },
     {
-      "required": ["all_grant_types"]
+      "required": ["all_grant_types"],
+      "not": {
+        "anyOf": [{ "required": ["credential_id"] }, { "required": ["grant_type"] }]
+      }
     }
   ],
   "properties": {

@@ -33,7 +33,11 @@ import {
   oauthBearerGrantType,
   storedOAuthBearerGrantType
 } from "../src/index.js";
-import type { AepCommandIdempotencyStore, AepGrantTypeHandler } from "../src/index.js";
+import type {
+  AepCommandIdempotencyStore,
+  AepGrantTypeHandler,
+  AepServiceCredentialRecord
+} from "../src/index.js";
 
 describe("@aep-foundation/service Inspect builder", () => {
   it("builds the minimal HTTP Inspect fixture shape with explicit grant and identity activation", () => {
@@ -127,6 +131,29 @@ describe("@aep-foundation/service Inspect builder", () => {
       "https://service.example/extensions/service-policy"
     ]);
     expect(commandPathFromInspect(document, "enroll")).toBe("/custom-aep/enroll");
+  });
+
+  it("advertises targeted Revoke for stored built-in credentials", () => {
+    const document = buildInspectDocument({
+      grantTypes: [
+        storedOAuthBearerGrantType({
+          issue: () => ({
+            access_token: "access-token",
+            credential_id: "cred_123",
+            expires_at: "2026-05-28T13:00:00Z",
+            scopes: [],
+            token_type: "Bearer"
+          }),
+          store: createInMemoryServiceCredentialStore()
+        })
+      ],
+      identityMethods: [didWebIdentityMethod()],
+      serviceDid: "did:web:api.example.com"
+    });
+
+    expect(document.commands.grant_types_config).toEqual({
+      "oauth-bearer": { supports_per_credential_revoke: "true" }
+    });
   });
 
   it("returns defensive copies from createAepService", () => {
@@ -1367,7 +1394,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
     await expect(
       handleRevokeRequest(
         {
-          credential_id: "cred_123"
+          credential_id: "cred_123",
+          grant_type: "oauth-bearer"
         },
         options
       )
@@ -1380,7 +1408,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
     });
   });
 
-  it("fans out Revoke requests for all grant types and credential IDs", async () => {
+  it("fans out all-grant-types Revoke and targets credentials by grant type", async () => {
     const store = createInMemoryEnrollmentStore([
       activeEnrollment("did:web:agent.example.com:agents:123")
     ]);
@@ -1404,7 +1432,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
     );
     await handleRevokeRequest(
       {
-        credential_id: "cred_123"
+        credential_id: "cred_123",
+        grant_type: "oauth-bearer"
       },
       {
         agentDid: "did:web:agent.example.com:agents:123",
@@ -1428,7 +1457,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         grantType: "oauth-bearer",
         op: "revoke",
         request: {
-          credential_id: "cred_123"
+          credential_id: "cred_123",
+          grant_type: "oauth-bearer"
         }
       },
       {
@@ -1437,14 +1467,6 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         op: "revoke",
         request: {
           all_grant_types: "true"
-        }
-      },
-      {
-        agentDid: "did:web:agent.example.com:agents:123",
-        grantType: "api-key",
-        op: "revoke",
-        request: {
-          credential_id: "cred_123"
         }
       }
     ]);
@@ -1631,7 +1653,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
 
     await service.revoke(
       {
-        credential_id: "cred_123"
+        credential_id: "cred_123",
+        grant_type: "oauth-bearer"
       },
       {
         clientAssertion: clientAssertion("revoke", "revoke-stored-credential"),
@@ -1655,6 +1678,17 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         url: "https://api.example.com/resource"
       })
     ).resolves.toMatchObject({ authenticated: false });
+  });
+
+  it("rejects reuse of a Service-issued credential identifier", async () => {
+    const credentialStore = createInMemoryServiceCredentialStore();
+    const first = serviceCredentialRecord("did:web:agent.example.com:agents:one", "oauth-bearer");
+    const second = serviceCredentialRecord("did:web:agent.example.com:agents:two", "api-key");
+
+    await credentialStore.saveCredential(first);
+    expect(() => credentialStore.saveCredential(second)).toThrow(
+      "AEP credential identifier is already issued: shared-credential-id."
+    );
   });
 });
 
@@ -1715,6 +1749,37 @@ function activeEnrollment(agentDid: string) {
     since: "2026-05-28T12:00:00.000Z",
     status: "active" as const,
     updatedAt: "2026-05-28T12:00:00.000Z"
+  };
+}
+
+function serviceCredentialRecord(
+  agentDid: string,
+  grantType: "api-key" | "oauth-bearer"
+): AepServiceCredentialRecord {
+  const credentialId = "shared-credential-id";
+  const expiresAt = "2999-05-28T12:00:00Z";
+  return {
+    agentDid,
+    createdAt: "2026-05-28T12:00:00Z",
+    credential:
+      grantType === "api-key"
+        ? {
+            api_key: "api-key",
+            credential_id: credentialId,
+            expires_at: expiresAt,
+            header: "X-API-Key",
+            scopes: []
+          }
+        : {
+            access_token: "access-token",
+            credential_id: credentialId,
+            expires_at: expiresAt,
+            scopes: [],
+            token_type: "Bearer"
+          },
+    credentialId,
+    expiresAt,
+    grantType
   };
 }
 

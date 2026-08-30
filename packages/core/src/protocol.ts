@@ -120,21 +120,24 @@ export function validateRevokeRequest(value: unknown): ValidationResult<RevokeRe
     allowedValues: new Set(["true"])
   });
 
-  const selectors = [value["grant_type"], value["credential_id"], value["all_grant_types"]].filter(
-    (selector) => selector !== undefined
-  );
+  const hasAllGrantTypes = value["all_grant_types"] !== undefined;
+  const hasCredentialId = value["credential_id"] !== undefined;
+  const hasGrantType = value["grant_type"] !== undefined;
 
-  if (selectors.length === 0) {
+  if (!hasAllGrantTypes && !hasGrantType) {
     issues.push({
       path: "$",
-      message: "Expected one of grant_type, credential_id, or all_grant_types."
+      message: "Expected grant_type or all_grant_types."
     });
   }
 
-  if (selectors.length > 1) {
+  if (
+    (hasAllGrantTypes && (hasCredentialId || hasGrantType)) ||
+    (hasCredentialId && !hasGrantType)
+  ) {
     issues.push({
       path: "$",
-      message: "Expected exactly one of grant_type, credential_id, or all_grant_types."
+      message: "Expected grant_type, grant_type with credential_id, or all_grant_types."
     });
   }
 

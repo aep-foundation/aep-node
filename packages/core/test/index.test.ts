@@ -529,6 +529,26 @@ describe("Inspect document validation", () => {
       path: "$.commands.grant_types",
       message: "Expected at least one grant type when Grant or Revoke is advertised."
     });
+
+    const invalidConfig = validateInspectDocument({
+      ...minimalInspectDocument,
+      commands: {
+        grant_types: ["oauth-bearer"],
+        grant_types_config: {
+          "api-key": { supports_per_credential_revoke: "true" },
+          "oauth-bearer": { supports_per_credential_revoke: true }
+        },
+        supported: ["inspect", "revoke"]
+      }
+    });
+    expect(invalidConfig.issues).toContainEqual({
+      path: "$.commands.grant_types_config.api-key",
+      message: "Expected configuration for an advertised grant type."
+    });
+    expect(invalidConfig.issues).toContainEqual({
+      path: "$.commands.grant_types_config.oauth-bearer.supports_per_credential_revoke",
+      message: "Expected false or true."
+    });
   });
 
   it("enforces mandatory signing algorithms and registered-value syntax", () => {
@@ -718,6 +738,16 @@ describe("Protocol message validation", () => {
 
     expect(
       parseRevokeRequest({
+        credential_id: "cred_123",
+        grant_type: "oauth-bearer"
+      })
+    ).toEqual({
+      credential_id: "cred_123",
+      grant_type: "oauth-bearer"
+    });
+
+    expect(
+      parseRevokeRequest({
         all_grant_types: "true"
       })
     ).toEqual({
@@ -733,6 +763,7 @@ describe("Protocol message validation", () => {
     ]);
 
     expect(() => parseRevokeRequest({})).toThrow(AepValidationError);
+    expect(() => parseRevokeRequest({ credential_id: "cred_123" })).toThrow(AepValidationError);
     expect(() =>
       parseRevokeRequest({
         all_grant_types: "true",

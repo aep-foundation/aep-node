@@ -122,6 +122,7 @@ function validateCommands(value: unknown, issues: ValidationIssue[]): void {
   optionalStringArray(grantTypes, "$.commands.grant_types", issues, {
     itemPattern: ADVERTISEMENT_PATTERN
   });
+  validateGrantTypeConfigs(value["grant_types_config"], grantTypes, issues);
   if (
     Array.isArray(supported) &&
     supported.some((command) => command === "grant" || command === "revoke") &&
@@ -131,6 +132,40 @@ function validateCommands(value: unknown, issues: ValidationIssue[]): void {
       path: "$.commands.grant_types",
       message: "Expected at least one grant type when Grant or Revoke is advertised."
     });
+  }
+}
+
+function validateGrantTypeConfigs(
+  value: unknown,
+  grantTypes: unknown,
+  issues: ValidationIssue[]
+): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    issues.push({ path: "$.commands.grant_types_config", message: "Expected an object." });
+    return;
+  }
+
+  for (const [grantType, config] of Object.entries(value)) {
+    const path = `$.commands.grant_types_config.${grantType}`;
+    if (!ADVERTISEMENT_PATTERN.test(grantType)) {
+      issues.push({ path, message: `Expected name to match ${ADVERTISEMENT_PATTERN.source}.` });
+    }
+    if (!Array.isArray(grantTypes) || !grantTypes.includes(grantType)) {
+      issues.push({ path, message: "Expected configuration for an advertised grant type." });
+    }
+    if (!isRecord(config)) {
+      issues.push({ path, message: "Expected an object." });
+      continue;
+    }
+
+    const supported = config["supports_per_credential_revoke"];
+    if (supported !== undefined && supported !== "false" && supported !== "true") {
+      issues.push({
+        path: `${path}.supports_per_credential_revoke`,
+        message: "Expected false or true."
+      });
+    }
   }
 }
 

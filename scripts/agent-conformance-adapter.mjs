@@ -4,6 +4,8 @@ import { generateKeyPairSync } from "node:crypto";
 import { createInterface } from "node:readline";
 import { isDeepStrictEqual } from "node:util";
 
+import { AepValidationError, parseRevokeRequest } from "../packages/core/dist/index.js";
+
 import {
   AepClaimRequirementsError,
   AepClaimValuesError,
@@ -62,7 +64,7 @@ for await (const line of input) {
 
 async function evaluate(request) {
   try {
-    const passed = await evaluateCase(request.vector.id, request.case);
+    const passed = await evaluateCase(request.vector, request.case);
     return passed
       ? { status: "passed" }
       : { status: "failed", message: "Public Agent API result did not match the vector" };
@@ -74,7 +76,8 @@ async function evaluate(request) {
   }
 }
 
-async function evaluateCase(id, testCase) {
+async function evaluateCase(vector, testCase) {
+  const id = vector.id;
   if (id === "public-discovery-cache") return evaluateDiscoveryCache(testCase);
   if (CLAIM_VALUE_VECTOR_IDS.has(id)) return evaluateClaimValue(testCase);
   switch (id) {
@@ -114,11 +117,17 @@ async function evaluateCase(id, testCase) {
       return evaluateStatusResponse(testCase);
     case "grant-response":
       return evaluateGrantResponse(testCase);
+    case "grant-response-missing-credential-id":
+      return evaluateInvalidGrantResponse(vector.category, testCase);
     case "grant-request-oauth-bearer":
       return evaluateGrantRequest(testCase);
     case "revoke-request-all-grant-types":
     case "revoke-request-oauth-bearer":
+    case "revoke-request-targeted-oauth-bearer":
       return evaluateRevokeRequest(testCase);
+    case "revoke-request-conflicting-targets":
+    case "revoke-request-credential-id-without-grant-type":
+      return evaluateInvalidRevokeRequest(testCase);
     case "revoke-response-empty":
       return evaluateRevokeResponse(testCase);
     case "not-recognized-problem":
@@ -233,7 +242,9 @@ async function evaluateCommandIdempotencyHeader(testCase) {
   const enrollBody = JSON.parse(calls[0].init.body);
   return (
     testCase.expected.header_required === true &&
-    calls.every((call) => new Headers(call.init.headers).get("idempotency-key") === idempotencyKey) &&
+    calls.every(
+      (call) => new Headers(call.init.headers).get("idempotency-key") === idempotencyKey
+    ) &&
     enrollBody.idempotency_key === idempotencyKey
   );
 }
@@ -444,23 +455,66 @@ async function evaluateGrantResponse(testCase) {
   return isDeepStrictEqual(result.body, expected);
 }
 
+async function evaluateInvalidGrantResponse(category, testCase) {
+  const grantType = category.split("/").at(-1);
+  try {
+    await grantService({
+      clientAssertion: "assertion",
+      fetch: () => jsonResponse(testCase.input),
+      grantType,
+      idempotencyKey: "invalid-grant-response",
+      inspect: inspectResult(),
+      serviceUrl: SERVICE_ORIGIN
+    });
+    return false;
+  } catch (error) {
+    return error instanceof AepValidationError;
+  }
+}
+
 async function evaluateRevokeRequest(testCase) {
   const selector =
     testCase.input.all_grant_types === "true"
       ? { allGrantTypes: true }
-      : { grantType: testCase.input.grant_type };
+      : testCase.input.credential_id === undefined
+        ? { grantType: testCase.input.grant_type }
+        : {
+            credentialId: testCase.input.credential_id,
+            grantType: testCase.input.grant_type
+          };
   const call = await captureCommand(
     () =>
       revokeService({
         ...selector,
         clientAssertion: "client-assertion",
         idempotencyKey: "revoke-request",
-        inspect: inspectResult(),
+        inspect: inspectResult(
+          testCase.input.credential_id === undefined
+            ? {}
+            : {
+                commands: {
+                  grant_types_config: {
+                    [testCase.input.grant_type]: {
+                      supports_per_credential_revoke: "true"
+                    }
+                  }
+                }
+              }
+        ),
         serviceUrl: SERVICE_ORIGIN
       }),
     {}
   );
   return requestMatches(call, testCase.expected, "client-assertion");
+}
+
+function evaluateInvalidRevokeRequest(testCase) {
+  try {
+    parseRevokeRequest(testCase.input);
+    return false;
+  } catch {
+    return testCase.expected.valid === false;
+  }
 }
 
 async function evaluateRevokeResponse(testCase) {

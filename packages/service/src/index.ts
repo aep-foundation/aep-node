@@ -35,6 +35,7 @@ import type {
   AepBuiltInGrantResponse,
   AepBuiltInGrantType,
   AepGrantType,
+  AepGrantTypeConfig,
   AepIdentityMethod,
   AepProblemDetails,
   AepSigningAlgorithm,
@@ -59,7 +60,7 @@ export interface AepIdentityMethodDefinition {
 
 export interface AepGrantTypeDefinition {
   grantType: AepGrantType;
-  config?: Record<string, unknown>;
+  config?: AepGrantTypeConfig;
   handler?: AepGrantTypeHandler;
 }
 
@@ -149,7 +150,7 @@ export type AepBuiltInCredentialIssuer<TCredential extends AepBuiltInGrantRespon
 
 export interface AepStoredCredentialGrantTypeOptions<TCredential extends AepBuiltInGrantResponse> {
   clock?: () => Date;
-  config?: Record<string, unknown>;
+  config?: AepGrantTypeConfig;
   issue: AepBuiltInCredentialIssuer<TCredential>;
   store: AepServiceCredentialStore;
 }
@@ -512,11 +513,12 @@ export function buildInspectDocument(options: AepServiceOptions): InspectDocumen
     throw new TypeError("AEP Services must enable at least one identity method.");
   }
 
-  const grantTypeConfig = Object.fromEntries(
-    grantTypes
-      .filter((definition) => definition.config !== undefined)
-      .map((definition) => [definition.grantType, definition.config])
-  );
+  const grantTypeConfig: Record<string, AepGrantTypeConfig> = {};
+  for (const definition of grantTypes) {
+    if (definition.config !== undefined) {
+      grantTypeConfig[definition.grantType] = definition.config;
+    }
+  }
 
   const document: InspectDocument = {
     aep_version: AEP_VERSION,
@@ -578,21 +580,21 @@ export function didWebIdentityMethod(): AepIdentityMethodDefinition {
   };
 }
 
-export function oauthBearerGrantType(config?: Record<string, unknown>): AepGrantTypeDefinition {
+export function oauthBearerGrantType(config?: AepGrantTypeConfig): AepGrantTypeDefinition {
   return grantType(AEP_BUILT_IN_GRANT_TYPES[0], config);
 }
 
-export function apiKeyGrantType(config?: Record<string, unknown>): AepGrantTypeDefinition {
+export function apiKeyGrantType(config?: AepGrantTypeConfig): AepGrantTypeDefinition {
   return grantType(AEP_BUILT_IN_GRANT_TYPES[1], config);
 }
 
-export function basicGrantType(config?: Record<string, unknown>): AepGrantTypeDefinition {
+export function basicGrantType(config?: AepGrantTypeConfig): AepGrantTypeDefinition {
   return grantType(AEP_BUILT_IN_GRANT_TYPES[2], config);
 }
 
 export function grantType(
   grantType: AepGrantType,
-  config?: Record<string, unknown>,
+  config?: AepGrantTypeConfig,
   handler?: AepGrantTypeHandler
 ): AepGrantTypeDefinition {
   return {
@@ -863,16 +865,18 @@ export function createInMemoryServiceCredentialStore(
   const credentials = new Map<string, AepServiceCredentialRecord>();
 
   records.forEach((record) =>
-    credentials.set(serviceCredentialKey(record), cloneCredential(record))
+    saveServiceCredential(credentials, credentialRecordWithParsedCredential(record))
   );
 
   return {
     findCredential(agentDid, grantTypeName, credentialId) {
-      const record = credentials.get(
-        serviceCredentialLookupKey(agentDid, grantTypeName, credentialId)
-      );
+      const record = credentials.get(credentialId);
 
-      return record === undefined ? undefined : cloneCredential(record);
+      return record === undefined ||
+        record.agentDid !== agentDid ||
+        record.grantType !== grantTypeName
+        ? undefined
+        : cloneCredential(record);
     },
     listCredentials(agentDid, grantTypeName) {
       return [...credentials.values()]
@@ -884,11 +888,10 @@ export function createInMemoryServiceCredentialStore(
         .map(cloneCredential);
     },
     revokeCredential(agentDid, grantTypeName, credentialId, revokedAt) {
-      const key = serviceCredentialLookupKey(agentDid, grantTypeName, credentialId);
-      const record = credentials.get(key);
+      const record = credentials.get(credentialId);
 
-      if (record !== undefined) {
-        credentials.set(key, {
+      if (record?.agentDid === agentDid && record.grantType === grantTypeName) {
+        credentials.set(credentialId, {
           ...record,
           revokedAt
         });
@@ -906,7 +909,7 @@ export function createInMemoryServiceCredentialStore(
     },
     saveCredential(record) {
       const parsed = credentialRecordWithParsedCredential(record);
-      credentials.set(serviceCredentialKey(parsed), cloneCredential(parsed));
+      saveServiceCredential(credentials, parsed);
       return cloneCredential(parsed);
     }
   };
@@ -1443,7 +1446,8 @@ function storedBuiltInGrantType<TCredential extends AepBuiltInGrantResponse>(
   grantTypeName: AepBuiltInGrantType,
   options: AepStoredCredentialGrantTypeOptions<TCredential>
 ): AepGrantTypeDefinition {
-  return grantType(grantTypeName, options.config, {
+  const config = { ...options.config, supports_per_credential_revoke: "true" } as const;
+  return grantType(grantTypeName, config, {
     async grant(request, context) {
       const credential = parseBuiltInGrantResponse(
         grantTypeName,
@@ -1780,16 +1784,14 @@ function cloneIdempotencyResponseRecord(
   };
 }
 
-function serviceCredentialLookupKey(
-  agentDid: string,
-  grantTypeName: AepBuiltInGrantType,
-  credentialId: string
-): string {
-  return `${agentDid}\u0000${grantTypeName}\u0000${credentialId}`;
-}
-
-function serviceCredentialKey(record: AepServiceCredentialRecord): string {
-  return serviceCredentialLookupKey(record.agentDid, record.grantType, record.credentialId);
+function saveServiceCredential(
+  credentials: Map<string, AepServiceCredentialRecord>,
+  record: AepServiceCredentialRecord
+): void {
+  if (credentials.has(record.credentialId)) {
+    throw new TypeError(`AEP credential identifier is already issued: ${record.credentialId}.`);
+  }
+  credentials.set(record.credentialId, cloneCredential(record));
 }
 
 function cloneCredential(record: AepServiceCredentialRecord): AepServiceCredentialRecord {

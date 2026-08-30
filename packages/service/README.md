@@ -236,5 +236,10 @@ grant handlers without returning credential secrets.
 `storedBasicGrantType()` wrap issuer callbacks with built-in credential response
 validation and persistence. Their Revoke handlers mark credentials revoked in
 the configured `AepServiceCredentialStore`; `createInMemoryServiceCredentialStore()`
-is provided for examples and tests. Custom grant handlers can implement the
-same bounded `authenticate()` hook.
+is provided for examples and tests. These helpers advertise per-credential
+Revoke because they support both targeted and grant-type Revoke. Custom grant
+handlers can implement the same bounded `authenticate()` hook.
+
+An `AepServiceCredentialStore` must reject a `credentialId` that the issuing
+Service has assigned before, including identifiers issued to another Agent or
+through another grant type. Revocation does not make an identifier reusable.

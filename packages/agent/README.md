@@ -73,14 +73,17 @@ const grant = await session.grant({
 const headers = await session.authenticationHeaders();
 
 await session.revoke({
-  credentialId: grant.body.credential_id
+  credentialId: grant.body.credential_id,
+  grantType: "oauth-bearer"
 });
 ```
 
 Call `inspect()` before presenting capabilities to the Agent. `identity()`
 returns the Service-scoped identity used by the remaining lifecycle commands.
 `authenticationHeaders()` selects a usable stored credential or creates an
-AEP client assertion when the Service supports assertion-only access.
+AEP client assertion when the Service advertises `aep-jwt` for protected
+resources. AEP command endpoints continue to use AEP client assertions
+regardless of the protected-resource methods advertised by the Service.
 
 Known Claim Values are validated before Enroll. If the Inspect document
 advertises a required Claim Name that is absent from the submitted values,
@@ -216,8 +219,9 @@ SDK-controlled AEP fields are rejected.
 
 `clientAssertionAuthenticationHeaders()` creates AEP JWT Authorization headers
 for protected Service resources, and `protectedResourceAuthenticationHeaders()`
-uses an issued built-in credential when one is available or falls back to AEP
-JWT authentication.
+renders either an issued built-in credential or an explicitly selected AEP JWT
+credential. The session API selects only methods advertised by the Service and
+uses their advertised order as the Service preference.
 
 `probeProtectedResource()` sends the caller's request anonymously and
 classifies success, a valid AEP challenge, unrelated authentication, or another

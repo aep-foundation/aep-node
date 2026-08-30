@@ -509,6 +509,23 @@ export async function loadOAuthBearerRevokeRequestTestVector(): Promise<
   };
 }
 
+export async function loadTargetedOAuthBearerRevokeRequestTestVector(): Promise<
+  AepTestVector<RevokeRequest, AepCommandRequestExpectation<RevokeRequest>>
+> {
+  const vector = await loadTestVector<unknown, AepCommandRequestExpectation<unknown>>(
+    "grant-revoke/revoke-request-targeted-oauth-bearer.json"
+  );
+
+  return {
+    ...vector,
+    input: parseRevokeRequest(vector.input),
+    expected: {
+      ...vector.expected,
+      body: parseRevokeRequest(vector.expected.body)
+    }
+  };
+}
+
 export async function loadAllGrantTypesRevokeRequestTestVector(): Promise<
   AepTestVector<
     RevokeRequest,
