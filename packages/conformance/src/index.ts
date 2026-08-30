@@ -588,6 +588,22 @@ export async function loadEnrollIdempotencyConflictTestVector(): Promise<
   );
 }
 
+export function loadCommandIdempotencyHeaderTestVector(): Promise<
+  AepTestVector<AepCommandIdempotencyHeaderInput, AepCommandIdempotencyHeaderExpectation>
+> {
+  return loadTestVector<AepCommandIdempotencyHeaderInput, AepCommandIdempotencyHeaderExpectation>(
+    "idempotency/command-header.json"
+  );
+}
+
+export function loadCommandReplayConflictTestVector(): Promise<
+  AepTestVector<AepCommandReplayConflictInput, AepCommandReplayConflictExpectation>
+> {
+  return loadTestVector<AepCommandReplayConflictInput, AepCommandReplayConflictExpectation>(
+    "idempotency/command-replay-conflict.json"
+  );
+}
+
 export function loadPlatformDiscoveryTestVector(): Promise<
   AepTestVector<Record<string, never>, Record<string, unknown>>
 > {
@@ -698,6 +714,42 @@ export interface AepEnrollIdempotencyConflictInput {
   first_body_hash: string;
   idempotency_key: string;
   second_body_hash: string;
+}
+
+export interface AepCommandIdempotencyHeaderInput {
+  commands: Array<"enroll" | "grant" | "revoke">;
+  idempotency_key: string;
+}
+
+export interface AepCommandIdempotencyHeaderExpectation {
+  enroll_body_key: "optional";
+  header_required: true;
+  mismatched_enroll_body_status: number;
+  missing_or_empty_code: string;
+  missing_or_empty_status: number;
+}
+
+export interface AepCommandReplayConflictInput {
+  agent_did: string;
+  first_body_hash: string;
+  first_command: "enroll" | "grant" | "revoke";
+  idempotency_key: string;
+  second_body_hash: string;
+  second_command: "enroll" | "grant" | "revoke";
+}
+
+export interface AepCommandReplayConflictExpectation {
+  changed_body: {
+    code: string;
+    status: number;
+  };
+  changed_command: {
+    code: string;
+    status: number;
+  };
+  exact_retry: "cached_or_equivalent_success";
+  retention_seconds_minimum: number;
+  scope: ["agent_did", "idempotency_key"];
 }
 
 async function loadBuiltInGrantResponseTestVector(

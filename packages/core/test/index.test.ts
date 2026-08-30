@@ -636,6 +636,16 @@ describe("Protocol message validation", () => {
     });
   });
 
+  it("accepts an Enroll request without the optional body idempotency key", () => {
+    expect(
+      parseEnrollRequest({
+        agent_did: "did:web:agent.example.com:agents:123"
+      })
+    ).toEqual({
+      agent_did: "did:web:agent.example.com:agents:123"
+    });
+  });
+
   it("reports Enroll request validation issues", () => {
     const result = validateEnrollRequest({
       agent_did: "",

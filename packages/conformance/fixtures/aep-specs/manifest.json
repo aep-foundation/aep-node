@@ -1,9 +1,9 @@
 {
-  "source": "https://github.com/aep-foundation/aep-specs/tree/c82c0bfb887cca60f983b0f4c76c17275fb917db/ietf",
+  "source": "https://github.com/aep-foundation/aep-specs/tree/e71ea6cb6df44915c5f454b10115fe030ed001e8/ietf",
   "source_repository": "https://github.com/aep-foundation/aep-specs",
-  "source_revision": "c82c0bfb887cca60f983b0f4c76c17275fb917db",
+  "source_revision": "e71ea6cb6df44915c5f454b10115fe030ed001e8",
   "source_directory": "ietf",
-  "artifact_revision": "sha256:26ed5fb25e50bdd810d7751f56a7e7dade8ea437e82d82bfff281edec45482bb",
+  "artifact_revision": "sha256:bf44c2ef2337f7e058c2531fb1f099cf02925bbbaecc0a090b0e9ea69b8ca180",
   "generated_by": "scripts/sync-aep-spec-artifacts.mjs",
   "artifacts": {
     "examples": [
@@ -103,6 +103,8 @@
       "grant-revoke/revoke-request-all-grant-types.json",
       "grant-revoke/revoke-request-oauth-bearer.json",
       "grant-revoke/revoke-response-empty.json",
+      "idempotency/command-header.json",
+      "idempotency/command-replay-conflict.json",
       "idempotency/enroll-conflict.json",
       "index.json",
       "inspect/authenticated-command-without-identity-method.json",

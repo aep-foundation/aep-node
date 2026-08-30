@@ -136,7 +136,7 @@ export type AepErrorCode =
 export interface EnrollRequest {
   agent_did: string;
   claims?: AepClaimValues;
-  idempotency_key: string;
+  idempotency_key?: string;
   [key: string]: unknown;
 }
 

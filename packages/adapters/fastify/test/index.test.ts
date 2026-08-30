@@ -112,11 +112,15 @@ describe("@aep-foundation/fastify", () => {
   });
 
   it("passes command bodies and client assertions to the Service", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const handlers = createFastifyAepHandlers({
       ...mockService(),
       grant: (body, options) => {
-        calls.push({ body, clientAssertion: options.clientAssertion });
+        calls.push({
+          body,
+          clientAssertion: options.clientAssertion,
+          idempotencyKey: options.idempotencyKey
+        });
         return Promise.resolve({
           body: { credential_id: "cred_123" },
           contentType: "application/aep+json",
@@ -132,7 +136,8 @@ describe("@aep-foundation/fastify", () => {
           grant_type: "oauth-bearer"
         },
         headers: {
-          authorization: "AEP signed.jwt"
+          authorization: "AEP signed.jwt",
+          "idempotency-key": "idem"
         }
       },
       reply
@@ -143,7 +148,8 @@ describe("@aep-foundation/fastify", () => {
         body: {
           grant_type: "oauth-bearer"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
     expect(reply.statusCode).toBe(200);
@@ -151,7 +157,7 @@ describe("@aep-foundation/fastify", () => {
   });
 
   it("handles Inspect and command requests through a real Fastify instance", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const app = fastify();
 
     app.addContentTypeParser(
@@ -164,7 +170,11 @@ describe("@aep-foundation/fastify", () => {
     await createFastifyAepRoutesPlugin({
       ...mockService(),
       enroll: (body, options) => {
-        calls.push({ body, clientAssertion: options.clientAssertion });
+        calls.push({
+          body,
+          clientAssertion: options.clientAssertion,
+          idempotencyKey: options.idempotencyKey
+        });
         return Promise.resolve({
           body: {
             status: "active"
@@ -190,7 +200,8 @@ describe("@aep-foundation/fastify", () => {
     const enroll = await app.inject({
       headers: {
         authorization: "AEP signed.jwt",
-        "content-type": "application/aep+json"
+        "content-type": "application/aep+json",
+        "idempotency-key": "idem"
       },
       method: "POST",
       payload: {
@@ -210,7 +221,8 @@ describe("@aep-foundation/fastify", () => {
           agent_did: "did:web:agent.example.com:agents:123",
           idempotency_key: "idem"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
 

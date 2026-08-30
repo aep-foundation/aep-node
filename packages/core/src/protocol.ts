@@ -44,7 +44,7 @@ export function validateEnrollRequest(value: unknown): ValidationResult<EnrollRe
   const issues: ValidationIssue[] = [];
   requireString(value, "agent_did", issues, { minLength: 1 });
   optionalClaimValues(value["claims"], issues);
-  requireString(value, "idempotency_key", issues, { minLength: 1 });
+  optionalString(value["idempotency_key"], "$.idempotency_key", issues, { minLength: 1 });
   return result(value as EnrollRequest, issues);
 }
 

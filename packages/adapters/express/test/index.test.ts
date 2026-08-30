@@ -86,11 +86,15 @@ describe("@aep-foundation/express", () => {
   });
 
   it("passes command bodies and client assertions to the Service", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const handlers = createExpressAepHandlers({
       ...mockService(),
       enroll: (body, options) => {
-        calls.push({ body, clientAssertion: options.clientAssertion });
+        calls.push({
+          body,
+          clientAssertion: options.clientAssertion,
+          idempotencyKey: options.idempotencyKey
+        });
         return Promise.resolve({
           body: { status: "active" },
           contentType: "application/aep+json",
@@ -107,7 +111,8 @@ describe("@aep-foundation/express", () => {
           idempotency_key: "idem"
         },
         headers: {
-          authorization: "AEP signed.jwt"
+          authorization: "AEP signed.jwt",
+          "idempotency-key": "idem"
         },
         method: "POST"
       },
@@ -120,7 +125,8 @@ describe("@aep-foundation/express", () => {
           agent_did: "did:web:agent.example.com:agents:123",
           idempotency_key: "idem"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
     expect(response.statusCode).toBe(200);
@@ -128,14 +134,18 @@ describe("@aep-foundation/express", () => {
   });
 
   it("handles Inspect and command requests through a real Express app", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const app = express() as express.Express & ExpressDispatchApp;
 
     app.use(express.json({ type: "application/aep+json" }));
     registerExpressAepRoutes(app, {
       ...mockService(),
       grant: (body, options) => {
-        calls.push({ body, clientAssertion: options.clientAssertion });
+        calls.push({
+          body,
+          clientAssertion: options.clientAssertion,
+          idempotencyKey: options.idempotencyKey
+        });
         return Promise.resolve({
           body: {
             credential_id: "cred_123"
@@ -160,7 +170,8 @@ describe("@aep-foundation/express", () => {
       "POST",
       "/aep/grant",
       {
-        authorization: "AEP signed.jwt"
+        authorization: "AEP signed.jwt",
+        "idempotency-key": "idem"
       },
       {
         grant_type: "oauth-bearer"
@@ -177,7 +188,8 @@ describe("@aep-foundation/express", () => {
         body: {
           grant_type: "oauth-bearer"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
   });

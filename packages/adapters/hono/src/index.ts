@@ -1,7 +1,7 @@
 import { commandPathFromInspect } from "@aep-foundation/core";
 import { createAepService } from "@aep-foundation/service";
 import type {
-  AepAuthenticatedServiceOptions,
+  AepIdempotentServiceOptions,
   AepService,
   AepServiceOptions
 } from "@aep-foundation/service";
@@ -113,7 +113,7 @@ function createHonoCommandHandler(
     const clientAssertion = parseAepAuthorization(context.req?.header("Authorization"));
     const idempotencyKey = context.req?.header("Idempotency-Key");
     const body = command === "status" ? undefined : await context.req?.json();
-    const commandOptions = authenticatedOptions(clientAssertion, idempotencyKey);
+    const commandOptions = idempotentOptions(clientAssertion, idempotencyKey);
     const result =
       command === "enroll"
         ? await service.enroll(body, commandOptions)
@@ -130,13 +130,13 @@ function createHonoCommandHandler(
   };
 }
 
-function authenticatedOptions(
+function idempotentOptions(
   clientAssertion: string,
   idempotencyKey: string | undefined
-): AepAuthenticatedServiceOptions {
+): AepIdempotentServiceOptions {
   return {
     clientAssertion,
-    ...(idempotencyKey === undefined ? {} : { idempotencyKey })
+    idempotencyKey: idempotencyKey ?? ""
   };
 }
 

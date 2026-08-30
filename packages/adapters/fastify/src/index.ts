@@ -1,7 +1,7 @@
 import { commandPathFromInspect } from "@aep-foundation/core";
 import { createAepService } from "@aep-foundation/service";
 import type {
-  AepAuthenticatedServiceOptions,
+  AepIdempotentServiceOptions,
   AepService,
   AepServiceOptions
 } from "@aep-foundation/service";
@@ -121,7 +121,7 @@ function createFastifyCommandHandler(
   return async (request, reply) => {
     const clientAssertion = parseAepAuthorization(headerValue(request.headers, "authorization"));
     const idempotencyKey = headerValue(request.headers, "idempotency-key");
-    const commandOptions = authenticatedOptions(clientAssertion, idempotencyKey);
+    const commandOptions = idempotentOptions(clientAssertion, idempotencyKey);
     const result =
       command === "enroll"
         ? await service.enroll(request.body, commandOptions)
@@ -137,13 +137,13 @@ function createFastifyCommandHandler(
   };
 }
 
-function authenticatedOptions(
+function idempotentOptions(
   clientAssertion: string,
   idempotencyKey: string | undefined
-): AepAuthenticatedServiceOptions {
+): AepIdempotentServiceOptions {
   return {
     clientAssertion,
-    ...(idempotencyKey === undefined ? {} : { idempotencyKey })
+    idempotencyKey: idempotencyKey ?? ""
   };
 }
 

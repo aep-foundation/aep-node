@@ -112,11 +112,15 @@ describe("@aep-foundation/hono", () => {
   });
 
   it("passes command bodies and client assertions to the Service", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const handlers = createHonoAepHandlers({
       ...mockService(),
       revoke: (body, options) => {
-        calls.push({ body, clientAssertion: options.clientAssertion });
+        calls.push({
+          body,
+          clientAssertion: options.clientAssertion,
+          idempotencyKey: options.idempotencyKey
+        });
         return Promise.resolve({
           body: {},
           contentType: "application/aep+json",
@@ -128,7 +132,8 @@ describe("@aep-foundation/hono", () => {
       body: {
         grant_type: "oauth-bearer"
       },
-      authorization: "AEP signed.jwt"
+      authorization: "AEP signed.jwt",
+      idempotencyKey: "idem"
     });
 
     await handlers.revoke(context);
@@ -138,7 +143,8 @@ describe("@aep-foundation/hono", () => {
         body: {
           grant_type: "oauth-bearer"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
     expect(context.statusCode).toBe(200);
@@ -146,13 +152,17 @@ describe("@aep-foundation/hono", () => {
   });
 
   it("handles Inspect and command requests through a real Hono app", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const app = new Hono();
 
     registerHonoAepRoutes(app, {
       ...mockService(),
       revoke: (body, options) => {
-        calls.push({ body, clientAssertion: options.clientAssertion });
+        calls.push({
+          body,
+          clientAssertion: options.clientAssertion,
+          idempotencyKey: options.idempotencyKey
+        });
         return Promise.resolve({
           body: {},
           contentType: "application/aep+json",
@@ -176,7 +186,8 @@ describe("@aep-foundation/hono", () => {
       }),
       headers: {
         Authorization: "AEP signed.jwt",
-        "Content-Type": "application/aep+json"
+        "Content-Type": "application/aep+json",
+        "Idempotency-Key": "idem"
       },
       method: "POST"
     });
@@ -188,7 +199,8 @@ describe("@aep-foundation/hono", () => {
         body: {
           grant_type: "oauth-bearer"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
   });
@@ -201,7 +213,7 @@ interface CapturedContext extends HonoAepContext {
 }
 
 function createContext(
-  options: { authorization?: string; body?: unknown; raw?: Request } = {}
+  options: { authorization?: string; body?: unknown; idempotencyKey?: string; raw?: Request } = {}
 ): CapturedContext {
   return {
     json(body: unknown, status?: number, headers?: Record<string, string>) {
@@ -222,7 +234,8 @@ function createContext(
     },
     req: {
       header(name: string) {
-        return name.toLowerCase() === "authorization" ? options.authorization : undefined;
+        if (name.toLowerCase() === "authorization") return options.authorization;
+        return name.toLowerCase() === "idempotency-key" ? options.idempotencyKey : undefined;
       },
       json: () => Promise.resolve(options.body),
       ...(options.raw === undefined ? {} : { raw: options.raw })

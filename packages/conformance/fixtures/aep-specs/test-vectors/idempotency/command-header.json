@@ -1,0 +1,31 @@
+{
+  "id": "command-header",
+  "title": "Core command idempotency header",
+  "description": "Enroll, Grant, and Revoke require a non-empty Idempotency-Key header while the Enroll body copy remains optional and must match when present.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "category": "idempotency",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "commands": ["enroll", "grant", "revoke"],
+    "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
+  },
+  "expected": {
+    "enroll_body_key": "optional",
+    "header_required": true,
+    "mismatched_enroll_body_status": 400,
+    "missing_or_empty_code": "invalid_request",
+    "missing_or_empty_status": 400
+  }
+}

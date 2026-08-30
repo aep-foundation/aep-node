@@ -36,6 +36,8 @@
     "grant-revoke/revoke-request-all-grant-types.json",
     "grant-revoke/revoke-request-oauth-bearer.json",
     "grant-revoke/revoke-response-empty.json",
+    "idempotency/command-header.json",
+    "idempotency/command-replay-conflict.json",
     "idempotency/enroll-conflict.json",
     "inspect/authenticated-command-without-identity-method.json",
     "inspect/authentication-method-limit.json",

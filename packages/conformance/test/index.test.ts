@@ -45,6 +45,8 @@ import {
   loadClaimNegotiationCompatibilityTestVector,
   loadClaimValueValidationTestVector,
   loadClaimValuesTestVector,
+  loadCommandIdempotencyHeaderTestVector,
+  loadCommandReplayConflictTestVector,
   loadEmptyRevokeResponseTestVector,
   loadExampleArtifact,
   loadEnrollIdempotencyConflictTestVector,
@@ -120,6 +122,10 @@ describe("@aep-foundation/conformance spec artifacts", () => {
     );
     expect(manifest.artifacts["test-vectors"]).toContain("errors/not-recognized-problem.json");
     expect(manifest.artifacts["test-vectors"]).toContain("idempotency/enroll-conflict.json");
+    expect(manifest.artifacts["test-vectors"]).toContain("idempotency/command-header.json");
+    expect(manifest.artifacts["test-vectors"]).toContain(
+      "idempotency/command-replay-conflict.json"
+    );
     expect(manifest.artifacts["test-vectors"]).toContain("index.json");
     expect(manifest.artifacts.schemas).toContain("platform-discovery.schema.json");
     expect(manifest.artifacts.schemas).toContain("platform-provision-request.schema.json");
@@ -286,6 +292,26 @@ describe("@aep-foundation/conformance Platform checks", () => {
 });
 
 describe("@aep-foundation/conformance error and idempotency checks", () => {
+  it("loads the Core command idempotency vectors", async () => {
+    const header = await loadCommandIdempotencyHeaderTestVector();
+    const replay = await loadCommandReplayConflictTestVector();
+
+    expect(header.input.commands).toEqual(["enroll", "grant", "revoke"]);
+    expect(header.expected).toMatchObject({
+      enroll_body_key: "optional",
+      header_required: true,
+      missing_or_empty_code: "invalid_request"
+    });
+    expect(replay.input).toMatchObject({
+      first_command: "grant",
+      second_command: "revoke"
+    });
+    expect(replay.expected).toMatchObject({
+      retention_seconds_minimum: 3600,
+      scope: ["agent_did", "idempotency_key"]
+    });
+  });
+
   it("validates the synced not_recognized Problem Details vector", async () => {
     const vector = await loadNotRecognizedProblemTestVector();
 
@@ -343,6 +369,7 @@ describe("@aep-foundation/conformance error and idempotency checks", () => {
     const store = createInMemoryEnrollmentStore();
     const options = {
       commandIdempotencyStore,
+      idempotencyKey: vector.input.idempotency_key,
       policy: createStaticEnrollmentPolicy(),
       store
     };
@@ -357,7 +384,10 @@ describe("@aep-foundation/conformance error and idempotency checks", () => {
 
     const response = await handleEnrollRequest(
       {
-        agent_did: "did:web:agent.example.com:agents:456",
+        agent_did: vector.input.agent_did,
+        claims: {
+          "contact.email": "different@example.com"
+        },
         idempotency_key: vector.input.idempotency_key
       },
       options
@@ -417,6 +447,7 @@ describe("@aep-foundation/conformance Enroll and Status checks", () => {
       },
       {
         clock: () => new Date("2026-05-28T12:00:00.000Z"),
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
         policy: createStaticEnrollmentPolicy(),
         store
       }
@@ -440,6 +471,7 @@ describe("@aep-foundation/conformance Enroll and Status checks", () => {
       },
       {
         clock: () => new Date("2026-05-28T12:00:00.000Z"),
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
         policy: createStaticEnrollmentPolicy(),
         store
       }
@@ -529,6 +561,7 @@ describe("@aep-foundation/conformance Grant, Revoke, and credential checks", () 
           }
         ]
       ]),
+      idempotencyKey: "grant-conformance",
       store
     });
 
@@ -554,6 +587,7 @@ describe("@aep-foundation/conformance Grant, Revoke, and credential checks", () 
           }
         ]
       ]),
+      idempotencyKey: "revoke-conformance",
       store
     });
 
