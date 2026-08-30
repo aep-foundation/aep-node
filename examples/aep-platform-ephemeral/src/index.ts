@@ -194,6 +194,7 @@ class ExampleKeyStore implements PlatformKeyStore {
   sign(identity: PlatformIdentityRecord, claims: Parameters<PlatformKeyStore["sign"]>[1]) {
     return createJwtPlatformDelegatedSigner({
       alg: "ES256",
+      allowInsecureLoopback: true,
       key: this.#key(identity).privateKey,
       kid: identity.keyId
     })(claims, {
@@ -255,7 +256,7 @@ const platform = createAepPlatform({
         return false;
       }
 
-      const response = await fetch(didWebDocumentUrl(candidate), {
+      const response = await fetch(didWebDocumentUrl(candidate, { allowInsecureLoopback: true }), {
         headers: {
           Accept: "application/json"
         }

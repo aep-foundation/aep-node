@@ -16,6 +16,7 @@ const protectedResourceCarrier: AepProtectedResourceAuthorizationCarrier =
   process.env["AEP_AUTHORIZATION_CARRIER"] === "dedicated" ? "dedicated" : "standard";
 
 const agent = createAepAgent({
+  allowInsecureLoopback: true,
   assertionJti: randomUUID,
   identityProvider: createPlatformIdentityProvider({
     authorization: platformAuthorization,

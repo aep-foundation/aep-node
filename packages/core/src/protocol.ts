@@ -162,8 +162,13 @@ export function parseRevokeResponse(value: unknown): RevokeResponse {
   return parseWith(validateRevokeResponse(value), "Invalid AEP Revoke response.");
 }
 
+export interface ValidateClientAssertionClaimsOptions {
+  allowInsecureLoopback?: boolean;
+}
+
 export function validateClientAssertionClaims(
-  value: unknown
+  value: unknown,
+  options: ValidateClientAssertionClaimsOptions = {}
 ): ValidationResult<AepClientAssertionClaims> {
   if (!isRecord(value)) {
     return invalidRoot();
@@ -184,11 +189,58 @@ export function validateClientAssertionClaims(
   requireInteger(value["iat"], "$.iat", issues);
   requireInteger(value["exp"], "$.exp", issues);
   requireString(value, "jti", issues, { minLength: 1 });
+  if (
+    typeof value["iss"] === "string" &&
+    typeof value["sub"] === "string" &&
+    value["iss"] !== value["sub"]
+  ) {
+    issues.push({ path: "$.sub", message: "Expected the Agent DID from iss." });
+  }
+  if (
+    typeof value["iat"] === "number" &&
+    Number.isInteger(value["iat"]) &&
+    typeof value["exp"] === "number" &&
+    Number.isInteger(value["exp"]) &&
+    (value["exp"] <= value["iat"] || value["exp"] - value["iat"] > 300)
+  ) {
+    issues.push({ path: "$.exp", message: "Expected a lifetime between 1 and 300 seconds." });
+  }
+  if (
+    value["resource"] !== undefined &&
+    (typeof value["resource"] !== "string" ||
+      !isAllowedResourceUri(value["resource"], options.allowInsecureLoopback === true))
+  ) {
+    issues.push({
+      path: "$.resource",
+      message: "Expected an absolute HTTPS URI without a fragment."
+    });
+  }
   return result(value as AepClientAssertionClaims, issues);
 }
 
-export function parseClientAssertionClaims(value: unknown): AepClientAssertionClaims {
-  return parseWith(validateClientAssertionClaims(value), "Invalid AEP client assertion claims.");
+export function parseClientAssertionClaims(
+  value: unknown,
+  options: ValidateClientAssertionClaimsOptions = {}
+): AepClientAssertionClaims {
+  return parseWith(
+    validateClientAssertionClaims(value, options),
+    "Invalid AEP client assertion claims."
+  );
+}
+
+function isAllowedResourceUri(value: string, allowInsecureLoopback: boolean): boolean {
+  try {
+    const url = new URL(value);
+    if (url.hash.length !== 0) return false;
+    if (url.protocol === "https:") return true;
+    return allowInsecureLoopback && url.protocol === "http:" && isLoopbackHostname(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 export function validateProblemDetails(value: unknown): ValidationResult<AepProblemDetails> {

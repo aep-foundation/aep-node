@@ -293,9 +293,10 @@ export type PlatformDelegatedSigner = (
 
 export interface JwtPlatformDelegatedSignerOptions {
   alg?: AepSigningAlgorithm;
+  allowInsecureLoopback?: boolean;
   key: AepImportableJoseKey;
   kid?: string;
-  typ?: string;
+  typ?: "JWT";
 }
 
 export interface SignPlatformClientAssertionOptions extends PlatformClientAssertionClaimsOptions {
@@ -910,9 +911,11 @@ export function createJwtPlatformDelegatedSigner(
   return (claims, context) =>
     signClientAssertionJwt(claims, {
       alg: options.alg ?? preferredSigningAlgorithm(context.signingAlgorithms),
+      ...(options.allowInsecureLoopback === undefined
+        ? {}
+        : { allowInsecureLoopback: options.allowInsecureLoopback }),
       key: options.key,
-      ...(options.kid === undefined ? {} : { kid: options.kid }),
-      ...(options.typ === undefined ? {} : { typ: options.typ })
+      ...(options.kid === undefined ? {} : { kid: options.kid })
     });
 }
 

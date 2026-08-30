@@ -491,6 +491,15 @@ describe("@aep-foundation/agent command clients", () => {
       sub: "did:web:agent.example.com:agents:123"
     });
 
+    expect(() =>
+      buildClientAssertionClaims({
+        agentDid: "did:web:agent.example.com:agents:123",
+        command: "status",
+        serviceDid: "did:web:api.example.com",
+        ttlSeconds: 301
+      })
+    ).toThrow("between 1 and 300 seconds");
+
     await expect(
       signClientAssertion({
         agentDid: "did:web:agent.example.com:agents:123",
@@ -644,7 +653,7 @@ describe("@aep-foundation/agent command clients", () => {
         format: "pkcs8",
         pem: privateKey
       },
-      kid: "agent-key-1"
+      kid: "did:web:agent.example.com:agents:123#key-1"
     });
     const jwt = await signClientAssertion({
       agentDid: "did:web:agent.example.com:agents:123",
@@ -670,6 +679,42 @@ describe("@aep-foundation/agent command clients", () => {
       jti: "status-jwt",
       op: "status",
       sub: "did:web:agent.example.com:agents:123"
+    });
+
+    const loopbackSigner = createJwtClientAssertionSigner({
+      alg: "ES256",
+      allowInsecureLoopback: true,
+      key: {
+        format: "pkcs8",
+        pem: privateKey
+      },
+      kid: "did:web:agent.example.com:agents:123#key-1"
+    });
+    const loopbackJwt = await signClientAssertion({
+      agentDid: "did:web:agent.example.com:agents:123",
+      allowInsecureLoopback: true,
+      clock: () => new Date("2026-05-28T12:00:00.000Z"),
+      command: "authenticate",
+      jti: "authenticate-loopback-jwt",
+      resource: "http://127.0.0.1:3000/api/resource",
+      serviceDid: "did:web:api.example.com",
+      signer: loopbackSigner
+    });
+
+    await expect(
+      verifyClientAssertionJwt(loopbackJwt, {
+        algorithms: ["ES256"],
+        allowInsecureLoopback: true,
+        audience: "did:web:api.example.com",
+        currentDate: new Date("2026-05-28T12:00:00.000Z"),
+        key: {
+          format: "spki",
+          pem: publicKey
+        }
+      })
+    ).resolves.toMatchObject({
+      jti: "authenticate-loopback-jwt",
+      resource: "http://127.0.0.1:3000/api/resource"
     });
   });
 
@@ -2322,6 +2367,19 @@ describe("@aep-foundation/agent credential helpers", () => {
         jti: "protected-resource-jti",
         op: "status"
       })}`
+    });
+
+    await expect(
+      clientAssertionAuthenticationHeaders({
+        agentDid: "did:web:agent.example.com:agents:123",
+        allowInsecureLoopback: true,
+        inspect: inspectResult(),
+        jti: "loopback-resource-jti",
+        resource: "http://127.0.0.1:3000/api/resource",
+        signer: (claims) => claims.resource ?? "missing"
+      })
+    ).resolves.toEqual({
+      Authorization: "AEP http://127.0.0.1:3000/api/resource"
     });
 
     await expect(

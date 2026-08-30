@@ -29,12 +29,14 @@ export type AepJwtVerifyKeyResolver = (
 
 export interface SignClientAssertionJwtOptions {
   alg: AepSigningAlgorithm;
+  allowInsecureLoopback?: boolean;
   key: AepImportableJoseKey;
   kid?: string;
-  typ?: string;
+  typ?: "JWT";
 }
 
 export interface VerifyClientAssertionJwtOptions {
+  allowInsecureLoopback?: boolean;
   algorithms?: AepSigningAlgorithm[];
   audience?: string;
   clockTolerance?: JWTVerifyOptions["clockTolerance"];
@@ -53,14 +55,21 @@ export async function signClientAssertionJwt(
   claims: AepClientAssertionClaims,
   options: SignClientAssertionJwtOptions
 ): Promise<string> {
-  const parsed = parseClientAssertionClaims(claims);
+  const parsed = parseClientAssertionClaims(claims, {
+    ...(options.allowInsecureLoopback === undefined
+      ? {}
+      : { allowInsecureLoopback: options.allowInsecureLoopback })
+  });
   const key = await importJoseKey(options.key, options.alg);
+  const kid = options.kid ?? parsed.iss;
+
+  requireClientAssertionKid(kid, parsed);
 
   return new SignJWT(parsed)
     .setProtectedHeader({
       alg: options.alg,
-      ...(options.kid === undefined ? {} : { kid: options.kid }),
-      typ: options.typ ?? "JWT"
+      kid,
+      typ: "JWT"
     })
     .sign(key);
 }
@@ -96,7 +105,27 @@ export async function verifyClientAssertionJwt(
     );
   }
 
-  return parseClientAssertionClaims(result.payload);
+  const claims = parseClientAssertionClaims(result.payload, {
+    ...(options.allowInsecureLoopback === undefined
+      ? {}
+      : { allowInsecureLoopback: options.allowInsecureLoopback })
+  });
+
+  if (result.protectedHeader.typ !== "JWT" || typeof result.protectedHeader.kid !== "string") {
+    throw new Error("Invalid AEP client assertion JOSE header.");
+  }
+
+  requireClientAssertionKid(result.protectedHeader.kid, claims);
+  return claims;
+}
+
+function requireClientAssertionKid(kid: string, claims: AepClientAssertionClaims): void {
+  const fragment = kid.indexOf("#");
+  const did = fragment === -1 ? kid : kid.slice(0, fragment);
+
+  if (did !== claims.iss || claims.iss !== claims.sub) {
+    throw new Error("AEP client assertion kid, iss, and sub must identify the same Agent DID.");
+  }
 }
 
 export async function importJoseKey(key: AepImportableJoseKey, alg?: string): Promise<AepJoseKey> {

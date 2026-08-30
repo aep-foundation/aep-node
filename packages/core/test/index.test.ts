@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateKeyPairSync } from "node:crypto";
+import { importPKCS8, SignJWT } from "jose";
 
 import {
   AEP_AUTH_SCHEME,
@@ -322,8 +323,15 @@ describe("did:web helpers", () => {
       "https://api.example.com/.well-known/did.json"
     );
     expect(String(didWebDocumentUrl("did:web:127.0.0.1%3A4100:agents:example-agent"))).toBe(
-      "http://127.0.0.1:4100/agents/example-agent/did.json"
+      "https://127.0.0.1:4100/agents/example-agent/did.json"
     );
+    expect(
+      String(
+        didWebDocumentUrl("did:web:127.0.0.1%3A4100:agents:example-agent", {
+          allowInsecureLoopback: true
+        })
+      )
+    ).toBe("http://127.0.0.1:4100/agents/example-agent/did.json");
   });
 
   it("resolves public keys from DID document verification methods", async () => {
@@ -357,6 +365,26 @@ describe("did:web helpers", () => {
 
     expect(calls).toEqual(["https://agent.example.com/agents/123/did.json"]);
     expect(key).toEqual(publicKeyJwk);
+
+    await expect(
+      resolveDidWebPublicKey({
+        did: "did:web:agent.example.com:agents:123",
+        fetch: () => Promise.reject(new Error("must not fetch")),
+        kid: "did:web:different.example.com#key-1"
+      })
+    ).rejects.toThrow("does not identify the assertion issuer");
+
+    await expect(
+      resolveDidWebPublicKey({
+        allowInsecureLoopback: true,
+        did: "did:web:127.0.0.1%3A4100:agents:123",
+        fetch: (input) => {
+          expect(String(input)).toBe("http://127.0.0.1:4100/agents/123/did.json");
+          return Promise.resolve(new Response(JSON.stringify({ verificationMethod: [] })));
+        },
+        kid: "did:web:127.0.0.1%3A4100:agents:123#missing"
+      })
+    ).rejects.toThrow("No public JWK found");
   });
 });
 
@@ -741,12 +769,49 @@ describe("Protocol message validation", () => {
         sub: "did:web:agent.example.com:agents:123"
       }).resource
     ).toBe("https://api.example.com/v1/orders/123");
+    const loopbackClaims = {
+      ...minimalClaims(),
+      op: "authenticate",
+      resource: "http://127.0.0.1:3000/api/resource"
+    };
+    expect(() => parseClientAssertionClaims(loopbackClaims)).toThrow(AepValidationError);
+    expect(
+      parseClientAssertionClaims(loopbackClaims, { allowInsecureLoopback: true }).resource
+    ).toBe("http://127.0.0.1:3000/api/resource");
+    expect(
+      validateClientAssertionClaims(
+        { ...loopbackClaims, resource: "http://api.example.com/resource" },
+        { allowInsecureLoopback: true }
+      ).ok
+    ).toBe(false);
     expect(validateClientAssertionClaims({ ...minimalClaims(), op: "authenticate" }).ok).toBe(
       false
     );
     expect(
       validateClientAssertionClaims({ ...minimalClaims(), resource: "https://api.example.com" }).ok
     ).toBe(false);
+    expect(
+      validateClientAssertionClaims({
+        ...minimalClaims(),
+        sub: "did:web:different.example.com"
+      }).issues
+    ).toContainEqual({ path: "$.sub", message: "Expected the Agent DID from iss." });
+    expect(
+      validateClientAssertionClaims({ ...minimalClaims(), exp: minimalClaims().iat + 301 }).issues
+    ).toContainEqual({
+      path: "$.exp",
+      message: "Expected a lifetime between 1 and 300 seconds."
+    });
+    expect(
+      validateClientAssertionClaims({
+        ...minimalClaims(),
+        op: "authenticate",
+        resource: "http://api.example.com/orders"
+      }).issues
+    ).toContainEqual({
+      path: "$.resource",
+      message: "Expected an absolute HTTPS URI without a fragment."
+    });
   });
 
   it("accepts AEP Problem Details", () => {
@@ -880,7 +945,7 @@ describe("Client assertion JWT helpers", () => {
         format: "pkcs8",
         pem: privateKey
       },
-      kid: "agent-key-1"
+      kid: "did:web:agent.example.com:agents:123#key-1"
     });
 
     await expect(
@@ -894,5 +959,50 @@ describe("Client assertion JWT helpers", () => {
         }
       })
     ).resolves.toEqual(claims);
+
+    expect(decodeJwtUnverified(jwt).header).toEqual({
+      alg: "ES256",
+      kid: "did:web:agent.example.com:agents:123#key-1",
+      typ: "JWT"
+    });
+
+    const mismatchedKid = await new SignJWT(claims)
+      .setProtectedHeader({
+        alg: "ES256",
+        kid: "did:web:different.example.com#key-1",
+        typ: "JWT"
+      })
+      .sign(await importPKCS8(privateKey, "ES256"));
+
+    await expect(
+      verifyClientAssertionJwt(mismatchedKid, {
+        algorithms: ["ES256"],
+        audience: "did:web:api.example.com",
+        currentDate: new Date("2026-05-28T12:00:00.000Z"),
+        key: {
+          format: "spki",
+          pem: publicKey
+        }
+      })
+    ).rejects.toThrow("kid, iss, and sub");
+
+    const missingTyp = await new SignJWT(claims)
+      .setProtectedHeader({
+        alg: "ES256",
+        kid: "did:web:agent.example.com:agents:123#key-1"
+      })
+      .sign(await importPKCS8(privateKey, "ES256"));
+
+    await expect(
+      verifyClientAssertionJwt(missingTyp, {
+        algorithms: ["ES256"],
+        audience: "did:web:api.example.com",
+        currentDate: new Date("2026-05-28T12:00:00.000Z"),
+        key: {
+          format: "spki",
+          pem: publicKey
+        }
+      })
+    ).rejects.toThrow("JOSE header");
   });
 });

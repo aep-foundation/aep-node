@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { generateKeyPairSync, sign as signBytes } from "node:crypto";
 import { createInterface } from "node:readline";
 import { isDeepStrictEqual } from "node:util";
 
@@ -7,6 +8,7 @@ import {
   AEP_VERSION,
   isAepVersionCompatible,
   parseInspectDocument,
+  signClientAssertionJwt,
   validateAepClaimValues
 } from "../packages/core/dist/index.js";
 import {
@@ -14,10 +16,12 @@ import {
   basicGrantType,
   buildInspectDocument,
   createAepService,
+  createDidWebClientAssertionVerifier,
   createHostedPlatformClientAssertionVerifier,
   createInMemoryCommandIdempotencyStore,
   createInMemoryEnrollmentStore,
   createInMemoryServiceCredentialStore,
+  createJwtClientAssertionVerifier,
   createStaticEnrollmentPolicy,
   didWebIdentityMethod,
   handleEnrollRequest,
@@ -103,6 +107,10 @@ async function evaluateCase(vector, testCase) {
       return validateAepClaimValues(testCase.expected).ok;
     case "enroll-claims":
       return evaluateClientAssertion(testCase);
+    case "did-web-resolution":
+      return evaluateDidWebResolution(testCase);
+    case "validation-requirements":
+      return evaluateClientAssertionValidation(testCase);
     case "grant-response":
       return evaluateCredentialGrant(testCase);
     case "repeated-existing":
@@ -186,6 +194,151 @@ async function evaluateCase(vector, testCase) {
       return evaluateStatusResponse(testCase);
     default:
       throw new Error("No Service operation maps vector " + id);
+  }
+}
+
+async function evaluateClientAssertionValidation(testCase) {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const verifier = createJwtClientAssertionVerifier({
+    algorithms: [testCase.input.algorithm],
+    currentDate: new Date(testCase.input.issued_at * 1000),
+    key: publicKey
+  });
+  const context = {
+    clientAssertion: "",
+    command: "enroll",
+    serviceDid: testCase.input.service_did,
+    signingAlgorithms: [testCase.input.algorithm]
+  };
+  const claims = testCase.expected.claims;
+  const valid = await signTestAssertion(privateKey, testCase.expected.header, claims);
+
+  await verifier(valid, { ...context, clientAssertion: valid });
+
+  const authenticate = {
+    ...claims,
+    op: "authenticate",
+    resource: "https://api.example.com/orders"
+  };
+  const invalid = {
+    excessive_lifetime: { ...claims, exp: claims.iat + 301 },
+    fragmented_resource: { ...authenticate, resource: "https://api.example.com/orders#item" },
+    insecure_resource: { ...authenticate, resource: "http://api.example.com/orders" },
+    mismatched_subject: { ...claims, sub: "did:web:different.example.com" },
+    missing_resource: without(authenticate, "resource"),
+    nonpositive_lifetime: { ...claims, exp: claims.iat },
+    unexpected_resource: { ...claims, resource: "https://api.example.com/orders" }
+  };
+  const tokens = [
+    await signTestAssertion(privateKey, { alg: testCase.input.algorithm, typ: "JWT" }, claims),
+    await signTestAssertion(
+      privateKey,
+      { ...testCase.expected.header, kid: "did:web:different.example.com#key-1" },
+      claims
+    ),
+    await signTestAssertion(
+      privateKey,
+      { ...testCase.expected.header, typ: "application/aep" },
+      claims
+    ),
+    ...(await Promise.all(
+      Object.values(invalid).map((candidate) =>
+        signTestAssertion(privateKey, testCase.expected.header, candidate)
+      )
+    ))
+  ];
+
+  if (tokens.length !== testCase.expected.reject.length) return false;
+
+  for (const token of tokens) {
+    if (!(await rejects(() => verifier(token, { ...context, clientAssertion: token }))))
+      return false;
+  }
+
+  return true;
+}
+
+async function evaluateDidWebResolution(testCase) {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    aud: SERVICE_DID,
+    exp: now + 60,
+    iat: now,
+    iss: testCase.input.did,
+    jti: "did-web-resolution",
+    op: "enroll",
+    sub: testCase.input.did
+  };
+  const token = await signClientAssertionJwt(claims, {
+    alg: "ES256",
+    key: privateKey,
+    kid: testCase.input.kid
+  });
+  const calls = [];
+  const verifier = createDidWebClientAssertionVerifier({
+    fetch: (input) => {
+      calls.push(String(input));
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            verificationMethod: [
+              {
+                id: testCase.input.kid,
+                publicKeyJwk: publicKey.export({ format: "jwk" })
+              }
+            ]
+          })
+        )
+      );
+    }
+  });
+  const context = {
+    clientAssertion: token,
+    command: "enroll",
+    serviceDid: SERVICE_DID,
+    signingAlgorithms: ["ES256"]
+  };
+
+  await verifier(token, context);
+  if (!isDeepStrictEqual(calls, [testCase.expected.document_url])) return false;
+
+  const missingMethodVerifier = createDidWebClientAssertionVerifier({
+    fetch: () => Promise.resolve(new Response(JSON.stringify({ verificationMethod: [] })))
+  });
+  if (!(await rejects(() => missingMethodVerifier(token, context)))) return false;
+
+  const wrongDidToken = await signTestAssertion(
+    privateKey,
+    { alg: "ES256", kid: "did:web:different.example.com#key-1", typ: "JWT" },
+    claims
+  );
+  return rejects(() => verifier(wrongDidToken, { ...context, clientAssertion: wrongDidToken }));
+}
+
+function signTestAssertion(key, header, claims) {
+  const encodedHeader = Buffer.from(JSON.stringify(header)).toString("base64url");
+  const encodedClaims = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const signingInput = `${encodedHeader}.${encodedClaims}`;
+  const signature = signBytes("sha256", Buffer.from(signingInput), {
+    dsaEncoding: "ieee-p1363",
+    key
+  }).toString("base64url");
+  return `${signingInput}.${signature}`;
+}
+
+function without(value, key) {
+  const copy = { ...value };
+  delete copy[key];
+  return copy;
+}
+
+async function rejects(operation) {
+  try {
+    await operation();
+    return false;
+  } catch {
+    return true;
   }
 }
 

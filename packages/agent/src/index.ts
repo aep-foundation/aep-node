@@ -128,6 +128,7 @@ export type AepPlatformContextProvider = (
 ) => Awaitable<Record<string, unknown> | undefined>;
 
 export interface AepAgentOptions {
+  allowInsecureLoopback?: boolean;
   assertionClock?: () => Date;
   assertionJti?: () => string;
   assertionTtlSeconds?: number;
@@ -267,6 +268,7 @@ export interface AepCommandResult<TBody> {
 
 export interface AepCommandOptions {
   agentDid?: string;
+  allowInsecureLoopback?: boolean;
   assertionClock?: () => Date;
   assertionJti?: () => string;
   assertionTtlSeconds?: number;
@@ -330,6 +332,7 @@ export type StatusServiceResult = AepCommandResult<StatusResponse>;
 
 export interface BuildClientAssertionClaimsOptions {
   agentDid: string;
+  allowInsecureLoopback?: boolean;
   command: AepAssertionOperation;
   clock?: () => Date;
   jti?: string | (() => string);
@@ -349,9 +352,10 @@ export interface SignClientAssertionOptions extends BuildClientAssertionClaimsOp
 
 export interface JwtClientAssertionSignerOptions {
   alg?: AepSigningAlgorithm;
+  allowInsecureLoopback?: boolean;
   key: AepImportableJoseKey;
   kid?: string;
-  typ?: string;
+  typ?: "JWT";
 }
 
 export interface ClientAssertionAuthenticationHeadersOptions extends Omit<
@@ -700,6 +704,7 @@ export function createAepAgent(options: AepAgentOptions): AepAgent {
 }
 
 interface AepServiceSessionState {
+  allowInsecureLoopback?: boolean;
   assertionClock?: () => Date;
   assertionJti?: () => string;
   assertionTtlSeconds?: number;
@@ -820,8 +825,11 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
 
   const assertionOptions = (): Pick<
     AepCommandOptions,
-    "assertionClock" | "assertionJti" | "assertionTtlSeconds"
+    "allowInsecureLoopback" | "assertionClock" | "assertionJti" | "assertionTtlSeconds"
   > => ({
+    ...(state.allowInsecureLoopback === undefined
+      ? {}
+      : { allowInsecureLoopback: state.allowInsecureLoopback }),
     ...(state.assertionClock === undefined ? {} : { assertionClock: state.assertionClock }),
     ...(state.assertionJti === undefined ? {} : { assertionJti: state.assertionJti }),
     ...(state.assertionTtlSeconds === undefined
@@ -879,6 +887,9 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
 
       return protectedResourceAuthenticationHeaders({
         agentDid: identity.agentDid,
+        ...(state.allowInsecureLoopback === undefined
+          ? {}
+          : { allowInsecureLoopback: state.allowInsecureLoopback }),
         ...(options.carrier === undefined ? {} : { carrier: options.carrier }),
         inspect: inspected,
         command: options.resource === undefined ? "status" : "authenticate",
@@ -1070,18 +1081,30 @@ export function buildClientAssertionClaims(
 
   const now = Math.floor((options.clock ?? (() => new Date()))().getTime() / 1000);
   const ttlSeconds = options.ttlSeconds ?? 300;
+
+  if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > 300) {
+    throw new TypeError("AEP client assertion lifetime must be between 1 and 300 seconds.");
+  }
+
   const jti = typeof options.jti === "function" ? options.jti() : (options.jti ?? randomJti());
 
-  return parseClientAssertionClaims({
-    aud: options.serviceDid,
-    exp: now + ttlSeconds,
-    iat: now,
-    iss: options.agentDid,
-    jti,
-    op: options.command,
-    ...(options.resource === undefined ? {} : { resource: String(options.resource) }),
-    sub: options.agentDid
-  });
+  return parseClientAssertionClaims(
+    {
+      aud: options.serviceDid,
+      exp: now + ttlSeconds,
+      iat: now,
+      iss: options.agentDid,
+      jti,
+      op: options.command,
+      ...(options.resource === undefined ? {} : { resource: String(options.resource) }),
+      sub: options.agentDid
+    },
+    {
+      ...(options.allowInsecureLoopback === undefined
+        ? {}
+        : { allowInsecureLoopback: options.allowInsecureLoopback })
+    }
+  );
 }
 
 export async function signClientAssertion(options: SignClientAssertionOptions): Promise<string> {
@@ -1161,9 +1184,11 @@ export function createJwtClientAssertionSigner(
   return (claims, context) =>
     signClientAssertionJwt(claims, {
       alg: options.alg ?? preferredSigningAlgorithm(context.signingAlgorithms),
+      ...(options.allowInsecureLoopback === undefined
+        ? {}
+        : { allowInsecureLoopback: options.allowInsecureLoopback }),
       key: options.key,
-      ...(options.kid === undefined ? {} : { kid: options.kid }),
-      ...(options.typ === undefined ? {} : { typ: options.typ })
+      ...(options.kid === undefined ? {} : { kid: options.kid })
     });
 }
 
@@ -1726,6 +1751,9 @@ export async function clientAssertionAuthenticationHeaders(
   const signingAlgorithms = options.signingAlgorithms ?? document?.core.signing_algorithms;
   const clientAssertion = await signClientAssertion({
     agentDid: options.agentDid,
+    ...(options.allowInsecureLoopback === undefined
+      ? {}
+      : { allowInsecureLoopback: options.allowInsecureLoopback }),
     command: options.command ?? (options.resource === undefined ? "status" : "authenticate"),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
     ...(options.jti === undefined ? {} : { jti: options.jti }),
@@ -2101,7 +2129,9 @@ function validateServiceIdentity<Result extends InspectServiceResult>(result: Re
 
   let serviceOrigin: string;
   try {
-    serviceOrigin = didWebDocumentUrl(serviceDid).origin;
+    serviceOrigin = didWebDocumentUrl(serviceDid, {
+      allowInsecureLoopback: (result.finalUrl ?? result.inspectUrl).protocol === "http:"
+    }).origin;
   } catch {
     throw new AepInspectError(
       "AEP Inspect Service DID does not encode a valid web origin.",
@@ -2650,6 +2680,9 @@ async function resolveClientAssertion(
 
   return signClientAssertion({
     agentDid: options.agentDid,
+    ...(options.allowInsecureLoopback === undefined
+      ? {}
+      : { allowInsecureLoopback: options.allowInsecureLoopback }),
     command,
     serviceDid: inspect.document.service.did,
     signer: options.clientAssertionSigner,
@@ -2676,9 +2709,18 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
 }
 
 function assertionOptionsWithDefinedValues(
-  options: Pick<AepAgentOptions, "assertionClock" | "assertionJti" | "assertionTtlSeconds">
-): Pick<AepAgentOptions, "assertionClock" | "assertionJti" | "assertionTtlSeconds"> {
+  options: Pick<
+    AepAgentOptions,
+    "allowInsecureLoopback" | "assertionClock" | "assertionJti" | "assertionTtlSeconds"
+  >
+): Pick<
+  AepAgentOptions,
+  "allowInsecureLoopback" | "assertionClock" | "assertionJti" | "assertionTtlSeconds"
+> {
   return {
+    ...(options.allowInsecureLoopback === undefined
+      ? {}
+      : { allowInsecureLoopback: options.allowInsecureLoopback }),
     ...(options.assertionClock === undefined ? {} : { assertionClock: options.assertionClock }),
     ...(options.assertionJti === undefined ? {} : { assertionJti: options.assertionJti }),
     ...(options.assertionTtlSeconds === undefined
