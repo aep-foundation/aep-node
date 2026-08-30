@@ -1,0 +1,5 @@
+{
+  "agent": ["core-http", "claims", "api-key", "basic", "oauth-bearer", "platform-hosted-identity"],
+  "platform": ["platform-hosted-identity"],
+  "service": ["core-http", "claims", "api-key", "basic", "oauth-bearer", "platform-hosted-identity"]
+}

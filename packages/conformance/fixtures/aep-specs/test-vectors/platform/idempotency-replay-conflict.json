@@ -14,8 +14,7 @@
       "profile": "platform-hosted-identity"
     },
     "service": {
-      "expectation": "required",
-      "profile": "platform-hosted-identity"
+      "expectation": "unsupported"
     }
   },
   "input": {

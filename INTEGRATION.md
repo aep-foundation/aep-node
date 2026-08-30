@@ -90,7 +90,7 @@ Production Platforms should pass explicit implementations for all Platform
 state, authorization, and key custody ports:
 
 - `PlatformIdentityStore` for managed Agent identity records
-- `PlatformProvisionIdempotencyStore` for provision request idempotency
+- `PlatformIdempotencyStore` for provision, delegated-signing, and hosted-verification idempotency
 - `PlatformReplayStore` for delegated client assertion replay checks
 - `PlatformKeyStore` for signing keys and public DID document material
 - `PlatformServiceDidResolver` for Service DID authorization and resolution

@@ -13,12 +13,10 @@
       "profile": "core-http"
     },
     "platform": {
-      "expectation": "required",
-      "profile": "platform-hosted-identity"
+      "expectation": "unsupported"
     },
     "service": {
-      "expectation": "required",
-      "profile": "core-http"
+      "expectation": "unsupported"
     }
   },
   "input": {

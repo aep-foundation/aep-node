@@ -59,6 +59,16 @@ class ExampleIdentityStore implements PlatformIdentityStore {
     return undefined;
   }
 
+  findByServiceDid(serviceDid: string): PlatformIdentityRecord | undefined {
+    for (const identity of this.#identities.values()) {
+      if (identity.serviceDid === serviceDid) {
+        return cloneIdentity(identity);
+      }
+    }
+
+    return undefined;
+  }
+
   findByAgentDidId(agentDidId: string | undefined): PlatformIdentityRecord | undefined {
     if (agentDidId === undefined) {
       return undefined;
@@ -84,7 +94,13 @@ class ExampleIdentityStore implements PlatformIdentityStore {
       .filter(
         (identity) => query.serviceDid === undefined || identity.serviceDid === query.serviceDid
       )
-      .filter((identity) => query.status === undefined || identity.status === query.status);
+      .filter((identity) => query.status === undefined || identity.status === query.status)
+      .sort((left, right) => {
+        const created = left.createdAt.localeCompare(right.createdAt);
+        const ordered =
+          created === 0 ? left.agentIdentityId.localeCompare(right.agentIdentityId) : created;
+        return query.descending === true ? -ordered : ordered;
+      });
     const offset = query.offset ?? 0;
     const limit = query.limit ?? identities.length;
 
