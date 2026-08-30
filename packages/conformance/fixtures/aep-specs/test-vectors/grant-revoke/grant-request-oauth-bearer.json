@@ -7,8 +7,19 @@
     "draft-kavian-aep-oauth-session-credential-03"
   ],
   "category": "grant-revoke",
-  "applies_to": ["agent", "service"],
-  "profile": "oauth-bearer",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "oauth-bearer"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "oauth-bearer"
+    }
+  },
   "input": {
     "grant_type": "oauth-bearer"
   },

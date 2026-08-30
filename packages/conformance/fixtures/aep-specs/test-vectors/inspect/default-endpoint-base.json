@@ -2,10 +2,24 @@
   "id": "default-endpoint-base",
   "title": "Inspect document using the default command endpoint base",
   "description": "An Inspect-only Service omits endpoint_base and Agents use the default /aep/ path.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {},
   "expected": {
     "document": {

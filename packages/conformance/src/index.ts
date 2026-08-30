@@ -55,6 +55,10 @@ export const specArtifactManifestPath = path.join(specArtifactsRoot, "manifest.j
 
 export interface SpecArtifactManifest {
   source: string;
+  source_repository: string;
+  source_revision: string;
+  source_directory: string;
+  artifact_revision: string;
   generated_by: string;
   artifacts: {
     examples: string[];
@@ -64,14 +68,21 @@ export interface SpecArtifactManifest {
   };
 }
 
+export type AepConformanceRole = "agent" | "platform" | "service";
+export type AepConformanceExpectation = "optional" | "required" | "unsupported";
+
+export interface AepTestVectorApplicability {
+  expectation: AepConformanceExpectation;
+  profile?: string;
+}
+
 export interface AepTestVector<TInput = unknown, TExpected = unknown> {
   id: string;
   title?: string;
   description?: string;
   drafts?: string[];
   category?: string;
-  applies_to?: string[];
-  profile?: string;
+  applicability: Record<AepConformanceRole, AepTestVectorApplicability>;
   input: TInput;
   expected: TExpected;
   [key: string]: unknown;

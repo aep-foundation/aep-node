@@ -1,13 +1,23 @@
 {
-  "applies_to": ["agent", "platform"],
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
   "category": "platform",
-  "description": "An authenticated caller asks the Platform to update a Service-scoped Agent identity lifecycle state.",
+  "description": "A privileged Platform management caller asks the Platform to update a Service-scoped Agent identity lifecycle state.",
   "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
   "expected": {},
   "id": "lifecycle-request",
   "input": {
     "status": "suspended"
   },
-  "profile": "platform-hosted-identity",
   "title": "Platform lifecycle request"
 }

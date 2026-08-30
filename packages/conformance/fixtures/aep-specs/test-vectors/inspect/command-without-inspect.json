@@ -2,10 +2,24 @@
   "id": "command-without-inspect",
   "title": "Inspect document omitting the Inspect command",
   "description": "Every Inspect document advertises the Inspect command that exposed the document.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "document": {
       "aep_version": "1.0",

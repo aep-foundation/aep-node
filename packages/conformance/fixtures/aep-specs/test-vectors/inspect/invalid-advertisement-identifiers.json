@@ -2,10 +2,24 @@
   "id": "invalid-advertisement-identifiers",
   "title": "Inspect document using invalid advertisement identifiers",
   "description": "Claim names, grant types, and extension identifiers use their defined wire syntaxes.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "document": {
       "aep_version": "1.0",

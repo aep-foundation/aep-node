@@ -2,10 +2,24 @@
   "id": "authenticate-assertion",
   "title": "Protected resource authenticate assertion",
   "description": "A short-lived one-time AEP assertion is bound to the Service DID and exact protected resource.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "protected-resource",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": { "method": "GET", "url": "https://api.example.com/v1/orders/123" },
   "expected": {
     "authorization_scheme": "AEP",

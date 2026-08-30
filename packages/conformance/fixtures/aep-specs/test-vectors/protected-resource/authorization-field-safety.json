@@ -4,8 +4,19 @@
   "description": "Field names are case-insensitive, selected carriers persist safely, and both AEP and payment credentials are stripped when forwarding is prohibited.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "protected-resource",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": { "field_name": "aep-authorization", "selected_carrier": "AEP-Authorization" },
   "expected": {
     "field_name_match": "case-insensitive",

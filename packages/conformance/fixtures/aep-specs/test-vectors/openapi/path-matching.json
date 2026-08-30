@@ -4,8 +4,19 @@
   "description": "Method, templates, query exclusion, slash modes, ambiguity diagnostics, and stale contradictions are deterministic.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "openapi",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "method": "get",
     "path": "/v1/orders/123",
@@ -16,8 +27,13 @@
     "method": "GET",
     "query_selects_operation": false,
     "literal_precedence": true,
-    "strict": { "/items": "different-from-/items/" },
-    "equivalent": { "/items": "same-as-/items/", "/": "unchanged" },
+    "strict": {
+      "/items": "different-from-/items/"
+    },
+    "equivalent": {
+      "/items": "same-as-/items/",
+      "/": "unchanged"
+    },
     "similar_templates": "contradiction",
     "stale_contradiction": "revalidate-and-live-challenge"
   }

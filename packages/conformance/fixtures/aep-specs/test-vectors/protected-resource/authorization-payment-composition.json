@@ -4,8 +4,19 @@
   "description": "AEP authenticates before MPP or x402 and leaves unrelated payment credentials untouched.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "protected-resource",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": { "anonymous_status": 401, "anonymous_challenge": "AEP" },
   "expected": {
     "mpp": {

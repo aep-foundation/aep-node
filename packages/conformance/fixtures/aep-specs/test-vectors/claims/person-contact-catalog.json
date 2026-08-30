@@ -4,8 +4,19 @@
   "description": "An interoperable set of person and contact claim values.",
   "drafts": ["draft-kavian-aep-claims-01"],
   "category": "claims",
-  "applies_to": ["agent", "service"],
-  "profile": "claims",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "claims"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "claims"
+    }
+  },
   "input": {},
   "expected": {
     "contact.address.primary": {

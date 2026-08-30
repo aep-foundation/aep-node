@@ -4,8 +4,19 @@
   "description": "A successful synchronous Enroll response for an immediately active Agent identity.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "enroll",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "enrollment_mode": "synchronous"
   },

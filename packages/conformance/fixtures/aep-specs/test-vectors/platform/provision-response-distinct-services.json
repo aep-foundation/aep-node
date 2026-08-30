@@ -1,8 +1,23 @@
 {
-  "applies_to": ["agent", "platform"],
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
   "category": "platform",
   "description": "A Platform returns distinct opaque Agent DIDs for the same Agent when provisioning identities for two unrelated Services.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "drafts": [
+    "draft-kavian-aep-platform-hosted-identity-01",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "expected": {
     "first_response": {
       "agent_did": "did:web:p.example:a:4Yf7p2xQd9",
@@ -39,6 +54,5 @@
       "service_did": "did:web:billing.service.example"
     }
   },
-  "profile": "platform-hosted-identity",
   "title": "Platform provisioning produces distinct Service-scoped Agent DIDs"
 }

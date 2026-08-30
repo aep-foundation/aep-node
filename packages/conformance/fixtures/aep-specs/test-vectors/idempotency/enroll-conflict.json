@@ -2,10 +2,23 @@
   "id": "enroll-conflict",
   "title": "Enroll idempotency conflict",
   "description": "A repeated idempotency key with a different request body yields idempotency_conflict.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "idempotency",
-  "applies_to": ["service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "agent_did": "did:web:agent.example.com:agents:123",
     "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",

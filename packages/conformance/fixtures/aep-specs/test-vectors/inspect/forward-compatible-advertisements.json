@@ -2,10 +2,24 @@
   "id": "forward-compatible-advertisements",
   "title": "Inspect document with future same-major advertisements",
   "description": "An Agent accepts syntactically valid unknown bindings, commands, and additive fields without inferring support.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "document": {
       "aep_version": "1.7",

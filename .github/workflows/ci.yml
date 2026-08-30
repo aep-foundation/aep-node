@@ -11,6 +11,34 @@ permissions:
   id-token: write # Codecov OIDC upload authentication
 
 jobs:
+  spec-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/checkout@v6
+        with:
+          repository: aep-foundation/aep-specs
+          path: .aep-specs
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Check AEP specification artifacts
+        run: pnpm check:spec-artifacts
+        env:
+          AEP_SPECS_DIR: .aep-specs
+
   ci:
     runs-on: ubuntu-latest
     strategy:
@@ -20,7 +48,7 @@ jobs:
           - 22
           - 24
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 

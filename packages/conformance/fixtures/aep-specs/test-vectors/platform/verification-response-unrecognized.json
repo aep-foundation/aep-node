@@ -1,8 +1,23 @@
 {
-  "applies_to": ["platform", "service"],
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "optional",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "optional",
+      "profile": "platform-hosted-identity"
+    }
+  },
   "category": "platform",
   "description": "A Platform returns a generic hosted verification failure when assertion details are not recognized or cannot be safely disclosed.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "drafts": [
+    "draft-kavian-aep-platform-hosted-identity-01",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "expected": {
     "reason": "not_recognized",
     "service_did": "did:web:api.service.example",
@@ -10,6 +25,5 @@
   },
   "id": "verification-response-unrecognized",
   "input": {},
-  "profile": "platform-hosted-identity",
   "title": "Platform hosted verification unrecognized response"
 }

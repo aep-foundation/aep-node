@@ -4,8 +4,19 @@
   "description": "Successful Inspect requires the AEP JSON media-type essence, same-origin redirects, and fail-closed implementation bounds.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "request_url": "https://api.example.com/.well-known/aep",
     "content_type": "Application/AEP+JSON; charset=utf-8",

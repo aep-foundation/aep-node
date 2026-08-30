@@ -3,6 +3,7 @@ node_modules/
 dist/
 coverage/
 .conformance/
+.spec-artifacts-*/
 .turbo/
 .tsbuildinfo
 tsconfig.tsbuildinfo

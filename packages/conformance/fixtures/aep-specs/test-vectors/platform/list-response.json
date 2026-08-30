@@ -1,8 +1,23 @@
 {
-  "applies_to": ["agent", "platform"],
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
   "category": "platform",
   "description": "A Platform returns the authenticated caller's Service-scoped Agent identities filtered by Service DID and lifecycle state.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "drafts": [
+    "draft-kavian-aep-platform-hosted-identity-01",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "expected": {
     "count": "1",
     "data": [
@@ -30,6 +45,5 @@
       "status": "active"
     }
   },
-  "profile": "platform-hosted-identity",
   "title": "Platform Agent identity listing response"
 }

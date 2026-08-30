@@ -4,8 +4,19 @@
   "description": "Relative references resolve against final Inspect URLs and anonymous cross-origin HTTPS references are allowed.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "openapi",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "final_inspect_url": "https://api.example.com/discovery/aep",
     "relative": "../openapi.json",
