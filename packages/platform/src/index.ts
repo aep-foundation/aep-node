@@ -421,6 +421,7 @@ export interface PlatformIdentityRecord {
 }
 
 export interface PlatformIdentityListQuery {
+  descending?: boolean;
   limit?: number;
   offset?: number;
   serviceDid?: string;
@@ -436,6 +437,10 @@ export interface PlatformIdentityStore {
   create(identity: PlatformIdentityRecord, context: PlatformRequestContext): Awaitable<void>;
   findByAgentDid(
     agentDid: string,
+    context: PlatformRequestContext
+  ): Awaitable<PlatformIdentityRecord | undefined>;
+  findByServiceDid(
+    serviceDid: string,
     context: PlatformRequestContext
   ): Awaitable<PlatformIdentityRecord | undefined>;
   get(
@@ -531,6 +536,7 @@ export type PlatformSignHandler = (
 ) => Awaitable<PlatformHttpResponse<PlatformSignResponse | AepProblemDetails> | undefined>;
 
 export interface CreateAepPlatformOptions {
+  agentDidIdGenerator?: () => string;
   authorizer?: PlatformAuthorizer;
   clock?: () => Date;
   defaultLifetimeSeconds?: number;
@@ -1036,6 +1042,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
 
   const clock = options.clock ?? (() => new Date());
   const idGenerator = options.idGenerator ?? randomPlatformId;
+  const agentDidIdGenerator = options.agentDidIdGenerator ?? idGenerator;
   const lifecyclePolicy = options.lifecyclePolicy ?? defaultLifecyclePolicy;
   const authorizer = options.authorizer ?? {};
 
@@ -1119,14 +1126,28 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
             return problem(404, "not_recognized", "Identity not recognized.");
           }
 
+          if (!request.service_did.startsWith("did:")) {
+            return problem(400, "invalid_request", "service_did must be a DID.");
+          }
+
           if (!(await options.serviceDidResolver.resolve(request.service_did, context))) {
             return problem(400, "invalid_request", "Service DID could not be resolved.");
+          }
+
+          const existingIdentity = await options.identityStore.findByServiceDid(
+            request.service_did,
+            context
+          );
+
+          if (existingIdentity !== undefined) {
+            return ok(200, platformIdentityFromRecord(existingIdentity));
           }
 
           const generatedId = idGenerator();
           assertNonEmpty("generated identity id", generatedId);
           const now = clock().toISOString();
-          const agentDidId = generatedId;
+          const agentDidId = agentDidIdGenerator();
+          assertNonEmpty("generated Agent DID id", agentDidId);
           const agentDid = createServiceScopedAgentDid({
             agentDidId,
             host: options.didHost,
@@ -1219,7 +1240,10 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
                 ? {}
                 : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
               serviceDid: request.service_did,
-              ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds })
+              ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds }),
+              ...(request.platform_context === undefined
+                ? {}
+                : { platformContext: request.platform_context })
             })
           );
         }

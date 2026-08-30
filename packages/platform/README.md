@@ -120,6 +120,13 @@ Callers provide those through `PlatformIdentityStore`,
 `PlatformLifecyclePolicy`. The example Platform in this repository uses
 in-memory implementations for those interfaces.
 
+`PlatformIdentityStore.findByServiceDid()` scopes lookup through the supplied
+request context. It must return the authenticated caller's existing identity
+for that Service DID so repeated provisioning with a new idempotency key does
+not create another identity. Its `list()` implementation applies deterministic
+creation-time and identity-ID ordering before offset and limit, including the
+requested `descending` direction.
+
 Provision, Sign, lifecycle, list, and hosted-verification endpoints are part of
 the application integration. Publish the Platform discovery document at
 `/.well-known/aep-platform` and publish each managed Agent DID document at the
@@ -166,4 +173,13 @@ const didDocument = createManagedAgentDidDocument({
     }
   ]
 });
+```
+
+## Conformance
+
+Run the shared Platform Hosted Identity Profile vectors against the public
+package API:
+
+```sh
+pnpm conformance:platform
 ```

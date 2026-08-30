@@ -418,6 +418,12 @@ describe("@aep-foundation/platform", () => {
     ).resolves.toMatchObject({ body: { code: "invalid_request" }, status: 400 });
     await expect(
       platform.provision(
+        { service_did: "not-a-did" },
+        { idempotencyKey: "invalid-service-did", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "invalid_request" }, status: 400 });
+    await expect(
+      platform.provision(
         { service_did: "did:web:unknown.service.example" },
         { idempotencyKey: "unresolved-service", subject: "owner-1" }
       )
@@ -435,6 +441,13 @@ describe("@aep-foundation/platform", () => {
       key_id: "did:web:platform.example.com:agents:01J0AEPPLATFORM000000000001",
       service_did: "did:web:api.service.example"
     });
+
+    await expect(
+      platform.provision(
+        { service_did: "did:web:api.service.example" },
+        { idempotencyKey: "01J0AEPIDEMPOTENCY0000000002", subject: "owner-1" }
+      )
+    ).resolves.toEqual(provisioned);
 
     await expect(
       platform.provision(
@@ -472,6 +485,7 @@ describe("@aep-foundation/platform", () => {
       agent_did: "did:web:platform.example.com:agents:01J0AEPPLATFORM000000000001",
       jti: "01J0AEPASSERTION0000000001"
     });
+    expect(signed.body).not.toHaveProperty("platform_context");
 
     await expect(
       platform.sign(
@@ -485,6 +499,24 @@ describe("@aep-foundation/platform", () => {
         { idempotencyKey: "01J0AEPSIGN000000000000000001", subject: "owner-1" }
       )
     ).resolves.toEqual(signed);
+
+    const signedWithContext = await platform.sign(
+      "pai_01J0AEPPLATFORM000000000001",
+      {
+        jti: "01J0AEPASSERTION0000000002",
+        lifetime_seconds: "300",
+        op: "enroll",
+        platform_context: { authorization_handle: "opaque" },
+        service_did: "did:web:api.service.example"
+      },
+      { idempotencyKey: "01J0AEPSIGN000000000000000002", subject: "owner-1" }
+    );
+
+    expect(signedWithContext.body).toMatchObject({
+      jti: "01J0AEPASSERTION0000000002",
+      platform_context: { authorization_handle: "opaque" }
+    });
+
     await expect(
       platform.sign(
         "pai_01J0AEPPLATFORM000000000001",
@@ -876,6 +908,15 @@ function createMemoryIdentityStore(): PlatformIdentityStore {
     findByAgentDid(agentDid) {
       for (const identity of identities.values()) {
         if (identity.agentDid === agentDid) {
+          return cloneTestRecord(identity);
+        }
+      }
+
+      return undefined;
+    },
+    findByServiceDid(serviceDid) {
+      for (const identity of identities.values()) {
+        if (identity.serviceDid === serviceDid) {
           return cloneTestRecord(identity);
         }
       }

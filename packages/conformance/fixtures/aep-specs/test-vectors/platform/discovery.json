@@ -9,7 +9,7 @@
       "profile": "platform-hosted-identity"
     },
     "service": {
-      "expectation": "required",
+      "expectation": "optional",
       "profile": "platform-hosted-identity"
     }
   },
