@@ -1,5 +1,18 @@
 # @aep-foundation/agent
 
+## 0.4.0
+
+### Minor Changes
+
+- [#31](https://github.com/aep-foundation/aep-node/pull/31) [`c87b941`](https://github.com/aep-foundation/aep-node/commit/c87b941f74afc9b98853608f2a32ce539047218c) Thanks [@nkavian](https://github.com/nkavian)! - Allow callers to provide distinct read, mutation, and protected-resource transports for Service inspection, commands, OpenAPI discovery, and every resource request attempt.
+
+### Patch Changes
+
+- [#33](https://github.com/aep-foundation/aep-node/pull/33) [`58fc19c`](https://github.com/aep-foundation/aep-node/commit/58fc19c488b06bf156a6b18c9e87b841a2d8ef92) Thanks [@nkavian](https://github.com/nkavian)! - Strip payment signatures when a protected-resource redirect crosses origins.
+
+- Updated dependencies [[`46fe593`](https://github.com/aep-foundation/aep-node/commit/46fe593c54bd1cf1efe6961e3994311f969ac274)]:
+  - @aep-foundation/platform@0.2.5
+
 ## 0.3.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @aep-foundation/service
 
+## 0.3.3
+
+### Patch Changes
+
+- [#35](https://github.com/aep-foundation/aep-node/pull/35) [`0946834`](https://github.com/aep-foundation/aep-node/commit/0946834d876e08af2c8455437ff8b6dda1f31c4d) Thanks [@nkavian](https://github.com/nkavian)! - Preserve pending enrollment details in Grant errors and send stable idempotency keys with hosted Platform verification requests.
+
 ## 0.3.2
 
 ### Patch Changes
