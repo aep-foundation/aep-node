@@ -6,11 +6,23 @@
     "draft-kavian-agent-enrollment-protocol-04",
     "draft-kavian-aep-oauth-session-credential-03",
     "draft-kavian-aep-api-key-session-credential-03",
-    "draft-kavian-aep-basic-session-credential-03"
+    "draft-kavian-aep-basic-session-credential-03",
+    "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {},
   "expected": {
     "aep_version": "1.0",

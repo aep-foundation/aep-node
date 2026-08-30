@@ -4,8 +4,19 @@
   "description": "A successful Status response lists requirements the Agent still needs to satisfy.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "status",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": { "client_assertion_op": "status" },
   "expected": {
     "status": 200,

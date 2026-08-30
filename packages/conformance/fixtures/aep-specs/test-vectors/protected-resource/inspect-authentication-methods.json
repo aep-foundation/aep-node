@@ -4,8 +4,19 @@
   "description": "Inspect explicitly distinguishes JWT-only, credential-only, and ordered mixed authentication advertisement.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "protected-resource",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {},
   "expected": {
     "jwt_only": { "authentication": { "methods": ["aep-jwt"] } },

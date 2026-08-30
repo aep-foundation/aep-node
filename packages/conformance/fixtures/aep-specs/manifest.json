@@ -1,5 +1,9 @@
 {
-  "source": "../aep-specs/ietf",
+  "source": "https://github.com/aep-foundation/aep-specs/tree/6a8d207cb7d1b05ef60abb4c1fb639cf9f409990/ietf",
+  "source_repository": "https://github.com/aep-foundation/aep-specs",
+  "source_revision": "6a8d207cb7d1b05ef60abb4c1fb639cf9f409990",
+  "source_directory": "ietf",
+  "artifact_revision": "sha256:0b4d8f8d3c31b033e18dedb902c51efe8adf3d8f5de8b49ff801445f0290d20d",
   "generated_by": "scripts/sync-aep-spec-artifacts.mjs",
   "artifacts": {
     "examples": [
@@ -98,6 +102,7 @@
       "grant-revoke/revoke-request-oauth-bearer.json",
       "grant-revoke/revoke-response-empty.json",
       "idempotency/enroll-conflict.json",
+      "index.json",
       "inspect/authenticated-command-without-identity-method.json",
       "inspect/authentication-method-limit.json",
       "inspect/claims-catalog-advertisement.json",

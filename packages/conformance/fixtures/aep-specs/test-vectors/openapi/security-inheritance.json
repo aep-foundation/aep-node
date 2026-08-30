@@ -4,10 +4,25 @@
   "description": "Root and operation security map public, required, optional-anonymous, alternative, and unsupported compound requirements.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "openapi",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
-    "security_scheme": { "type": "http", "scheme": "AEP", "x-aep-authentication-method": "aep-jwt" }
+    "security_scheme": {
+      "type": "http",
+      "scheme": "AEP",
+      "x-aep-authentication-method": "aep-jwt"
+    }
   },
   "expected": {
     "root_inherited": "required",

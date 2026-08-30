@@ -4,8 +4,26 @@
   "description": "Grant never implicitly enrolls an unrecognized Agent.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "grant-revoke",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
-  "input": { "operation": "grant", "enrollment": "unrecognized" },
-  "expected": { "status": 401, "code": "not_recognized", "implicit_enrollment": false }
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "operation": "grant",
+    "enrollment": "unrecognized"
+  },
+  "expected": {
+    "status": 401,
+    "code": "not_recognized",
+    "implicit_enrollment": false
+  }
 }

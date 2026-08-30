@@ -1,8 +1,23 @@
 {
-  "applies_to": ["platform", "service"],
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "optional",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "optional",
+      "profile": "platform-hosted-identity"
+    }
+  },
   "category": "platform",
   "description": "A Platform returns a recognized hosted verification result without requiring the Service to resolve the Agent DID locally.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "drafts": [
+    "draft-kavian-aep-platform-hosted-identity-01",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "expected": {
     "agent_did": "did:web:p.example:a:4Yf7p2xQd9",
     "agent_identity_id": "pai_01J0AEPPLATFORM000000000001",
@@ -14,6 +29,5 @@
   },
   "id": "verification-response-recognized",
   "input": {},
-  "profile": "platform-hosted-identity",
   "title": "Platform hosted verification recognized response"
 }

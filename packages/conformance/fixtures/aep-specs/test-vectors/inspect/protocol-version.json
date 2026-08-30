@@ -4,8 +4,19 @@
   "description": "AEP versions use major.minor syntax and compatibility is determined by the major version.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": { "supported": "1.0" },
   "expected": {
     "cases": [

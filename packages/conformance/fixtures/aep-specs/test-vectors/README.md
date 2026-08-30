@@ -3,7 +3,7 @@
 This directory contains deterministic test vectors for the currently published
 AEP Internet-Draft set.
 
-The initial vector set should cover:
+The vector set covers:
 
 | Category                | Purpose                                                                                                                                                             | Draft Coverage                |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
@@ -29,6 +29,7 @@ Vectors use one directory per category:
 
 ```text
 test-vectors/
+  index.json
   caching/
   claims/
   client-assertion/
@@ -53,19 +54,36 @@ Each vector file is JSON. File names use lowercase hyphenated identifiers:
 <category>/<vector-id>.json
 ```
 
+`index.json` is the complete, sorted input set for the black-box conformance
+runner. Static validation requires it to match every vector file recursively.
+
 ## Vector Format
 
 Each vector has this top-level shape:
 
 ```json
 {
-  "id": "inspect-minimal-http",
+  "id": "minimal-http",
   "title": "Minimal HTTP Inspect document",
   "description": "A Service advertising the baseline HTTP binding and current credential profiles.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {},
   "expected": {}
 }
@@ -73,17 +91,22 @@ Each vector has this top-level shape:
 
 Required fields:
 
-| Field         | Requirement                                                                               |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| `id`          | Lowercase hyphenated vector identifier.                                                   |
-| `title`       | Short human-readable name.                                                                |
-| `description` | One- or two-sentence explanation of the behavior under test.                              |
-| `drafts`      | Draft identifiers covered by the vector.                                                  |
-| `category`    | Vector category.                                                                          |
-| `applies_to`  | Array containing `agent`, `service`, or both.                                             |
-| `profile`     | `core-http`, `claims`, `platform-hosted-identity`, `oauth-bearer`, `api-key`, or `basic`. |
-| `input`       | Test input object.                                                                        |
-| `expected`    | Expected output or validation result object.                                              |
+| Field           | Requirement                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------- |
+| `id`            | Lowercase hyphenated vector identifier.                                                                        |
+| `title`         | Short human-readable name.                                                                                     |
+| `description`   | One- or two-sentence explanation of the behavior under test.                                                   |
+| `drafts`        | Draft identifiers covered by the vector.                                                                       |
+| `category`      | Vector category.                                                                                               |
+| `applicability` | Explicit `agent`, `platform`, and `service` classifications with an expectation and, when executable, profile. |
+| `input`         | Test input object.                                                                                             |
+| `expected`      | Expected output or validation result object.                                                                   |
+
+An applicability expectation is `required`, `optional`, or `unsupported`.
+Required and optional classifications identify the profile that activates the
+case. Unsupported classifications omit the profile. A required case must pass
+or fail, an optional case can also be skipped, and an unsupported case is not
+dispatched to that role's adapter.
 
 ## Validation Rules
 
@@ -94,14 +117,16 @@ A vector validator should check at least:
 - `id` uses lowercase hyphenated syntax.
 - `drafts` contains only published AEP draft identifiers.
 - `category` is one of the known vector categories.
-- `applies_to` contains only known roles.
-- `profile` is one of the known profiles.
+- `applicability` classifies Agent, Platform, and Service exactly once.
+- Executable classifications use a known profile and unsupported
+  classifications do not declare one.
 - `input` and `expected` are JSON objects.
 - Claims vectors include positive and negative value-shape cases and
   negotiation compatibility cases.
 
-The validator should not require live network access. Network-dependent checks
-belong in the future conformance harness, not in static vector validation.
+The static validator does not require live network access. An implementation
+adapter owns any network or process boundary needed to exercise its public
+behavior through the black-box conformance runner.
 
 Run static vector validation with:
 

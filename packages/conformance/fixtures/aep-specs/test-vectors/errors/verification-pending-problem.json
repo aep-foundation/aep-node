@@ -4,8 +4,19 @@
   "description": "A recognized identity receives a blocking verification error with names but no claim values.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "errors",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": { "failure_class": "submitted_claim_verification" },
   "expected": {
     "status": 403,

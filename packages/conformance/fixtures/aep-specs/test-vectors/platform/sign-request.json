@@ -1,8 +1,23 @@
 {
-  "applies_to": ["agent", "platform"],
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
   "category": "platform",
   "description": "An authenticated caller asks the Platform to sign an AEP client assertion for a Service-scoped Agent DID.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "drafts": [
+    "draft-kavian-aep-platform-hosted-identity-01",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "expected": { "idempotency_key_header": "01J0AEPSIGNINITIAL0000000001" },
   "id": "sign-request",
   "input": {
@@ -12,6 +27,5 @@
     "platform_context": { "authorization_handle": "opaque-value" },
     "service_did": "did:web:api.service.example"
   },
-  "profile": "platform-hosted-identity",
   "title": "Platform delegated signing request"
 }

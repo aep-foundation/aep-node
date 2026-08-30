@@ -2,10 +2,24 @@
   "id": "authentication-method-limit",
   "title": "Inspect document exceeding the authentication-method limit",
   "description": "An authentication advertisement contains at most sixteen methods.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "document": {
       "aep_version": "1.0",

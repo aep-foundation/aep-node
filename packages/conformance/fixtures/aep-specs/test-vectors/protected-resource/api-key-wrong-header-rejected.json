@@ -7,8 +7,19 @@
     "draft-kavian-aep-api-key-session-credential-03"
   ],
   "category": "protected-resource",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "issued_header": "x-api-key",
     "presented_header": "service-api-key",

@@ -80,8 +80,9 @@ loaders.
 
 ## Spec Artifacts
 
-Conformance fixtures are synced from the local `aep-specs` checkout into
-`fixtures/aep-specs`.
+Conformance fixtures are a reproducible snapshot of the canonical `aep-specs`
+artifacts. The published manifest records the exact source revision and a
+SHA-256 digest of the generated artifact set.
 
 ```sh
 pnpm sync:spec-artifacts
@@ -89,4 +90,15 @@ pnpm sync:spec-artifacts
 
 The script expects `../aep-specs/ietf` relative to the repository root by
 default. Set `AEP_SPECS_DIR` to point at another `aep-specs` checkout or at its
-`ietf` directory.
+`ietf` directory. The relevant source directories must have no uncommitted
+changes.
+
+Check the committed snapshot without modifying any files:
+
+```sh
+pnpm check:spec-artifacts
+```
+
+Continuous integration checks the snapshot against the current canonical
+`aep-specs` `main` branch. Specification updates therefore require a dedicated
+artifact synchronization change in this repository.

@@ -4,8 +4,19 @@
   "description": "A core Revoke request invalidating all session credentials of every grant type issued to the authenticated Agent.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
   "category": "grant-revoke",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "all_grant_types": "true"
   },

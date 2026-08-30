@@ -2,10 +2,24 @@
   "id": "service-did-origin-binding",
   "title": "Service DID origin binding",
   "description": "A did:web Service DID must encode the final Inspect response origin before an Agent provisions identity material, requests an assertion, or sends credentials.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "category": "inspect",
-  "applies_to": ["agent", "service"],
-  "profile": "core-http",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
   "input": {
     "inspect_url": "https://api.example.com/.well-known/aep",
     "matching_service_did": "did:web:api.example.com:services:primary",

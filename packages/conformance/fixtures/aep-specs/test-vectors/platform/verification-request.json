@@ -1,8 +1,23 @@
 {
-  "applies_to": ["platform", "service"],
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "optional",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "optional",
+      "profile": "platform-hosted-identity"
+    }
+  },
   "category": "platform",
   "description": "A Service asks a Platform to verify a hosted Agent assertion for a Service DID and AEP command.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "drafts": [
+    "draft-kavian-aep-platform-hosted-identity-01",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "expected": { "idempotency_key_header": "01J0AEPVERIFY0000000000001" },
   "id": "verification-request",
   "input": {
@@ -10,6 +25,5 @@
     "op": "enroll",
     "service_did": "did:web:api.service.example"
   },
-  "profile": "platform-hosted-identity",
   "title": "Platform hosted verification request"
 }

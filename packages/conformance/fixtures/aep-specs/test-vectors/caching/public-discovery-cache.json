@@ -7,9 +7,24 @@
     "draft-kavian-aep-platform-hosted-identity-01"
   ],
   "category": "caching",
-  "applies_to": ["agent", "platform", "service"],
-  "profile": "core-http",
-  "input": { "metadata": ["Cache-Control", "ETag", "Last-Modified"], "conditional_status": 304 },
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "metadata": ["Cache-Control", "ETag", "Last-Modified"],
+    "conditional_status": 304
+  },
   "expected": {
     "default_freshness_seconds": "300",
     "no_cache": "revalidate",

@@ -4,8 +4,18 @@
   "description": "An Agent without extension or local-policy support cannot satisfy an unknown required claim.",
   "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-claims-01"],
   "category": "claims",
-  "applies_to": ["agent"],
-  "profile": "claims",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "claims"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
   "input": {
     "required": ["example.future.required"],
     "understood": []

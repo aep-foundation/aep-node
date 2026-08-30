@@ -1,8 +1,23 @@
 {
-  "applies_to": ["agent", "platform"],
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
   "category": "platform",
   "description": "A Platform returns public metadata for a Service-scoped Agent DID.",
-  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "drafts": [
+    "draft-kavian-aep-platform-hosted-identity-01",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
   "expected": {
     "agent_did": "did:web:p.example:a:4Yf7p2xQd9",
     "agent_identity_id": "pai_01J0AEPPLATFORM000000000001",
@@ -16,6 +31,5 @@
   },
   "id": "provision-response",
   "input": {},
-  "profile": "platform-hosted-identity",
   "title": "Platform provisioning response"
 }

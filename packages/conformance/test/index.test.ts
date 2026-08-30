@@ -95,7 +95,13 @@ describe("@aep-foundation/conformance spec artifacts", () => {
   it("loads the synced artifact manifest", async () => {
     const manifest = await loadSpecArtifactManifest();
 
-    expect(manifest.source).toBe("../aep-specs/ietf");
+    expect(manifest.source_repository).toBe("https://github.com/aep-foundation/aep-specs");
+    expect(manifest.source_revision).toMatch(/^[0-9a-f]{40}$/);
+    expect(manifest.source_directory).toBe("ietf");
+    expect(manifest.source).toBe(
+      `${manifest.source_repository}/tree/${manifest.source_revision}/${manifest.source_directory}`
+    );
+    expect(manifest.artifact_revision).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(manifest.generated_by).toBe("scripts/sync-aep-spec-artifacts.mjs");
     expect(manifest.artifacts.schemas).toContain("inspect-document.schema.json");
     expect(manifest.artifacts.examples).toContain("authorization-composition.md");
@@ -114,6 +120,7 @@ describe("@aep-foundation/conformance spec artifacts", () => {
     );
     expect(manifest.artifacts["test-vectors"]).toContain("errors/not-recognized-problem.json");
     expect(manifest.artifacts["test-vectors"]).toContain("idempotency/enroll-conflict.json");
+    expect(manifest.artifacts["test-vectors"]).toContain("index.json");
     expect(manifest.artifacts.schemas).toContain("platform-discovery.schema.json");
     expect(manifest.artifacts.schemas).toContain("platform-provision-request.schema.json");
     expect(manifest.artifacts["test-vectors"]).toContain("platform/discovery.json");
@@ -140,6 +147,11 @@ describe("@aep-foundation/conformance spec artifacts", () => {
 
     expect(schema.title).toBe("AEP Inspect Document");
     expect(vector.id).toBe("minimal-http");
+    expect(vector.applicability.agent).toEqual({
+      expectation: "required",
+      profile: "core-http"
+    });
+    expect(vector.applicability.platform).toEqual({ expectation: "unsupported" });
   });
 });
 
