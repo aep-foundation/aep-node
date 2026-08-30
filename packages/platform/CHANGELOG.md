@@ -1,5 +1,11 @@
 # @aep-foundation/platform
 
+## 0.2.5
+
+### Patch Changes
+
+- [#36](https://github.com/aep-foundation/aep-node/pull/36) [`46fe593`](https://github.com/aep-foundation/aep-node/commit/46fe593c54bd1cf1efe6961e3994311f969ac274) Thanks [@nkavian](https://github.com/nkavian)! - Add the shared AEP Platform conformance adapter, preserve signing continuation context, and reuse Service-scoped identities across provisioning requests.
+
 ## 0.2.4
 
 ### Patch Changes

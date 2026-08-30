@@ -1,5 +1,11 @@
 # @aep-foundation/conformance
 
+## 0.3.5
+
+### Patch Changes
+
+- [#34](https://github.com/aep-foundation/aep-node/pull/34) [`3ba99c1`](https://github.com/aep-foundation/aep-node/commit/3ba99c1cbec6705350eaacee8912710570c38cf5) Thanks [@nkavian](https://github.com/nkavian)! - Synchronize current AEP specification artifacts with source provenance and role applicability.
+
 ## 0.3.4
 
 ### Patch Changes
