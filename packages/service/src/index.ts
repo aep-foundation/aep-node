@@ -224,6 +224,7 @@ export interface AepClientAssertionConfig {
 export interface AepClientAssertionVerificationContext {
   clientAssertion: string;
   command: AepAssertionOperation;
+  idempotencyKey?: string;
   resource?: string;
   serviceDid: string;
   signingAlgorithms: AepSigningAlgorithm[];
@@ -786,6 +787,7 @@ export function createHostedPlatformClientAssertionVerifier(
   const fetchImpl = platformVerificationFetch(options.fetch);
 
   return async (clientAssertion, context) => {
+    const claims = parseClientAssertionClaims(decodeJwtUnverified(clientAssertion).payload);
     const response = await fetchImpl(options.endpoint, {
       body: JSON.stringify({
         client_assertion: clientAssertion,
@@ -796,7 +798,8 @@ export function createHostedPlatformClientAssertionVerifier(
       headers: {
         Accept: AEP_MEDIA_TYPE,
         ...(options.authorization === undefined ? {} : { Authorization: options.authorization }),
-        "Content-Type": AEP_MEDIA_TYPE
+        "Content-Type": AEP_MEDIA_TYPE,
+        "Idempotency-Key": context.idempotencyKey ?? claims.jti
       },
       method: "POST"
     });
@@ -806,8 +809,6 @@ export function createHostedPlatformClientAssertionVerifier(
     }
 
     const verification = parseHostedPlatformVerificationResponse(await response.json());
-    const claims = parseClientAssertionClaims(decodeJwtUnverified(clientAssertion).payload);
-
     if (
       !verification.verified ||
       verification.agent_did !== claims.sub ||
@@ -1024,7 +1025,7 @@ export async function handleGrantRequest(
   }
 
   if (enrollment.status !== "active") {
-    return problem("verification_pending", "Verification pending", 403);
+    return verificationPending(enrollment);
   }
 
   const handler = options.handlers.get(parsed.grant_type);
@@ -1285,6 +1286,9 @@ async function authenticateClientAssertion(
       await options.verifier(commandOptions.clientAssertion, {
         clientAssertion: commandOptions.clientAssertion,
         command,
+        ...(commandOptions.idempotencyKey === undefined
+          ? {}
+          : { idempotencyKey: commandOptions.idempotencyKey }),
         ...(resource === undefined ? {} : { resource }),
         serviceDid: options.serviceDid,
         signingAlgorithms: options.signingAlgorithms
@@ -1578,6 +1582,22 @@ function requirementsUnmet(
 ): AepServiceResponse<AepProblemDetails> {
   const response = problem("requirements_unmet", "Requirements unmet", 422);
   response.body.requirements_pending = [...requirementsPending];
+  return response;
+}
+
+function verificationPending(
+  enrollment: AepEnrollmentRecord
+): AepServiceResponse<AepProblemDetails> {
+  const response = problem("verification_pending", "Verification pending", 403);
+  if (enrollment.ownerActionRequired) {
+    response.body.owner_action_required = "true";
+  }
+  if (enrollment.requirementsPending.length > 0) {
+    response.body.requirements_pending = [...enrollment.requirementsPending];
+  }
+  if ((enrollment.verificationPending?.length ?? 0) > 0) {
+    response.body.verification_pending = [...(enrollment.verificationPending ?? [])];
+  }
   return response;
 }
 

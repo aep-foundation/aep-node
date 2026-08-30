@@ -504,10 +504,14 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
   });
 
   it("exposes Enroll and Status through createAepService", async () => {
+    const verificationIdempotencyKeys: Array<string | undefined> = [];
     const service = createAepService({
       clock: () => new Date("2026-05-28T12:00:00.000Z"),
       clientAssertion: assertionConfig(),
-      clientAssertionVerifier: parseJsonAssertion,
+      clientAssertionVerifier: (assertion, context) => {
+        verificationIdempotencyKeys.push(context.idempotencyKey);
+        return parseJsonAssertion(assertion);
+      },
       serviceDid: "did:web:api.example.com",
       identityMethods: [didWebIdentityMethod()]
     });
@@ -531,7 +535,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
 
     await expect(
       service.status({
-        clientAssertion: clientAssertion("status", "status-create")
+        clientAssertion: clientAssertion("status", "status-create"),
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-status000000"
       })
     ).resolves.toMatchObject({
       body: {
@@ -540,6 +545,10 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
       },
       status: 200
     });
+    expect(verificationIdempotencyKeys).toEqual([
+      undefined,
+      "9f8a4d2e-1c3b-4f5e-8b7a-status000000"
+    ]);
   });
 
   it("rejects new enrollment when an advertised required Claim is missing", async () => {
@@ -965,11 +974,22 @@ describe("@aep-foundation/service protected resource authentication helpers", ()
       jti: "hosted-verifier-test",
       sub: "did:web:platform.example.com:agents:4Yf7p2xQd9"
     });
+    await verifier(jwt, {
+      clientAssertion: jwt,
+      command: "status",
+      idempotencyKey: "hosted-verification-request",
+      serviceDid: "did:web:api.example.com",
+      signingAlgorithms: ["ES256"]
+    });
     expect(String(calls[0]?.input)).toBe("https://platform.example.com/v1/aep/verifications");
     expect(calls[0]?.init?.headers).toEqual({
       Accept: "application/aep+json",
       Authorization: "Bearer service-demo",
-      "Content-Type": "application/aep+json"
+      "Content-Type": "application/aep+json",
+      "Idempotency-Key": "hosted-verifier-test"
+    });
+    expect(calls[1]?.init?.headers).toMatchObject({
+      "Idempotency-Key": "hosted-verification-request"
     });
     const body = calls[0]?.init?.body;
 
@@ -1102,6 +1122,9 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
     const store = createInMemoryEnrollmentStore([
       {
         ...activeEnrollment("did:web:agent.example.com:agents:123"),
+        ownerActionRequired: true,
+        requirementsPending: ["contact.address.primary"],
+        verificationPending: ["contact.email"],
         status: "pending"
       }
     ]);
@@ -1120,9 +1143,12 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
     ).resolves.toEqual({
       body: {
         code: "verification_pending",
+        owner_action_required: "true",
+        requirements_pending: ["contact.address.primary"],
         status: 403,
         title: "Verification pending",
-        type: "urn:aep:error:verification_pending"
+        type: "urn:aep:error:verification_pending",
+        verification_pending: ["contact.email"]
       },
       contentType: "application/problem+json",
       status: 403

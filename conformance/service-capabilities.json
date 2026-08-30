@@ -1,0 +1,20 @@
+{
+  "claims": [
+    {
+      "profiles": [
+        "core-http",
+        "claims",
+        "api-key",
+        "basic",
+        "oauth-bearer",
+        "platform-hosted-identity"
+      ],
+      "role": "service"
+    }
+  ],
+  "implementation": {
+    "name": "aep-node",
+    "version": "0.3.2"
+  },
+  "manifest_version": "1"
+}
