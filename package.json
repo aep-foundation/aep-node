@@ -33,6 +33,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "typedoc": "typedoc",
     "conformance:agent": "pnpm --filter @aep-foundation/agent build && node scripts/run-agent-conformance.mjs",
+    "conformance:service": "pnpm --filter @aep-foundation/service build && node scripts/run-service-conformance.mjs",
     "verify": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm coverage:changed && pnpm typedoc && pnpm build && pnpm smoke:examples",
     "check-exports": "node scripts/check-exports.mjs",
     "check-no-build-artifacts": "node scripts/check-no-build-artifacts.mjs",

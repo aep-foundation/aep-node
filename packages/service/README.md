@@ -217,7 +217,9 @@ and verifies baseline AEP client assertion JWTs against the Service DID.
 `createHostedPlatformClientAssertionVerifier()` posts the assertion to a
 Platform hosted verification endpoint and lets the existing Service command
 path enforce AEP audience, command, time window, TTL, and replay checks against
-the returned claims.
+the returned claims. Hosted verification reuses a command's idempotency key
+when one is available and otherwise uses the assertion `jti` as its stable
+retry key.
 `service.authenticateProtectedResource({ headers, method, url })` (or the
 equivalent exported helper) authenticates protected resources independently of
 authorization. Configure `authenticationMethods` in Service preference order.
