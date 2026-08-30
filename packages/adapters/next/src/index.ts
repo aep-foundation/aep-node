@@ -1,6 +1,6 @@
 import { createAepService } from "@aep-foundation/service";
 import type {
-  AepAuthenticatedServiceOptions,
+  AepIdempotentServiceOptions,
   AepService,
   AepServiceOptions
 } from "@aep-foundation/service";
@@ -56,7 +56,7 @@ export function createNextAepCommandRouteHandler(
     );
     const idempotencyKey = request?.headers.get("Idempotency-Key") ?? undefined;
     const body = command === "status" ? undefined : await request?.json();
-    const commandOptions = authenticatedOptions(clientAssertion, idempotencyKey);
+    const commandOptions = idempotentOptions(clientAssertion, idempotencyKey);
     const result =
       command === "enroll"
         ? await service.enroll(body, commandOptions)
@@ -76,13 +76,13 @@ export function createNextAepCommandRouteHandler(
   };
 }
 
-function authenticatedOptions(
+function idempotentOptions(
   clientAssertion: string,
   idempotencyKey: string | undefined
-): AepAuthenticatedServiceOptions {
+): AepIdempotentServiceOptions {
   return {
     clientAssertion,
-    ...(idempotencyKey === undefined ? {} : { idempotencyKey })
+    idempotencyKey: idempotencyKey ?? ""
   };
 }
 

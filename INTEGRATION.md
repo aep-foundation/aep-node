@@ -62,8 +62,10 @@ ports. The in-memory implementations exist for examples and tests.
 - `AepEnrollmentPolicy` decides whether an Enroll request becomes active,
   pending, suspended, or rejected according to product policy.
 - `AepCommandIdempotencyStore` coordinates Enroll, Grant, and Revoke
-  idempotency. Its `executeIdempotentCommand()` implementation must be atomic
-  for a given command key.
+  idempotency. Its `executeIdempotentCommand()` implementation must atomically
+  scope records by Agent DID and idempotency key across all three commands,
+  bind the command and request hash, and retain replayable responses for at
+  least one hour.
 - `AepClientAssertionReplayStore` prevents accepted client assertion `jti`
   replay until the assertion replay window expires.
 - `AepServiceCredentialStore` persists issued built-in credentials when using
@@ -76,10 +78,10 @@ implementations include a serializable database transaction, a conditional
 insert with row locking, an advisory lock, or a distributed cache lock backed by
 durable response storage.
 
-The store must ensure that concurrent matching requests for the same
+The store must ensure that concurrent matching requests for the same Agent and
 idempotency key execute the command body at most once. Later matching requests
-must replay the stored response. Later conflicting requests must return an
-idempotency conflict.
+must replay the stored response. Reuse by that Agent for another command or
+request body must return an idempotency conflict.
 
 `AepClientAssertionReplayStore.consumeReplay()` must also be atomic. Two
 concurrent requests with the same Agent DID and `jti` must not both succeed.

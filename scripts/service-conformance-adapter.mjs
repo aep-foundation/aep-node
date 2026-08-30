@@ -139,6 +139,10 @@ async function evaluateCase(vector, testCase) {
       return evaluateRevokeRequest(testCase);
     case "revoke-response-empty":
       return evaluateRevokeResponse(testCase);
+    case "command-header":
+      return evaluateCommandIdempotencyHeader(testCase);
+    case "command-replay-conflict":
+      return evaluateCommandReplayConflict(testCase);
     case "enroll-conflict":
       return evaluateEnrollmentConflict(testCase);
     case "claims-catalog-advertisement":
@@ -350,6 +354,7 @@ async function evaluateClaimValue(testCase) {
       idempotency_key: "claim-value-vector"
     },
     {
+      idempotencyKey: "claim-value-vector",
       policy: createStaticEnrollmentPolicy(),
       store: createInMemoryEnrollmentStore()
     }
@@ -365,6 +370,7 @@ async function evaluateClaimNegotiation(testCase) {
       idempotency_key: "claim-negotiation-vector"
     },
     {
+      idempotencyKey: "claim-negotiation-vector",
       policy: createStaticEnrollmentPolicy(),
       requiredClaims: testCase.input.inspect.required,
       store: createInMemoryEnrollmentStore()
@@ -386,7 +392,7 @@ async function evaluateClientAssertion(testCase) {
       agent_did: testCase.input.agent_did,
       idempotency_key: "assertion-vector"
     },
-    { clientAssertion: "assertion" }
+    { clientAssertion: "assertion", idempotencyKey: "assertion-vector" }
   );
   return response.status === 200;
 }
@@ -430,6 +436,7 @@ async function evaluateRepeatedEnrollment(testCase) {
   const store = createInMemoryEnrollmentStore([record]);
   const before = await store.findEnrollment(record.agentDid);
   const response = await handleEnrollRequest(testCase.input.request, {
+    idempotencyKey: testCase.input.request.idempotency_key,
     policy: {
       decideEnrollment: () => {
         policyEvaluated = true;
@@ -459,6 +466,7 @@ async function evaluateActiveEnrollment(testCase) {
     { agent_did: AGENT_DID, idempotency_key: "active-vector" },
     {
       clock: () => NOW,
+      idempotencyKey: "active-vector",
       policy: createStaticEnrollmentPolicy(),
       store: createInMemoryEnrollmentStore()
     }
@@ -471,6 +479,7 @@ async function evaluatePendingEnrollment(testCase) {
     { agent_did: AGENT_DID, idempotency_key: "pending-vector" },
     {
       clock: () => NOW,
+      idempotencyKey: "pending-vector",
       policy: createStaticEnrollmentPolicy({
         ownerActionRequired: true,
         status: "pending",
@@ -494,6 +503,7 @@ async function evaluateRequirementsUnmet(testCase) {
   const response = await handleEnrollRequest(
     { agent_did: AGENT_DID, idempotency_key: "requirements-vector" },
     {
+      idempotencyKey: "requirements-vector",
       policy: createStaticEnrollmentPolicy(),
       requiredClaims: testCase.expected.body.requirements_pending,
       store: createInMemoryEnrollmentStore()
@@ -516,6 +526,7 @@ async function evaluateVerificationPending(testCase) {
     {
       agentDid: AGENT_DID,
       handlers: new Map(),
+      idempotencyKey: "verification-pending",
       store
     }
   );
@@ -528,6 +539,7 @@ async function evaluateGrantBeforeEnrollment(testCase) {
     {
       agentDid: AGENT_DID,
       handlers: new Map(),
+      idempotencyKey: "grant-before-enrollment",
       store: createInMemoryEnrollmentStore()
     }
   );
@@ -548,6 +560,7 @@ async function evaluateGrantRequest(testCase) {
   const response = await handleGrantRequest(testCase.expected.body, {
     agentDid: AGENT_DID,
     handlers: new Map([["oauth-bearer", handler]]),
+    idempotencyKey: "grant-request",
     store: activeEnrollmentStore()
   });
   return response.status === 200 && isDeepStrictEqual(received, testCase.expected.body);
@@ -564,6 +577,7 @@ async function evaluateRevokeRequest(testCase) {
   const response = await handleRevokeRequest(testCase.expected.body, {
     agentDid: AGENT_DID,
     handlers: new Map([["oauth-bearer", handler]]),
+    idempotencyKey: "revoke-request",
     store: activeEnrollmentStore()
   });
   return response.status === 200 && isDeepStrictEqual(received, testCase.expected.body);
@@ -572,7 +586,12 @@ async function evaluateRevokeRequest(testCase) {
 async function evaluateRevokeResponse(testCase) {
   const response = await handleRevokeRequest(
     { all_grant_types: "true" },
-    { agentDid: AGENT_DID, handlers: new Map(), store: activeEnrollmentStore() }
+    {
+      agentDid: AGENT_DID,
+      handlers: new Map(),
+      idempotencyKey: "revoke-response",
+      store: activeEnrollmentStore()
+    }
   );
   return responseMatches(response, testCase.expected);
 }
@@ -595,6 +614,95 @@ async function evaluateEnrollmentConflict(testCase) {
     () => ({ body: {}, contentType: "application/aep+json", status: 200 })
   );
   return second.state === "conflict" && testCase.expected.status === 409;
+}
+
+async function evaluateCommandIdempotencyHeader(testCase) {
+  const idempotencyKey = testCase.input.idempotency_key;
+  const enrollMissing = await handleEnrollRequest(
+    { agent_did: AGENT_DID },
+    {
+      idempotencyKey: "",
+      policy: createStaticEnrollmentPolicy(),
+      store: createInMemoryEnrollmentStore()
+    }
+  );
+  const grantMissing = await handleGrantRequest(
+    { grant_type: "oauth-bearer" },
+    {
+      agentDid: AGENT_DID,
+      handlers: new Map(),
+      idempotencyKey: "",
+      store: activeEnrollmentStore()
+    }
+  );
+  const revokeMissing = await handleRevokeRequest(
+    { all_grant_types: "true" },
+    {
+      agentDid: AGENT_DID,
+      handlers: new Map(),
+      idempotencyKey: "",
+      store: activeEnrollmentStore()
+    }
+  );
+  const enrollWithoutBodyKey = await handleEnrollRequest(
+    { agent_did: AGENT_DID },
+    {
+      idempotencyKey,
+      policy: createStaticEnrollmentPolicy(),
+      store: createInMemoryEnrollmentStore()
+    }
+  );
+  const enrollMismatch = await handleEnrollRequest(
+    { agent_did: AGENT_DID, idempotency_key: `${idempotencyKey}-different` },
+    {
+      idempotencyKey,
+      policy: createStaticEnrollmentPolicy(),
+      store: createInMemoryEnrollmentStore()
+    }
+  );
+  return (
+    [enrollMissing, grantMissing, revokeMissing].every(
+      (response) =>
+        response.status === testCase.expected.missing_or_empty_status &&
+        response.body.code === testCase.expected.missing_or_empty_code
+    ) &&
+    enrollWithoutBodyKey.status === 200 &&
+    enrollMismatch.status === testCase.expected.mismatched_enroll_body_status
+  );
+}
+
+async function evaluateCommandReplayConflict(testCase) {
+  const store = createInMemoryCommandIdempotencyStore();
+  const input = {
+    agentDid: testCase.input.agent_did,
+    command: testCase.input.first_command,
+    idempotencyKey: testCase.input.idempotency_key,
+    requestHash: testCase.input.first_body_hash
+  };
+  await store.executeIdempotentCommand(input, () => ({
+    body: { credential_id: "credential" },
+    contentType: "application/aep+json",
+    status: 200
+  }));
+  const replay = await store.executeIdempotentCommand(input, () => ({
+    body: { credential_id: "different" },
+    contentType: "application/aep+json",
+    status: 200
+  }));
+  const changedBody = await store.executeIdempotentCommand(
+    { ...input, requestHash: testCase.input.second_body_hash },
+    () => ({ body: {}, contentType: "application/aep+json", status: 200 })
+  );
+  const changedCommand = await store.executeIdempotentCommand(
+    { ...input, command: testCase.input.second_command },
+    () => ({ body: {}, contentType: "application/aep+json", status: 200 })
+  );
+  return (
+    replay.state === "replayed" &&
+    changedBody.state === "conflict" &&
+    changedCommand.state === "conflict" &&
+    testCase.expected.retention_seconds_minimum >= 3600
+  );
 }
 
 function evaluateInspectDocument(testCase) {

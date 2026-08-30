@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
   AEP_AUTH_SCHEME,
   AEP_AUTHORIZATION_HEADER,
@@ -305,7 +307,7 @@ export interface AepEnrollmentStore {
 export interface AepCommandIdempotencyRecord<TBody = unknown> {
   agentDid: string;
   body: TBody;
-  command: AuthenticatedServiceCommand;
+  command: AepIdempotentServiceCommand;
   contentType: string;
   headers?: Record<string, string>;
   createdAt: string;
@@ -316,7 +318,7 @@ export interface AepCommandIdempotencyRecord<TBody = unknown> {
 
 export interface AepCommandIdempotencyInput {
   agentDid: string;
-  command: AuthenticatedServiceCommand;
+  command: AepIdempotentServiceCommand;
   idempotencyKey: string;
   requestHash: string;
 }
@@ -354,6 +356,11 @@ export interface AepAuthenticatedServiceOptions {
 }
 
 export type AuthenticatedServiceCommand = Exclude<AepCommand, "inspect">;
+export type AepIdempotentServiceCommand = Extract<AepCommand, "enroll" | "grant" | "revoke">;
+
+export interface AepIdempotentServiceOptions extends AepAuthenticatedServiceOptions {
+  idempotencyKey: string;
+}
 
 export interface AepService {
   authenticateProtectedResource(
@@ -361,16 +368,16 @@ export interface AepService {
   ): Promise<AuthenticateProtectedResourceResult>;
   enroll(
     request: unknown,
-    options: AepAuthenticatedServiceOptions
+    options: AepIdempotentServiceOptions
   ): Promise<AepServiceResponse<EnrollResponse | AepProblemDetails>>;
   grant(
     request: unknown,
-    options: AepAuthenticatedServiceOptions
+    options: AepIdempotentServiceOptions
   ): Promise<AepServiceResponse<Record<string, unknown> | AepProblemDetails>>;
   inspectDocument(): InspectDocument;
   revoke(
     request: unknown,
-    options: AepAuthenticatedServiceOptions
+    options: AepIdempotentServiceOptions
   ): Promise<AepServiceResponse<RevokeResponse | AepProblemDetails>>;
   status(
     options: AepAuthenticatedServiceOptions
@@ -431,9 +438,7 @@ export function createAepService(options: AepServiceOptions): AepService {
         store: enrollmentStore,
         ...(options.clock === undefined ? {} : { clock: options.clock }),
         policy: enrollmentPolicy,
-        ...(commandOptions.idempotencyKey === undefined
-          ? {}
-          : { idempotencyKey: commandOptions.idempotencyKey })
+        idempotencyKey: commandOptions.idempotencyKey
       });
     },
     grant: async (request, commandOptions) => {
@@ -451,10 +456,8 @@ export function createAepService(options: AepServiceOptions): AepService {
         agentDid: authentication.agentDid,
         commandIdempotencyStore,
         handlers: grantHandlers,
-        store: enrollmentStore,
-        ...(commandOptions.idempotencyKey === undefined
-          ? {}
-          : { idempotencyKey: commandOptions.idempotencyKey })
+        idempotencyKey: commandOptions.idempotencyKey,
+        store: enrollmentStore
       });
     },
     inspectDocument: () => structuredClone(inspectDocument),
@@ -473,10 +476,8 @@ export function createAepService(options: AepServiceOptions): AepService {
         agentDid: authentication.agentDid,
         commandIdempotencyStore,
         handlers: grantHandlers,
-        store: enrollmentStore,
-        ...(commandOptions.idempotencyKey === undefined
-          ? {}
-          : { idempotencyKey: commandOptions.idempotencyKey })
+        idempotencyKey: commandOptions.idempotencyKey,
+        store: enrollmentStore
       });
     },
     status: async (commandOptions) => {
@@ -668,20 +669,20 @@ export function createInMemoryCommandIdempotencyStore(
 
   records.forEach((record) =>
     idempotency.set(
-      idempotencyLookupKey(record.agentDid, record.command, record.idempotencyKey),
+      idempotencyLookupKey(record.agentDid, record.idempotencyKey),
       cloneIdempotencyResponseRecord(record)
     )
   );
 
   return {
     async executeIdempotentCommand(input, execute) {
-      const key = idempotencyLookupKey(input.agentDid, input.command, input.idempotencyKey);
+      const key = idempotencyLookupKey(input.agentDid, input.idempotencyKey);
 
       for (;;) {
         const existing = idempotency.get(key);
 
         if (existing !== undefined) {
-          if (existing.requestHash !== input.requestHash) {
+          if (existing.command !== input.command || existing.requestHash !== input.requestHash) {
             return {
               state: "conflict"
             };
@@ -915,7 +916,7 @@ export interface HandleEnrollRequestOptions {
   claimValueLimits?: Partial<AepServiceClaimValueLimits>;
   clock?: () => Date;
   commandIdempotencyStore?: AepCommandIdempotencyStore;
-  idempotencyKey?: string;
+  idempotencyKey: string;
   policy: AepEnrollmentPolicy;
   requiredClaims?: readonly AepClaimName[];
   store: AepEnrollmentStore;
@@ -933,7 +934,11 @@ export async function handleEnrollRequest(
     return problem("invalid_request", "Invalid request", 400);
   }
 
-  if (options.idempotencyKey !== undefined && options.idempotencyKey !== parsed.idempotency_key) {
+  if (!isNonEmptyIdempotencyKey(options.idempotencyKey)) {
+    return problem("invalid_request", "Invalid request", 400);
+  }
+
+  if (parsed.idempotency_key !== undefined && options.idempotencyKey !== parsed.idempotency_key) {
     return problem("invalid_request", "Invalid request", 400);
   }
 
@@ -944,7 +949,7 @@ export async function handleEnrollRequest(
   return withIdempotency<EnrollResponse | AepProblemDetails>(
     "enroll",
     parsed.agent_did,
-    parsed.idempotency_key,
+    options.idempotencyKey,
     parsed,
     options.commandIdempotencyStore,
     async () => {
@@ -1011,7 +1016,7 @@ export interface HandleGrantRequestOptions {
   agentDid: string;
   commandIdempotencyStore?: AepCommandIdempotencyStore;
   handlers: ReadonlyMap<AepGrantType, AepGrantTypeHandler>;
-  idempotencyKey?: string;
+  idempotencyKey: string;
   store: AepEnrollmentStore;
 }
 
@@ -1024,6 +1029,10 @@ export async function handleGrantRequest(
   try {
     parsed = parseGrantRequest(request);
   } catch {
+    return problem("invalid_request", "Invalid request", 400);
+  }
+
+  if (!isNonEmptyIdempotencyKey(options.idempotencyKey)) {
     return problem("invalid_request", "Invalid request", 400);
   }
 
@@ -1065,7 +1074,7 @@ export interface HandleRevokeRequestOptions {
   agentDid: string;
   commandIdempotencyStore?: AepCommandIdempotencyStore;
   handlers: ReadonlyMap<AepGrantType, AepGrantTypeHandler>;
-  idempotencyKey?: string;
+  idempotencyKey: string;
   store: AepEnrollmentStore;
 }
 
@@ -1078,6 +1087,10 @@ export async function handleRevokeRequest(
   try {
     parsed = parseRevokeRequest(request);
   } catch {
+    return problem("invalid_request", "Invalid request", 400);
+  }
+
+  if (!isNonEmptyIdempotencyKey(options.idempotencyKey)) {
     return problem("invalid_request", "Invalid request", 400);
   }
 
@@ -1702,14 +1715,14 @@ function notRecognized(): AuthenticateClientAssertionResult {
 }
 
 async function withIdempotency<TBody>(
-  command: AuthenticatedServiceCommand,
+  command: AepIdempotentServiceCommand,
   agentDid: string,
-  idempotencyKey: string | undefined,
+  idempotencyKey: string,
   request: unknown,
   store: AepCommandIdempotencyStore | undefined,
   execute: () => Promise<AepServiceResponse<TBody>>
 ): Promise<AepServiceResponse<TBody | AepProblemDetails>> {
-  if (idempotencyKey === undefined || store === undefined) {
+  if (store === undefined) {
     return execute();
   }
 
@@ -1744,14 +1757,8 @@ function replayKey(sub: string, jti: string): string {
   return `${sub}\u0000${jti}`;
 }
 
-function idempotencyLookupKey(
-  agentDid: string,
-  command: AuthenticatedServiceCommand,
-  idempotencyKey: string
-): string {
-  return command === "enroll"
-    ? `${command}\u0000${idempotencyKey}`
-    : `${agentDid}\u0000${command}\u0000${idempotencyKey}`;
+function idempotencyLookupKey(agentDid: string, idempotencyKey: string): string {
+  return `${agentDid}\u0000${idempotencyKey}`;
 }
 
 function cloneEnrollmentRecord(record: AepEnrollmentRecord): AepEnrollmentRecord {
@@ -1812,7 +1819,11 @@ function credentialRecordWithParsedCredential(
 }
 
 function hashRequest(request: unknown): string {
-  return `json:${stableStringify(request)}`;
+  return `sha256:${createHash("sha256").update(stableStringify(request)).digest("hex")}`;
+}
+
+function isNonEmptyIdempotencyKey(value: string): boolean {
+  return value.trim().length > 0;
 }
 
 function stableStringify(value: unknown): string {

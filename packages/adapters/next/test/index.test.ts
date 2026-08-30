@@ -59,12 +59,16 @@ describe("@aep-foundation/next", () => {
   });
 
   it("passes command bodies and client assertions to the Service", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const handler = createNextAepCommandRouteHandler(
       {
         ...mockService(),
         grant: (body, options) => {
-          calls.push({ body, clientAssertion: options.clientAssertion });
+          calls.push({
+            body,
+            clientAssertion: options.clientAssertion,
+            idempotencyKey: options.idempotencyKey
+          });
           return Promise.resolve({
             body: { credential_id: "cred_123" },
             contentType: "application/aep+json",
@@ -81,7 +85,8 @@ describe("@aep-foundation/next", () => {
         }),
         headers: {
           Authorization: "AEP signed.jwt",
-          "Content-Type": "application/aep+json"
+          "Content-Type": "application/aep+json",
+          "Idempotency-Key": "idem"
         },
         method: "POST"
       })
@@ -95,18 +100,23 @@ describe("@aep-foundation/next", () => {
         body: {
           grant_type: "oauth-bearer"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
   });
 
   it("handles command requests created with NextRequest", async () => {
-    const calls: Array<{ body: unknown; clientAssertion: string }> = [];
+    const calls: Array<{ body: unknown; clientAssertion: string; idempotencyKey: string }> = [];
     const route = createNextAepRoute(
       {
         ...mockService(),
         enroll: (body, options) => {
-          calls.push({ body, clientAssertion: options.clientAssertion });
+          calls.push({
+            body,
+            clientAssertion: options.clientAssertion,
+            idempotencyKey: options.idempotencyKey
+          });
           return Promise.resolve({
             body: {
               status: "active"
@@ -127,7 +137,8 @@ describe("@aep-foundation/next", () => {
         }),
         headers: {
           Authorization: "AEP signed.jwt",
-          "Content-Type": "application/aep+json"
+          "Content-Type": "application/aep+json",
+          "Idempotency-Key": "idem"
         },
         method: "POST"
       })
@@ -144,7 +155,8 @@ describe("@aep-foundation/next", () => {
           agent_did: "did:web:agent.example.com:agents:123",
           idempotency_key: "idem"
         },
-        clientAssertion: "signed.jwt"
+        clientAssertion: "signed.jwt",
+        idempotencyKey: "idem"
       }
     ]);
   });

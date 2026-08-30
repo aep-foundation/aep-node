@@ -1,0 +1,43 @@
+{
+  "id": "command-replay-conflict",
+  "title": "Core command idempotency replay and conflict",
+  "description": "Core command idempotency uses one Agent-and-key scope, replays an exact request, and rejects reuse for another body or command.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
+  "category": "idempotency",
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "agent_did": "did:web:agent.example.com:agents:123",
+    "first_body_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "first_command": "grant",
+    "idempotency_key": "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
+    "second_body_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "second_command": "revoke"
+  },
+  "expected": {
+    "changed_body": {
+      "code": "idempotency_conflict",
+      "status": 409
+    },
+    "changed_command": {
+      "code": "idempotency_conflict",
+      "status": 409
+    },
+    "exact_retry": "cached_or_equivalent_success",
+    "retention_seconds_minimum": 3600,
+    "scope": ["agent_did", "idempotency_key"]
+  }
+}

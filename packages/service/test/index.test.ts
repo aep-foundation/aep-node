@@ -33,7 +33,7 @@ import {
   oauthBearerGrantType,
   storedOAuthBearerGrantType
 } from "../src/index.js";
-import type { AepGrantTypeHandler } from "../src/index.js";
+import type { AepCommandIdempotencyStore, AepGrantTypeHandler } from "../src/index.js";
 
 describe("@aep-foundation/service Inspect builder", () => {
   it("builds the minimal HTTP Inspect fixture shape with explicit grant and identity activation", () => {
@@ -182,6 +182,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
       },
       {
         clock: () => new Date("2026-05-28T12:00:00.000Z"),
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
         policy: createStaticEnrollmentPolicy(),
         store
       }
@@ -240,6 +241,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
         },
         {
           claimValueLimits: testCase.limits,
+          idempotencyKey: baseRequest.idempotency_key,
           policy: {
             decideEnrollment: () => {
               policyCalled = true;
@@ -284,6 +286,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         },
         {
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
           policy: createStaticEnrollmentPolicy({
             ownerActionRequired: true,
             requirementsPending: ["owner-approval"],
@@ -314,6 +317,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     };
     const options = {
       commandIdempotencyStore,
+      idempotencyKey: request.idempotency_key,
       policy: createStaticEnrollmentPolicy(),
       store
     };
@@ -322,6 +326,136 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     const second = await handleEnrollRequest({ ...request }, options);
 
     expect(second).toEqual(first);
+  });
+
+  it("accepts an Enroll header key without the optional body copy", async () => {
+    await expect(
+      handleEnrollRequest(
+        {
+          agent_did: "did:web:agent.example.com:agents:123"
+        },
+        {
+          idempotencyKey: "header-only-enroll",
+          policy: createStaticEnrollmentPolicy(),
+          store: createInMemoryEnrollmentStore()
+        }
+      )
+    ).resolves.toMatchObject({
+      body: { status: "active" },
+      status: 200
+    });
+  });
+
+  it("rejects empty Core command idempotency keys before executing handlers", async () => {
+    const store = createInMemoryEnrollmentStore([
+      activeEnrollment("did:web:agent.example.com:agents:123")
+    ]);
+    const handler = createGrantHandler();
+    const responses = await Promise.all([
+      handleEnrollRequest(
+        { agent_did: "did:web:agent.example.com:agents:123" },
+        {
+          idempotencyKey: "",
+          policy: createStaticEnrollmentPolicy(),
+          store
+        }
+      ),
+      handleGrantRequest(
+        { grant_type: "oauth-bearer" },
+        {
+          agentDid: "did:web:agent.example.com:agents:123",
+          handlers: new Map([["oauth-bearer", handler]]),
+          idempotencyKey: "",
+          store
+        }
+      ),
+      handleRevokeRequest(
+        { grant_type: "oauth-bearer" },
+        {
+          agentDid: "did:web:agent.example.com:agents:123",
+          handlers: new Map([["oauth-bearer", handler]]),
+          idempotencyKey: " ",
+          store
+        }
+      )
+    ]);
+
+    expect(responses).toEqual(
+      responses.map(() => ({
+        body: {
+          code: "invalid_request",
+          status: 400,
+          title: "Invalid request",
+          type: "urn:aep:error:invalid_request"
+        },
+        contentType: "application/problem+json",
+        status: 400
+      }))
+    );
+    expect(handler.events).toEqual([]);
+  });
+
+  it("conflicts when one Agent reuses an idempotency key across commands", async () => {
+    const store = createInMemoryCommandIdempotencyStore();
+    const first = {
+      agentDid: "did:web:agent.example.com:agents:123",
+      command: "grant" as const,
+      idempotencyKey: "cross-command-key",
+      requestHash: "sha256:request"
+    };
+
+    await store.executeIdempotentCommand(first, () => ({
+      body: { credential_id: "cred_123" },
+      contentType: "application/aep+json",
+      status: 200
+    }));
+
+    await expect(
+      store.executeIdempotentCommand(
+        {
+          ...first,
+          command: "revoke"
+        },
+        () => ({ body: {}, contentType: "application/aep+json", status: 200 })
+      )
+    ).resolves.toEqual({ state: "conflict" });
+
+    await expect(
+      store.executeIdempotentCommand(
+        {
+          ...first,
+          agentDid: "did:web:agent.example.com:agents:456"
+        },
+        () => ({ body: {}, contentType: "application/aep+json", status: 200 })
+      )
+    ).resolves.toMatchObject({ state: "created" });
+  });
+
+  it("uses a canonical SHA-256 request fingerprint", async () => {
+    let requestHash: string | undefined;
+    const commandIdempotencyStore: AepCommandIdempotencyStore = {
+      async executeIdempotentCommand(input, execute) {
+        requestHash = input.requestHash;
+        return { response: await execute(), state: "created" };
+      }
+    };
+
+    await handleEnrollRequest(
+      {
+        agent_did: "did:web:agent.example.com:agents:123",
+        claims: {
+          "contact.email": "ops@example.com"
+        }
+      },
+      {
+        commandIdempotencyStore,
+        idempotencyKey: "hashed-request",
+        policy: createStaticEnrollmentPolicy(),
+        store: createInMemoryEnrollmentStore()
+      }
+    );
+
+    expect(requestHash).toMatch(/^sha256:[0-9a-f]{64}$/u);
   });
 
   it("returns an existing enrollment without reevaluating policy or replacing it", async () => {
@@ -336,6 +470,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
         idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-111111111111"
       },
       {
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-111111111111",
         policy: {
           decideEnrollment: () => {
             policyCalls += 1;
@@ -436,6 +571,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     const store = createInMemoryEnrollmentStore();
     const options = {
       commandIdempotencyStore,
+      idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
       policy: createStaticEnrollmentPolicy(),
       store
     };
@@ -451,7 +587,10 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     await expect(
       handleEnrollRequest(
         {
-          agent_did: "did:web:different.example.com:agents:456",
+          agent_did: "did:web:agent.example.com:agents:123",
+          claims: {
+            "contact.email": "different@example.com"
+          },
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         },
         options
@@ -475,6 +614,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
       handleEnrollRequest(
         {},
         {
+          idempotencyKey: "invalid-enroll",
           policy: createStaticEnrollmentPolicy(),
           store
         }
@@ -523,7 +663,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         },
         {
-          clientAssertion: clientAssertion("enroll", "enroll-create")
+          clientAssertion: clientAssertion("enroll", "enroll-create"),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         }
       )
     ).resolves.toMatchObject({
@@ -546,7 +687,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
       status: 200
     });
     expect(verificationIdempotencyKeys).toEqual([
-      undefined,
+      "9f8a4d2e-1c3b-4f5e-8b7a-000000000000",
       "9f8a4d2e-1c3b-4f5e-8b7a-status000000"
     ]);
   });
@@ -569,7 +710,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-required00000"
         },
         {
-          clientAssertion: clientAssertion("enroll", "missing-required-claim")
+          clientAssertion: clientAssertion("enroll", "missing-required-claim"),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-required00000"
         }
       )
     ).resolves.toEqual({
@@ -600,7 +742,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         },
         {
-          clientAssertion: clientAssertion("status", "wrong-op")
+          clientAssertion: clientAssertion("status", "wrong-op"),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         }
       )
     ).resolves.toMatchObject({
@@ -617,7 +760,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         },
         {
-          clientAssertion: clientAssertion("enroll", "wrong-agent")
+          clientAssertion: clientAssertion("enroll", "wrong-agent"),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         }
       )
     ).resolves.toMatchObject({
@@ -636,7 +780,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000001"
         },
         {
-          clientAssertion: replayedAssertion
+          clientAssertion: replayedAssertion,
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000001"
         }
       )
     ).resolves.toMatchObject({
@@ -650,7 +795,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
           idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000002"
         },
         {
-          clientAssertion: replayedAssertion
+          clientAssertion: replayedAssertion,
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000002"
         }
       )
     ).resolves.toMatchObject({
@@ -689,7 +835,8 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
               alg: "ES256",
               key: privateKey
             }
-          )
+          ),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
         }
       )
     ).resolves.toMatchObject({
@@ -1021,6 +1168,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         {
           agentDid: "did:web:agent.example.com:agents:123",
           handlers: new Map([["oauth-bearer", handler]]),
+          idempotencyKey: "grant-dispatch",
           store
         }
       )
@@ -1103,6 +1251,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         {
           agentDid: "did:web:agent.example.com:agents:123",
           handlers: new Map(),
+          idempotencyKey: "unsupported-grant",
           store
         }
       )
@@ -1137,6 +1286,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         {
           agentDid: "did:web:agent.example.com:agents:123",
           handlers: new Map([["oauth-bearer", createGrantHandler()]]),
+          idempotencyKey: "pending-grant",
           store
         }
       )
@@ -1169,6 +1319,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         {
           agentDid: "did:web:agent.example.com:agents:123",
           handlers: new Map([["oauth-bearer", handler]]),
+          idempotencyKey: "revoke-dispatch",
           store
         }
       )
@@ -1247,6 +1398,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
       {
         agentDid: "did:web:agent.example.com:agents:123",
         handlers,
+        idempotencyKey: "revoke-all",
         store
       }
     );
@@ -1257,6 +1409,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
       {
         agentDid: "did:web:agent.example.com:agents:123",
         handlers,
+        idempotencyKey: "revoke-credential",
         store
       }
     );
@@ -1309,6 +1462,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         {
           agentDid: "did:web:agent.example.com:agents:123",
           handlers: new Map([["oauth-bearer", createGrantHandler()]]),
+          idempotencyKey: "invalid-revoke",
           store
         }
       )
@@ -1328,6 +1482,7 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         {
           agentDid: "did:web:missing.example.com",
           handlers: new Map([["oauth-bearer", createGrantHandler()]]),
+          idempotencyKey: "unknown-agent-grant",
           store
         }
       )
@@ -1356,7 +1511,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
       },
       {
-        clientAssertion: clientAssertion("enroll", "enroll-grant-revoke")
+        clientAssertion: clientAssertion("enroll", "enroll-grant-revoke"),
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
       }
     );
 
@@ -1366,7 +1522,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
           grant_type: "oauth-bearer"
         },
         {
-          clientAssertion: clientAssertion("grant", "grant-create")
+          clientAssertion: clientAssertion("grant", "grant-create"),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-grant0000000"
         }
       )
     ).resolves.toMatchObject({
@@ -1382,7 +1539,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
           grant_type: "oauth-bearer"
         },
         {
-          clientAssertion: clientAssertion("revoke", "revoke-create")
+          clientAssertion: clientAssertion("revoke", "revoke-create"),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-revoke000000"
         }
       )
     ).resolves.toEqual({
@@ -1421,7 +1579,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         idempotency_key: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
       },
       {
-        clientAssertion: clientAssertion("enroll", "enroll-stored-credential")
+        clientAssertion: clientAssertion("enroll", "enroll-stored-credential"),
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-000000000000"
       }
     );
 
@@ -1432,7 +1591,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
           requested_scopes: ["read"]
         },
         {
-          clientAssertion: clientAssertion("grant", "grant-stored-credential")
+          clientAssertion: clientAssertion("grant", "grant-stored-credential"),
+          idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-agentgrant"
         }
       )
     ).resolves.toMatchObject({
@@ -1474,7 +1634,8 @@ describe("@aep-foundation/service Grant and Revoke handlers", () => {
         credential_id: "cred_123"
       },
       {
-        clientAssertion: clientAssertion("revoke", "revoke-stored-credential")
+        clientAssertion: clientAssertion("revoke", "revoke-stored-credential"),
+        idempotencyKey: "9f8a4d2e-1c3b-4f5e-8b7a-agentrevoke"
       }
     );
 

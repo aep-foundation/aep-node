@@ -176,7 +176,8 @@ are not listed in `commands.supported`.
 
 - `enrollmentStore` persists current Agent enrollment state.
 - `commandIdempotencyStore` persists Enroll, Grant, and Revoke idempotency
-  records and coordinates atomic command execution for each idempotency key.
+  records for at least one hour and coordinates atomic command execution by
+  Agent DID and idempotency key across all three commands.
 - `replayStore` prevents client assertion `jti` replay.
 - `enrollmentPolicy` decides the lifecycle state returned by Enroll.
 

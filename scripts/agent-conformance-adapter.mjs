@@ -101,6 +101,8 @@ async function evaluateCase(id, testCase) {
       );
     case "validation-requirements":
       return evaluateClientAssertionValidation(testCase);
+    case "command-header":
+      return evaluateCommandIdempotencyHeader(testCase);
     case "request-minimal":
     case "request-claims-catalog":
       return evaluateEnrollRequest(testCase);
@@ -190,6 +192,50 @@ async function evaluateCase(id, testCase) {
     default:
       throw new Error(`No Agent operation maps vector ${id}`);
   }
+}
+
+async function evaluateCommandIdempotencyHeader(testCase) {
+  const idempotencyKey = testCase.input.idempotency_key;
+  const inspect = inspectResult();
+  const calls = [
+    await captureCommand(() =>
+      enrollService({
+        agentDid: AGENT_DID,
+        clientAssertion: "assertion",
+        idempotencyKey,
+        inspect,
+        serviceUrl: SERVICE_ORIGIN
+      })
+    ),
+    await captureCommand(
+      () =>
+        grantService({
+          clientAssertion: "assertion",
+          grantType: "oauth-bearer",
+          idempotencyKey,
+          inspect,
+          serviceUrl: SERVICE_ORIGIN
+        }),
+      grantResponse("oauth-bearer")
+    ),
+    await captureCommand(
+      () =>
+        revokeService({
+          allGrantTypes: true,
+          clientAssertion: "assertion",
+          idempotencyKey,
+          inspect,
+          serviceUrl: SERVICE_ORIGIN
+        }),
+      {}
+    )
+  ];
+  const enrollBody = JSON.parse(calls[0].init.body);
+  return (
+    testCase.expected.header_required === true &&
+    calls.every((call) => new Headers(call.init.headers).get("idempotency-key") === idempotencyKey) &&
+    enrollBody.idempotency_key === idempotencyKey
+  );
 }
 
 async function evaluateClientAssertionValidation(testCase) {
