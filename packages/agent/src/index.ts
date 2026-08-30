@@ -310,7 +310,7 @@ type RevokeServiceSelector =
   | {
       allGrantTypes?: never;
       credentialId: string;
-      grantType?: never;
+      grantType: AepGrantType;
     }
   | {
       allGrantTypes?: never;
@@ -1033,13 +1033,11 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
         ...(options.parameters === undefined ? {} : { parameters: options.parameters })
       });
       const inspected = await inspectOnce();
-
-      if ("credentialId" in selector) {
-        await state.credentialStore.deleteCredential(
-          inspected.document.service.did,
-          selector.credentialId
-        );
-      }
+      await deleteRevokedCredentials(
+        state.credentialStore,
+        inspected.document.service.did,
+        selector
+      );
 
       return result;
     },
@@ -1054,6 +1052,23 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
   };
 }
 
+async function deleteRevokedCredentials(
+  store: AgentCredentialStore,
+  serviceDid: string,
+  selector: RevokeServiceSelector
+): Promise<void> {
+  const credentials = await store.listCredentials(serviceDid);
+  const revoked = credentials.filter((credential) => {
+    if ("allGrantTypes" in selector) return true;
+    if ("credentialId" in selector) return credential.credentialId === selector.credentialId;
+    return credential.grantType === selector.grantType;
+  });
+
+  for (const credential of revoked) {
+    await store.deleteCredential(serviceDid, credential.credentialId);
+  }
+}
+
 function isPlatformIdentityProvider(
   provider: AgentIdentityProvider
 ): provider is PlatformIdentityProvider {
@@ -1066,7 +1081,7 @@ function revokeSessionSelector(options: AgentRevokeSessionOptions): RevokeServic
   }
 
   if (options.credentialId !== undefined) {
-    return { credentialId: options.credentialId };
+    return { credentialId: options.credentialId, grantType: options.grantType };
   }
 
   return { grantType: options.grantType };
@@ -2378,6 +2393,14 @@ export async function grantService(options: GrantServiceOptions): Promise<GrantS
 export async function revokeService(options: RevokeServiceOptions): Promise<RevokeServiceResult> {
   const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
+  if (options.credentialId !== undefined) {
+    const config = inspect.document.commands.grant_types_config?.[options.grantType];
+    if (config?.supports_per_credential_revoke !== "true") {
+      throw new TypeError(
+        `AEP Service does not advertise per-credential Revoke for ${options.grantType}.`
+      );
+    }
+  }
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "revoke");
   const clientAssertion = await resolveClientAssertion(options, inspect, "revoke");
   const body = parseRevokeRequest({
@@ -2738,7 +2761,8 @@ function revokeSelectorBody(options: RevokeServiceOptions): RevokeRequest {
 
   if (options.credentialId !== undefined) {
     return {
-      credential_id: options.credentialId
+      credential_id: options.credentialId,
+      grant_type: options.grantType
     };
   }
 

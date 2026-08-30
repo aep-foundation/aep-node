@@ -19,6 +19,10 @@ export type AepIdentityMethod = string;
 export type AepAuthenticatedCommand = Exclude<AepCommand, "inspect">;
 export type AepAssertionOperation = (typeof AEP_ASSERTION_OPERATIONS)[number];
 export type AepAuthenticationMethod = AepExtensibleString<"aep-jwt" | AepBuiltInGrantType>;
+export interface AepGrantTypeConfig {
+  supports_per_credential_revoke?: "false" | "true";
+  [key: string]: unknown;
+}
 export type AepOpenApiTrailingSlashMode = "strict" | "equivalent";
 export type AepProtectedResourceAuthorizationCarrier = "standard" | "dedicated";
 export type AepProtectedResourceAuthorizationScheme = "AEP" | "Bearer" | "Basic";
@@ -76,7 +80,7 @@ export interface InspectDocument {
   commands: {
     supported: AepAdvertisedCommand[];
     grant_types?: AepGrantType[];
-    grant_types_config?: Record<string, unknown>;
+    grant_types_config?: Record<string, AepGrantTypeConfig>;
     [key: string]: unknown;
   };
   core: {
@@ -172,14 +176,14 @@ export type RevokeRequest =
     }
   | {
       credential_id: string;
-      grant_type?: never;
+      grant_type: AepGrantType;
       all_grant_types?: never;
       [key: string]: unknown;
     }
   | {
       all_grant_types: "true";
-      credential_id?: string;
-      grant_type?: AepGrantType;
+      credential_id?: never;
+      grant_type?: never;
       [key: string]: unknown;
     };
 

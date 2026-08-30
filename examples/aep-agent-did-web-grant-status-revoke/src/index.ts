@@ -76,10 +76,11 @@ const profile = await fetchProtectedJson(
   protectedHeaders
 );
 const revoke =
-  credential === undefined
+  credential === undefined || grantType === undefined
     ? undefined
     : await session.revoke({
         credentialId: credential.credential_id,
+        grantType,
         idempotencyKey: randomUUID()
       });
 const statusAfterRevoke = await session.status();

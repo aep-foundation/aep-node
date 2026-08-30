@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import {
   AEP_VERSION,
+  AepValidationError,
   isAepVersionCompatible,
   parseInspectDocument,
   signClientAssertionJwt,
@@ -113,6 +114,8 @@ async function evaluateCase(vector, testCase) {
       return evaluateClientAssertionValidation(testCase);
     case "grant-response":
       return evaluateCredentialGrant(testCase);
+    case "grant-response-missing-credential-id":
+      return evaluateInvalidCredentialGrant(vector.category, testCase);
     case "repeated-existing":
       return evaluateRepeatedEnrollment(testCase);
     case "request-minimal":
@@ -136,7 +139,11 @@ async function evaluateCase(vector, testCase) {
       return evaluateGrantRequest(testCase);
     case "revoke-request-all-grant-types":
     case "revoke-request-oauth-bearer":
+    case "revoke-request-targeted-oauth-bearer":
       return evaluateRevokeRequest(testCase);
+    case "revoke-request-conflicting-targets":
+    case "revoke-request-credential-id-without-grant-type":
+      return evaluateInvalidRevokeRequest(testCase);
     case "revoke-response-empty":
       return evaluateRevokeResponse(testCase);
     case "command-header":
@@ -430,6 +437,41 @@ async function evaluateCredentialGrant(testCase) {
   return response.status === 200 && isDeepStrictEqual(response.body, expected);
 }
 
+async function evaluateInvalidCredentialGrant(category, testCase) {
+  const grantType = category.split("/").at(-1);
+  const definitions = {
+    "api-key": storedApiKeyGrantType,
+    basic: storedBasicGrantType,
+    "oauth-bearer": storedOAuthBearerGrantType
+  };
+  const define = definitions[grantType];
+  if (define === undefined) return false;
+  const service = serviceWithVerifier(parseAssertion, {
+    clock: () => NOW,
+    grantTypes: [
+      define({
+        clock: () => NOW,
+        issue: () => testCase.input,
+        store: createInMemoryServiceCredentialStore()
+      })
+    ]
+  });
+  await enroll(service, "invalid-credential-enroll");
+
+  try {
+    await service.grant(
+      { grant_type: grantType },
+      {
+        clientAssertion: assertion("grant", "invalid-credential-grant"),
+        idempotencyKey: "invalid-credential-grant"
+      }
+    );
+    return false;
+  } catch (error) {
+    return error instanceof AepValidationError;
+  }
+}
+
 async function evaluateRepeatedEnrollment(testCase) {
   let policyEvaluated = false;
   const record = enrollmentRecord(testCase.input.existing);
@@ -581,6 +623,16 @@ async function evaluateRevokeRequest(testCase) {
     store: activeEnrollmentStore()
   });
   return response.status === 200 && isDeepStrictEqual(received, testCase.expected.body);
+}
+
+async function evaluateInvalidRevokeRequest(testCase) {
+  const response = await handleRevokeRequest(testCase.input, {
+    agentDid: AGENT_DID,
+    handlers: new Map(),
+    idempotencyKey: "invalid-revoke-request",
+    store: activeEnrollmentStore()
+  });
+  return testCase.expected.valid === false && response.status === 400;
 }
 
 async function evaluateRevokeResponse(testCase) {

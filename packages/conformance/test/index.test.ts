@@ -56,6 +56,7 @@ import {
   loadOAuthBearerGrantRequestTestVector,
   loadOAuthBearerGrantResponseTestVector,
   loadOAuthBearerRevokeRequestTestVector,
+  loadTargetedOAuthBearerRevokeRequestTestVector,
   loadPlatformDiscoveryTestVector,
   loadPlatformLifecycleRequestTestVector,
   loadPlatformListResponseTestVector,
@@ -502,6 +503,7 @@ describe("@aep-foundation/conformance Grant, Revoke, and credential checks", () 
   it("validates the synced Grant and Revoke request vectors", async () => {
     const grant = await loadOAuthBearerGrantRequestTestVector();
     const revoke = await loadOAuthBearerRevokeRequestTestVector();
+    const revokeTargeted = await loadTargetedOAuthBearerRevokeRequestTestVector();
     const revokeAll = await loadAllGrantTypesRevokeRequestTestVector();
 
     expect(grant.id).toBe("grant-request-oauth-bearer");
@@ -518,6 +520,10 @@ describe("@aep-foundation/conformance Grant, Revoke, and credential checks", () 
     });
 
     expect(assertRevokeRequestConformance(revoke.input)).toEqual({
+      grant_type: "oauth-bearer"
+    });
+    expect(assertRevokeRequestConformance(revokeTargeted.input)).toEqual({
+      credential_id: "tok_01HZY8W7Q2F8J7D3P9G9Z1N6TT",
       grant_type: "oauth-bearer"
     });
     expect(assertRevokeRequestConformance(revokeAll.input)).toEqual({

@@ -1,0 +1,25 @@
+{
+  "id": "revoke-request-conflicting-targets",
+  "title": "Revoke request with conflicting targets",
+  "description": "A Revoke request is invalid when it combines an all-grant-types target with a concrete grant type.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "category": "grant-revoke",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "all_grant_types": "true",
+    "grant_type": "oauth-bearer"
+  },
+  "expected": { "valid": false }
+}
