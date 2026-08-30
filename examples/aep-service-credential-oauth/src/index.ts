@@ -40,7 +40,7 @@ const service = createAepService({
   ...exampleOpenApiAdvertisement(),
   ...exampleServicePorts(),
   authenticationMethods: [AEP_GRANT_TYPE_OAUTH_BEARER],
-  clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  clientAssertionVerifier: createDidWebClientAssertionVerifier({ allowInsecureLoopback: true }),
   grantTypes: [
     storedOAuthBearerGrantType({
       issue: (_request, context): OAuthBearerGrantResponse => {

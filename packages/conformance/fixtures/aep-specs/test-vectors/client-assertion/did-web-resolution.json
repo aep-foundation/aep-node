@@ -1,0 +1,32 @@
+{
+  "id": "did-web-resolution",
+  "title": "Client assertion did:web resolution",
+  "description": "A Service resolves the assertion issuer over HTTPS and selects only the verification method referenced by the identity-bound kid header.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
+  "category": "client-assertion",
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "did": "did:web:agent.example.com:agents:123",
+    "kid": "did:web:agent.example.com:agents:123#key-1"
+  },
+  "expected": {
+    "document_url": "https://agent.example.com/agents/123/did.json",
+    "missing_referenced_method": "reject",
+    "plaintext_http": "reject",
+    "wrong_did": "reject"
+  }
+}

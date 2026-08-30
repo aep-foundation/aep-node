@@ -20,6 +20,7 @@ const serviceUrl = process.env["SERVICE_URL"] ?? "http://127.0.0.1:3000";
 const platformAuthorization = process.env["PLATFORM_AUTHORIZATION"] ?? "Bearer demo-agent";
 
 const agent = createAepAgent({
+  allowInsecureLoopback: true,
   assertionJti: randomUUID,
   identityProvider: createPlatformIdentityProvider({
     authorization: platformAuthorization,

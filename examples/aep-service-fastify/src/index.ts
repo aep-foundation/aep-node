@@ -28,7 +28,7 @@ const serviceDid = requiredExampleConfig("SERVICE_DID", process.env["SERVICE_DID
 const service = createAepService({
   authenticationMethods: ["aep-jwt"],
   ...exampleServicePorts(),
-  clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  clientAssertionVerifier: createDidWebClientAssertionVerifier({ allowInsecureLoopback: true }),
   identityMethods: [didWebIdentityMethod()],
   serviceDid
 });

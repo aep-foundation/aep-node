@@ -3,12 +3,17 @@ import type { AepImportableJoseKey } from "./jwt.js";
 export type DidWebFetchLike = (input: URL | string, init?: RequestInit) => Promise<Response>;
 
 export interface ResolveDidWebPublicKeyOptions {
+  allowInsecureLoopback?: boolean;
   did: string;
   fetch?: DidWebFetchLike;
-  kid?: string;
+  kid: string;
 }
 
-export function didWebDocumentUrl(did: string): URL {
+export interface DidWebDocumentUrlOptions {
+  allowInsecureLoopback?: boolean;
+}
+
+export function didWebDocumentUrl(did: string, options: DidWebDocumentUrlOptions = {}): URL {
   const prefix = "did:web:";
 
   if (!did.startsWith(prefix)) {
@@ -22,14 +27,16 @@ export function didWebDocumentUrl(did: string): URL {
   }
 
   const hostName = decodeURIComponent(encodedHost);
-  const protocol =
-    hostName.startsWith("localhost") || hostName.startsWith("127.0.0.1") ? "http" : "https";
   const documentPath =
     pathParts.length === 0
       ? "/.well-known/did.json"
       : `/${pathParts.map(decodeURIComponent).join("/")}/did.json`;
 
-  return new URL(`${protocol}://${hostName}${documentPath}`);
+  const url = new URL(`https://${hostName}${documentPath}`);
+  if (options.allowInsecureLoopback === true && isLoopbackHost(url.hostname)) {
+    url.protocol = "http:";
+  }
+  return url;
 }
 
 export async function resolveDidWebPublicKey(
@@ -41,20 +48,35 @@ export async function resolveDidWebPublicKey(
     throw new TypeError("AEP did:web resolution requires a fetch implementation.");
   }
 
-  const document = await fetchJson(didWebDocumentUrl(options.did), fetchImpl);
+  const fragment = options.kid.indexOf("#");
+  const kidDid = fragment === -1 ? options.kid : options.kid.slice(0, fragment);
+
+  if (kidDid !== options.did) {
+    throw new Error("AEP did:web kid does not identify the assertion issuer.");
+  }
+
+  const document = await fetchJson(
+    didWebDocumentUrl(options.did, {
+      ...(options.allowInsecureLoopback === undefined
+        ? {}
+        : { allowInsecureLoopback: options.allowInsecureLoopback })
+    }),
+    fetchImpl
+  );
   const methods = arrayField(document, "verificationMethod").filter(isRecord);
-  const method =
-    options.kid === undefined
-      ? methods.find((candidate) => isRecord(candidate["publicKeyJwk"]))
-      : methods.find(
-          (candidate) => candidate["id"] === options.kid && isRecord(candidate["publicKeyJwk"])
-        );
+  const method = methods.find(
+    (candidate) => candidate["id"] === options.kid && isRecord(candidate["publicKeyJwk"])
+  );
 
   if (method === undefined || !isRecord(method["publicKeyJwk"])) {
-    throw new Error(`No public JWK found for ${options.kid ?? options.did}.`);
+    throw new Error(`No public JWK found for ${options.kid}.`);
   }
 
   return method["publicKeyJwk"];
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 async function fetchJson(url: URL, fetchImpl: DidWebFetchLike): Promise<unknown> {

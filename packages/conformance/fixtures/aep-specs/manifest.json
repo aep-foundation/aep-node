@@ -1,9 +1,9 @@
 {
-  "source": "https://github.com/aep-foundation/aep-specs/tree/d826b5126392d904dcf38863befb220c2a497692/ietf",
+  "source": "https://github.com/aep-foundation/aep-specs/tree/c82c0bfb887cca60f983b0f4c76c17275fb917db/ietf",
   "source_repository": "https://github.com/aep-foundation/aep-specs",
-  "source_revision": "d826b5126392d904dcf38863befb220c2a497692",
+  "source_revision": "c82c0bfb887cca60f983b0f4c76c17275fb917db",
   "source_directory": "ietf",
-  "artifact_revision": "sha256:b93fe00290f19e629e533e0fe49f7f4e9ad38c4bb40528d35a0f9cd5457c8fe5",
+  "artifact_revision": "sha256:26ed5fb25e50bdd810d7751f56a7e7dade8ea437e82d82bfff281edec45482bb",
   "generated_by": "scripts/sync-aep-spec-artifacts.mjs",
   "artifacts": {
     "examples": [
@@ -84,7 +84,9 @@
       "claims/person-contact-catalog.json",
       "claims/quoted-email.json",
       "claims/unknown-required-claim.json",
+      "client-assertion/did-web-resolution.json",
       "client-assertion/enroll-claims.json",
+      "client-assertion/validation-requirements.json",
       "credentials/api-key/grant-response.json",
       "credentials/basic/grant-response.json",
       "credentials/oauth-bearer/grant-response.json",

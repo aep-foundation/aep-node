@@ -49,7 +49,7 @@ const service = createAepService({
     ],
     preferred: [AEP_CLAIM_NAME_CONTACT_EMAIL, AEP_CLAIM_NAME_PERSON_USERNAME]
   },
-  clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  clientAssertionVerifier: createDidWebClientAssertionVerifier({ allowInsecureLoopback: true }),
   enrollmentStore,
   identityMethods: [didWebIdentityMethod()],
   serviceDid

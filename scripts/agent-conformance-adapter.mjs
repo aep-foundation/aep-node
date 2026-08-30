@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { generateKeyPairSync } from "node:crypto";
 import { createInterface } from "node:readline";
 import { isDeepStrictEqual } from "node:util";
 
@@ -10,6 +11,7 @@ import {
   AepInspectError,
   buildClientAssertionClaims,
   clientAssertionAuthenticationHeaders,
+  createJwtClientAssertionSigner,
   createInMemoryPublicDocumentCache,
   createPlatformDelegatedSigner,
   credentialPresentationHeaders,
@@ -97,6 +99,8 @@ async function evaluateCase(id, testCase) {
         }),
         testCase.expected
       );
+    case "validation-requirements":
+      return evaluateClientAssertionValidation(testCase);
     case "request-minimal":
     case "request-claims-catalog":
       return evaluateEnrollRequest(testCase);
@@ -185,6 +189,76 @@ async function evaluateCase(id, testCase) {
       return evaluateProtectedResourceSafety(id, testCase);
     default:
       throw new Error(`No Agent operation maps vector ${id}`);
+  }
+}
+
+async function evaluateClientAssertionValidation(testCase) {
+  const { privateKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+    privateKeyEncoding: { format: "pem", type: "pkcs8" },
+    publicKeyEncoding: { format: "pem", type: "spki" }
+  });
+  const signer = createJwtClientAssertionSigner({
+    alg: testCase.input.algorithm,
+    key: { format: "pkcs8", pem: privateKey }
+  });
+  const base = {
+    agentDid: testCase.input.agent_did,
+    clock: () => new Date(testCase.input.issued_at * 1000),
+    jti: testCase.input.jti,
+    serviceDid: testCase.input.service_did
+  };
+  const jwt = await signClientAssertion({
+    ...base,
+    command: "enroll",
+    signer,
+    ttlSeconds: testCase.input.expires_at - testCase.input.issued_at
+  });
+  const [encodedHeader, encodedPayload] = jwt.split(".");
+  if (encodedHeader === undefined || encodedPayload === undefined) return false;
+  const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8"));
+  const claims = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+
+  if (
+    !isDeepStrictEqual(header, testCase.expected.header) ||
+    !isDeepStrictEqual(claims, testCase.expected.claims)
+  ) {
+    return false;
+  }
+
+  const invalidClaims = [
+    { ...base, command: "enroll", ttlSeconds: 301 },
+    { ...base, command: "enroll", ttlSeconds: 0 },
+    { ...base, command: "authenticate" },
+    { ...base, command: "enroll", resource: "https://api.example.com/orders" },
+    { ...base, command: "authenticate", resource: "http://api.example.com/orders" },
+    { ...base, command: "authenticate", resource: "https://api.example.com/orders#item" }
+  ];
+
+  if (!invalidClaims.every((options) => throws(() => buildClientAssertionClaims(options)))) {
+    return false;
+  }
+
+  const mismatchedSigner = createJwtClientAssertionSigner({
+    alg: testCase.input.algorithm,
+    key: { format: "pkcs8", pem: privateKey },
+    kid: "did:web:different.example.com#key-1"
+  });
+
+  try {
+    await signClientAssertion({ ...base, command: "enroll", signer: mismatchedSigner });
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function throws(operation) {
+  try {
+    operation();
+    return false;
+  } catch {
+    return true;
   }
 }
 

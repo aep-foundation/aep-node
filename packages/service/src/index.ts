@@ -216,6 +216,7 @@ export interface AepEnrollmentPolicy {
 }
 
 export interface AepClientAssertionConfig {
+  allowInsecureLoopback?: boolean;
   clock?: () => Date;
   clockSkewSeconds?: number;
   maxTtlSeconds?: number;
@@ -243,6 +244,7 @@ export interface JwtClientAssertionVerifierOptions {
 }
 
 export interface DidWebClientAssertionVerifierOptions {
+  allowInsecureLoopback?: boolean;
   fetch?: DidWebFetchLike;
 }
 
@@ -767,13 +769,20 @@ export function createDidWebClientAssertionVerifier(
   return async (clientAssertion, context) => {
     const untrusted = decodeJwtUnverified(clientAssertion);
     const issuer = stringField(untrusted.payload, "iss");
+    const kid = stringField(untrusted.header, "kid");
     const key = await resolveDidWebPublicKey({
+      ...(options.allowInsecureLoopback === undefined
+        ? {}
+        : { allowInsecureLoopback: options.allowInsecureLoopback }),
       did: issuer,
       ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
-      ...(typeof untrusted.header["kid"] === "string" ? { kid: untrusted.header["kid"] } : {})
+      kid
     });
 
     return verifyClientAssertionJwt(clientAssertion, {
+      ...(options.allowInsecureLoopback === undefined
+        ? {}
+        : { allowInsecureLoopback: options.allowInsecureLoopback }),
       algorithms: context.signingAlgorithms,
       audience: context.serviceDid,
       key
@@ -1292,7 +1301,12 @@ async function authenticateClientAssertion(
         ...(resource === undefined ? {} : { resource }),
         serviceDid: options.serviceDid,
         signingAlgorithms: options.signingAlgorithms
-      })
+      }),
+      {
+        ...(options.config?.allowInsecureLoopback === undefined
+          ? {}
+          : { allowInsecureLoopback: options.config.allowInsecureLoopback })
+      }
     );
   } catch {
     return notRecognized();

@@ -40,7 +40,7 @@ const service = createAepService({
   ...exampleOpenApiAdvertisement(),
   ...exampleServicePorts(),
   authenticationMethods: [AEP_GRANT_TYPE_BASIC],
-  clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  clientAssertionVerifier: createDidWebClientAssertionVerifier({ allowInsecureLoopback: true }),
   grantTypes: [
     storedBasicGrantType({
       issue: (_request, context): BasicGrantResponse => {

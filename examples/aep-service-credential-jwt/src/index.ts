@@ -31,7 +31,7 @@ const service = createAepService({
   authenticationMethods: ["aep-jwt"],
   ...exampleOpenApiAdvertisement(),
   ...exampleServicePorts(),
-  clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  clientAssertionVerifier: createDidWebClientAssertionVerifier({ allowInsecureLoopback: true }),
   identityMethods: [didWebIdentityMethod()],
   serviceDid
 });

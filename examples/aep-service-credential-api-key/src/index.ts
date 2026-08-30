@@ -41,7 +41,7 @@ const service = createAepService({
   ...exampleOpenApiAdvertisement(),
   ...exampleServicePorts(),
   authenticationMethods: [AEP_GRANT_TYPE_API_KEY],
-  clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  clientAssertionVerifier: createDidWebClientAssertionVerifier({ allowInsecureLoopback: true }),
   grantTypes: [
     storedApiKeyGrantType({
       issue: (_request, context): ApiKeyGrantResponse => {

@@ -1,0 +1,59 @@
+{
+  "id": "validation-requirements",
+  "title": "Client assertion validation requirements",
+  "description": "Agents emit the mandatory JOSE header and bounded claims while Services reject identity, lifetime, and protected-resource binding failures.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
+  "category": "client-assertion",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "agent_did": "did:web:agent.example.com:agents:123",
+    "algorithm": "ES256",
+    "expires_at": 1748428860,
+    "issued_at": 1748428800,
+    "jti": "01J0AEPVECTORASSERTION00000001",
+    "service_did": "did:web:api.example.com"
+  },
+  "expected": {
+    "claims": {
+      "aud": "did:web:api.example.com",
+      "exp": 1748428860,
+      "iat": 1748428800,
+      "iss": "did:web:agent.example.com:agents:123",
+      "jti": "01J0AEPVECTORASSERTION00000001",
+      "op": "enroll",
+      "sub": "did:web:agent.example.com:agents:123"
+    },
+    "header": {
+      "alg": "ES256",
+      "kid": "did:web:agent.example.com:agents:123",
+      "typ": "JWT"
+    },
+    "reject": [
+      "excessive_lifetime",
+      "fragmented_resource",
+      "insecure_resource",
+      "mismatched_kid",
+      "mismatched_subject",
+      "missing_kid",
+      "missing_resource",
+      "nonpositive_lifetime",
+      "unexpected_resource",
+      "wrong_typ"
+    ]
+  }
+}

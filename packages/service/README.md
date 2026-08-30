@@ -212,7 +212,7 @@ command handlers.
 
 `createJwtClientAssertionVerifier()` is the built-in `jose` verifier adapter for
 PEM, JWK, `CryptoKey`, `KeyObject`, and raw key material supported by `jose`.
-`createDidWebClientAssertionVerifier()` resolves DID-web public keys over HTTP
+`createDidWebClientAssertionVerifier()` resolves DID-web public keys over HTTPS
 and verifies baseline AEP client assertion JWTs against the Service DID.
 `createHostedPlatformClientAssertionVerifier()` posts the assertion to a
 Platform hosted verification endpoint and lets the existing Service command

@@ -24,7 +24,7 @@ export function exampleServiceDidDocument(serviceDid: string): Record<string, un
 }
 
 export function exampleServiceDidPath(serviceDid: string): string {
-  return didWebDocumentUrl(serviceDid).pathname;
+  return didWebDocumentUrl(serviceDid, { allowInsecureLoopback: true }).pathname;
 }
 
 export function logExampleServiceUrls(
@@ -34,7 +34,9 @@ export function logExampleServiceUrls(
 ): void {
   console.log(`AEP ${service} service listening on ${listenUrl}`);
   console.log(`Service DID: ${serviceDid}`);
-  console.log(`Service DID document: ${String(didWebDocumentUrl(serviceDid))}`);
+  console.log(
+    `Service DID document: ${String(didWebDocumentUrl(serviceDid, { allowInsecureLoopback: true }))}`
+  );
   console.log("AEP discovery:");
   console.log(`  GET  ${listenUrl}/.well-known/aep`);
   console.log(`  GET  ${listenUrl}/openapi.json`);
@@ -107,9 +109,14 @@ export function profileBody(): Record<string, unknown> {
 
 export function exampleServicePorts(): Pick<
   AepServiceOptions,
-  "commandIdempotencyStore" | "enrollmentPolicy" | "enrollmentStore" | "replayStore"
+  | "clientAssertion"
+  | "commandIdempotencyStore"
+  | "enrollmentPolicy"
+  | "enrollmentStore"
+  | "replayStore"
 > {
   return {
+    clientAssertion: { allowInsecureLoopback: true },
     commandIdempotencyStore: createInMemoryCommandIdempotencyStore(),
     enrollmentPolicy: createStaticEnrollmentPolicy(),
     enrollmentStore: createInMemoryEnrollmentStore(),
