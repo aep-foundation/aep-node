@@ -1,0 +1,35 @@
+{
+  "id": "authenticate-command-prohibited",
+  "title": "Inspect document advertising authenticate as a command",
+  "description": "authenticate is an assertion operation for protected resources and is not a Service command endpoint.",
+  "drafts": [
+    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-aep-did-web-identity-method-00"
+  ],
+  "category": "inspect",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "document": {
+      "aep_version": "1.0",
+      "bindings": { "supported": ["http"] },
+      "commands": { "supported": ["inspect", "authenticate"] },
+      "core": { "signing_algorithms": ["EdDSA", "ES256"] },
+      "http": {},
+      "identity": { "methods": [] },
+      "service": { "did": "did:web:api.example.com" }
+    }
+  },
+  "expected": { "valid": false }
+}

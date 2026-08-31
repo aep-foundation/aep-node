@@ -5,10 +5,29 @@
   "type": "object",
   "required": ["type", "title", "status", "code"],
   "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "required": ["code"],
+        "properties": {
+          "code": { "const": "not_recognized" }
+        }
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["owner_action_required"] },
+            { "required": ["requirements_pending"] },
+            { "required": ["verification_pending"] }
+          ]
+        }
+      }
+    }
+  ],
   "properties": {
     "type": {
       "type": "string",
-      "pattern": "^urn:aep:error:"
+      "pattern": "^urn:aep:error:[a-z][a-z0-9_]*$"
     },
     "title": {
       "type": "string",

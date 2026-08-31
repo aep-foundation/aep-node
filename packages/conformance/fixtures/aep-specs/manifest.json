@@ -1,9 +1,9 @@
 {
-  "source": "https://github.com/aep-foundation/aep-specs/tree/8cbf3a08b85e4486f2a6c3338cc4bdf758e3d04e/ietf",
+  "source": "https://github.com/aep-foundation/aep-specs/tree/10b07f20cb226fbb3b2028f1c7b9459f487a2e1c/ietf",
   "source_repository": "https://github.com/aep-foundation/aep-specs",
-  "source_revision": "8cbf3a08b85e4486f2a6c3338cc4bdf758e3d04e",
+  "source_revision": "10b07f20cb226fbb3b2028f1c7b9459f487a2e1c",
   "source_directory": "ietf",
-  "artifact_revision": "sha256:dd87858ac31a70517228aa0da38013ae88bcf1762dba12ed5ab3da49a79cd621",
+  "artifact_revision": "sha256:29815e42fe81e6ade38d7b95cc2aebf35a07ec03494b646d6db43d3dfe249140",
   "generated_by": "scripts/sync-aep-spec-artifacts.mjs",
   "artifacts": {
     "examples": [
@@ -99,6 +99,7 @@
       "enroll/response-active.json",
       "enroll/response-pending-verification-owner-action.json",
       "errors/not-recognized-problem.json",
+      "errors/problem-details-validation.json",
       "errors/requirements-unmet-problem.json",
       "errors/verification-pending-problem.json",
       "grant-revoke/grant-before-enroll-rejected.json",
@@ -113,6 +114,7 @@
       "idempotency/command-replay-conflict.json",
       "idempotency/enroll-conflict.json",
       "index.json",
+      "inspect/authenticate-command-prohibited.json",
       "inspect/authenticated-command-without-identity-method.json",
       "inspect/authentication-method-limit.json",
       "inspect/claims-catalog-advertisement.json",

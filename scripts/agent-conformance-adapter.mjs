@@ -4,7 +4,11 @@ import { generateKeyPairSync } from "node:crypto";
 import { createInterface } from "node:readline";
 import { isDeepStrictEqual } from "node:util";
 
-import { AepValidationError, parseRevokeRequest } from "../packages/core/dist/index.js";
+import {
+  AepValidationError,
+  parseProblemDetails,
+  parseRevokeRequest
+} from "../packages/core/dist/index.js";
 
 import {
   AepClaimRequirementsError,
@@ -136,8 +140,11 @@ async function evaluateCase(vector, testCase) {
     case "requirements-unmet-problem":
     case "verification-pending-problem":
       return evaluateProblem(testCase);
+    case "problem-details-validation":
+      return evaluateProblemDetailsValidation(testCase);
     case "grant-before-enroll-rejected":
       return evaluateGrantBeforeEnroll(testCase);
+    case "authenticate-command-prohibited":
     case "authenticated-command-without-identity-method":
     case "authentication-method-limit":
     case "command-without-inspect":
@@ -552,6 +559,17 @@ async function evaluateProblem(testCase) {
       isDeepStrictEqual(error.problem, testCase.expected.body)
     );
   }
+}
+
+function evaluateProblemDetailsValidation(testCase) {
+  return testCase.input.cases.every(({ body, valid }) => {
+    try {
+      parseProblemDetails(body);
+      return valid;
+    } catch {
+      return !valid;
+    }
+  });
 }
 
 async function evaluateGrantBeforeEnroll(testCase) {

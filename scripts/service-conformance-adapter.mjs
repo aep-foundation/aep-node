@@ -9,6 +9,7 @@ import {
   AepValidationError,
   isAepVersionCompatible,
   parseInspectDocument,
+  parseProblemDetails,
   signClientAssertionJwt,
   validateAepClaimValues
 } from "../packages/core/dist/index.js";
@@ -53,6 +54,7 @@ const CLAIM_VALUE_VECTOR_IDS = new Set([
   "quoted-email"
 ]);
 const INSPECT_DOCUMENT_VECTOR_IDS = new Set([
+  "authenticate-command-prohibited",
   "authenticated-command-without-identity-method",
   "authentication-method-limit",
   "command-without-inspect",
@@ -133,6 +135,8 @@ async function evaluateCase(vector, testCase) {
       return evaluateRequirementsUnmet(testCase);
     case "verification-pending-problem":
       return evaluateVerificationPending(testCase);
+    case "problem-details-validation":
+      return evaluateProblemDetailsValidation(testCase);
     case "grant-before-enroll-rejected":
       return evaluateGrantBeforeEnrollment(testCase);
     case "grant-request-oauth-bearer":
@@ -539,6 +543,17 @@ async function evaluateNotRecognized(testCase) {
   });
   const response = await service.status({ clientAssertion: "invalid" });
   return responseMatches(response, testCase.expected);
+}
+
+function evaluateProblemDetailsValidation(testCase) {
+  return testCase.input.cases.every(({ body, valid }) => {
+    try {
+      parseProblemDetails(body);
+      return valid;
+    } catch {
+      return !valid;
+    }
+  });
 }
 
 async function evaluateRequirementsUnmet(testCase) {
