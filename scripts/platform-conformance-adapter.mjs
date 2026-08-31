@@ -42,6 +42,8 @@ async function evaluate(request) {
 
 async function evaluateCase(id, testCase) {
   switch (id) {
+    case "authorization-required":
+      return evaluateAuthorizationRequired(testCase);
     case "discovery":
       return evaluateDiscovery(testCase);
     case "idempotency-replay-conflict":
@@ -77,6 +79,97 @@ async function evaluateCase(id, testCase) {
     default:
       throw new Error("No Platform operation maps vector " + id);
   }
+}
+
+async function evaluateAuthorizationRequired(testCase) {
+  let missingAuthorizerRejected = false;
+  try {
+    platformFixture({ authorizer: undefined });
+  } catch {
+    missingAuthorizerRejected = true;
+  }
+
+  const operations = [];
+  let allowed = true;
+  const identityStore = createMemoryIdentityStore();
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const keyStore = createMemoryKeyStore({
+    sign(identity, claims) {
+      return createJwtPlatformDelegatedSigner({
+        alg: "ES256",
+        key: privateKey,
+        kid: identity.keyId
+      })(claims, {
+        identity: {
+          agentDid: identity.agentDid,
+          createdAt: identity.createdAt,
+          status: identity.status,
+          updatedAt: identity.updatedAt
+        },
+        signingAlgorithms: identity.signingAlgorithms
+      });
+    },
+    verificationKey: () => publicKey
+  });
+  const platform = platformFixture({
+    authorizer: {
+      authorize(request) {
+        operations.push(request.operation);
+        return allowed;
+      }
+    },
+    identityStore,
+    keyStore
+  });
+  const provision = await platform.provision(
+    { service_did: SERVICE_DID },
+    { idempotencyKey: "authorization-setup", subject: PRINCIPAL }
+  );
+  const identityId = provision.body.agent_identity_id;
+  const sign = await platform.sign(identityId, signRequest(), {
+    idempotencyKey: "authorization-sign-setup",
+    now: NOW,
+    subject: PRINCIPAL
+  });
+  operations.length = 0;
+  allowed = false;
+
+  const didDocument = await platform.getDidDocument(identityId);
+  const identity = await platform.getIdentity(identityId);
+  const list = await platform.list();
+  const deniedProvision = await platform.provision(
+    { service_did: "did:web:denied.service.example" },
+    { idempotencyKey: "authorization-provision-denied", subject: PRINCIPAL }
+  );
+  const deniedSign = await platform.sign(identityId, signRequest(), {
+    idempotencyKey: "authorization-sign-denied",
+    subject: PRINCIPAL
+  });
+  const deniedUpdate = await platform.updateIdentity(identityId, { status: "suspended" });
+  const deniedVerification = await platform.verify(
+    {
+      client_assertion: sign.body.client_assertion,
+      op: "enroll",
+      service_did: SERVICE_DID
+    },
+    { idempotencyKey: "authorization-verify-denied", now: NOW, subject: PRINCIPAL }
+  );
+  const stored = await identityStore.list({});
+  const managementResponses = [identity, list, deniedProvision, deniedSign, deniedUpdate];
+
+  return (
+    missingAuthorizerRejected === (testCase.expected.missing_authorizer === "construction-error") &&
+    (didDocument.status === 200) === testCase.expected.did_document_public &&
+    managementResponses.every(
+      (response) =>
+        response.status === testCase.expected.management_denied_status &&
+        response.body.code === testCase.expected.management_denied_code
+    ) &&
+    deniedVerification.body.verified === testCase.expected.verification_denied.verified &&
+    deniedVerification.body.reason === testCase.expected.verification_denied.reason &&
+    (stored.identities.length === 1) === !testCase.expected.side_effects &&
+    isDeepStrictEqual([...new Set(operations)].sort(), [...testCase.input.private_operations].sort())
+  );
 }
 
 function evaluateDiscovery(testCase) {
@@ -417,6 +510,7 @@ async function evaluateVerificationResponse(testCase) {
 function platformFixture(options = {}) {
   return createAepPlatform({
     agentDidIdGenerator: options.agentDidIdGenerator,
+    authorizer: "authorizer" in options ? options.authorizer : { authorize: () => true },
     clock: options.clock ?? (() => NOW),
     didHost: "p.example",
     didPathPrefix: "a",

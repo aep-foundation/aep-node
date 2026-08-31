@@ -13,6 +13,8 @@ import {
   AepInspectError,
   buildClientAssertionClaims,
   clientAssertionAuthenticationHeaders,
+  createAepAgent,
+  createInMemorySessionCredentialStore,
   createJwtClientAssertionSigner,
   createInMemoryPublicDocumentCache,
   createPlatformDelegatedSigner,
@@ -191,6 +193,8 @@ async function evaluateCase(vector, testCase) {
       return evaluateApiKeyHeader(testCase);
     case "inspect-authentication-methods":
       return evaluateAuthenticationMethods(testCase);
+    case "unadvertised-authentication-method":
+      return evaluateUnadvertisedAuthenticationMethod(testCase);
     case "operation-substitution-rejected":
       return evaluateOperationBinding(testCase);
     case "assertion-and-credential-failures":
@@ -1050,6 +1054,66 @@ async function evaluateAuthenticationMethods(testCase) {
     authentication: undefined
   });
   return omitted.document.authentication === undefined;
+}
+
+async function evaluateUnadvertisedAuthenticationMethod(testCase) {
+  const credential = grantResponse(testCase.input.unadvertised_credential);
+  const credentialStore = createInMemorySessionCredentialStore([
+    {
+      credential,
+      credentialId: credential.credential_id,
+      expiresAt: credential.expires_at,
+      grantType: testCase.input.unadvertised_credential,
+      issuedAt: "2026-07-06T12:00:00Z",
+      serviceDid: SERVICE_DID,
+      serviceUrl: SERVICE_ORIGIN
+    }
+  ]);
+  const session = (document) =>
+    createAepAgent({
+      credentialStore,
+      fetch: () => jsonResponse(document),
+      identityProvider: {
+        getOrCreateIdentity: () => ({
+          agentDid: AGENT_DID,
+          identityKind: "sovereign",
+          serviceDid: SERVICE_DID,
+          signingAlgorithms: ["ES256"]
+        }),
+        signerFor: () => () => "compact-jws"
+      }
+    }).serviceSession({ serviceUrl: SERVICE_ORIGIN });
+  const omitted = { ...baseInspectDocument(), authentication: undefined };
+  const advertised = {
+    ...baseInspectDocument(),
+    authentication: { methods: testCase.input.advertised_methods }
+  };
+
+  const omittedRejected = await rejects(() => session(omitted).authenticationHeaders());
+  const credentialRejected = await rejects(() =>
+    session(advertised).authenticationHeaders({ credentialId: credential.credential_id })
+  );
+  const grantTypeRejected = await rejects(() =>
+    session(advertised).authenticationHeaders({
+      grantType: testCase.input.unadvertised_grant_type
+    })
+  );
+
+  return (
+    omittedRejected === (testCase.expected.omitted_authentication === "reject") &&
+    credentialRejected === (testCase.expected.explicit_unadvertised_credential === "reject") &&
+    grantTypeRejected === (testCase.expected.explicit_unadvertised_grant_type === "reject") &&
+    testCase.expected.inferred_method === null
+  );
+}
+
+async function rejects(operation) {
+  try {
+    await operation();
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 function evaluateOperationBinding(testCase) {

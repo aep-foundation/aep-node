@@ -852,6 +852,13 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
   return {
     async authenticationHeaders(options = {}) {
       const inspected = await inspectOnce();
+      const methods = inspected.document.authentication?.methods ?? [];
+
+      if (options.grantType !== undefined && !methods.includes(options.grantType)) {
+        throw new TypeError(
+          `Service does not advertise ${options.grantType} authentication for protected resources.`
+        );
+      }
 
       if (options.preferCredential !== false) {
         const credential =
@@ -860,7 +867,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
                 state.credentialStore,
                 inspected.document.service.did,
                 options.grantType,
-                inspected.document.authentication?.methods
+                methods
               )
             : await state.credentialStore.findCredential(
                 inspected.document.service.did,
@@ -868,17 +875,29 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
               );
 
         if (credential !== undefined) {
+          if (!methods.includes(credential.grantType)) {
+            throw new TypeError(
+              `Service does not advertise ${credential.grantType} authentication for protected resources.`
+            );
+          }
           return protectedResourceAuthenticationHeaders({
             ...(options.carrier === undefined ? {} : { carrier: options.carrier }),
             credential: parseBuiltInGrantResponse(credential.grantType, credential.credential)
           });
         }
+
+        if (options.credentialId !== undefined) {
+          throw new TypeError(`Stored AEP credential was not found: ${options.credentialId}.`);
+        }
+
+        if (options.grantType !== undefined) {
+          throw new TypeError(
+            `Stored ${options.grantType} credential was not found for this Service.`
+          );
+        }
       }
 
-      if (
-        inspected.document.authentication !== undefined &&
-        !inspected.document.authentication.methods.includes("aep-jwt")
-      ) {
+      if (!methods.includes("aep-jwt")) {
         throw new TypeError("Service does not advertise AEP JWT authentication.");
       }
 
@@ -1613,14 +1632,18 @@ async function findCompatibleCredential(
   store: AgentCredentialStore,
   serviceDid: string,
   grantType?: AepGrantType,
-  methods?: AepAuthenticationMethod[]
+  methods: AepAuthenticationMethod[] = []
 ): Promise<AgentCredentialRecord | undefined> {
   const records = await store.listCredentials(serviceDid);
-  return records.find(
-    (record) =>
-      (grantType === undefined || record.grantType === grantType) &&
-      (methods === undefined || methods.includes(record.grantType))
-  );
+  for (const method of methods) {
+    const record = records.find(
+      (candidate) =>
+        candidate.grantType === method &&
+        (grantType === undefined || candidate.grantType === grantType)
+    );
+    if (record !== undefined) return record;
+  }
+  return undefined;
 }
 
 export function createInMemoryAgentIdentityStore(

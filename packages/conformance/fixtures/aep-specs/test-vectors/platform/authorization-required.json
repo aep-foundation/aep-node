@@ -1,0 +1,40 @@
+{
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "platform-hosted-identity"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
+  "category": "platform",
+  "description": "A Platform requires an explicit authorization decision for every private operation while keeping managed Agent DID documents publicly resolvable.",
+  "drafts": ["draft-kavian-aep-platform-hosted-identity-01"],
+  "expected": {
+    "did_document_public": true,
+    "management_denied_code": "not_recognized",
+    "management_denied_status": 404,
+    "missing_authorizer": "construction-error",
+    "side_effects": false,
+    "verification_denied": {
+      "reason": "not_recognized",
+      "verified": false
+    }
+  },
+  "id": "authorization-required",
+  "input": {
+    "private_operations": [
+      "get-identity",
+      "list-identities",
+      "provision-identity",
+      "sign",
+      "update-identity",
+      "verify"
+    ]
+  },
+  "title": "Platform authorization is explicit and fail closed"
+}

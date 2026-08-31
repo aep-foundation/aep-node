@@ -341,7 +341,15 @@ describe("@aep-foundation/platform", () => {
       namedCurve: "P-256"
     });
     const identityStore = createMemoryIdentityStore();
+    const authorizationOperations: string[] = [];
+    let authorized = true;
     const platform = createAepPlatform({
+      authorizer: {
+        authorize(request) {
+          authorizationOperations.push(request.operation);
+          return authorized;
+        }
+      },
       clock: () => new Date("2026-07-06T12:00:00.000Z"),
       didHost: "platform.example.com",
       didUrlTemplate: "https://platform.example.com/agents/{agent_did_id}/did.json",
@@ -640,6 +648,59 @@ describe("@aep-foundation/platform", () => {
         { idempotencyKey: "wrong-service-key", subject: "owner-1" }
       )
     ).resolves.toMatchObject({ body: { code: "not_recognized" }, status: 404 });
+
+    authorizationOperations.length = 0;
+    authorized = false;
+    await expect(platform.getDidDocument("pai_01J0AEPPLATFORM000000000001")).resolves.toMatchObject(
+      { status: 200 }
+    );
+    expect(authorizationOperations).toEqual([]);
+    await expect(platform.getIdentity("pai_01J0AEPPLATFORM000000000001")).resolves.toMatchObject({
+      body: { code: "not_recognized" },
+      status: 404
+    });
+    await expect(platform.list()).resolves.toMatchObject({
+      body: { code: "not_recognized" },
+      status: 404
+    });
+    await expect(
+      platform.provision(
+        { service_did: "did:web:api.service.example" },
+        { idempotencyKey: "authorization-denied-provision", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "not_recognized" }, status: 404 });
+    await expect(
+      platform.sign(
+        "pai_01J0AEPPLATFORM000000000001",
+        {
+          jti: "authorization-denied-sign",
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "authorization-denied-sign", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { code: "not_recognized" }, status: 404 });
+    await expect(
+      platform.updateIdentity("pai_01J0AEPPLATFORM000000000001", { status: "suspended" })
+    ).resolves.toMatchObject({ body: { code: "not_recognized" }, status: 404 });
+    await expect(
+      platform.verify(
+        {
+          client_assertion: signed.body.client_assertion,
+          op: "enroll",
+          service_did: "did:web:api.service.example"
+        },
+        { idempotencyKey: "authorization-denied-verify", subject: "owner-1" }
+      )
+    ).resolves.toMatchObject({ body: { reason: "not_recognized", verified: false }, status: 200 });
+    expect([...new Set(authorizationOperations)].sort()).toEqual([
+      "get-identity",
+      "list-identities",
+      "provision-identity",
+      "sign",
+      "update-identity",
+      "verify"
+    ]);
   });
 
   it("builds DID documents for managed Agent identities", () => {

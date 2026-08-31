@@ -62,6 +62,7 @@
     "openapi/path-matching.json",
     "openapi/security-inheritance.json",
     "openapi/url-resolution.json",
+    "platform/authorization-required.json",
     "platform/discovery.json",
     "platform/idempotency-replay-conflict.json",
     "platform/lifecycle-request.json",
@@ -88,6 +89,7 @@
     "protected-resource/inspect-authentication-methods.json",
     "protected-resource/operation-substitution-rejected.json",
     "protected-resource/redirect-safety.json",
+    "protected-resource/unadvertised-authentication-method.json",
     "status/response-active.json",
     "status/response-pending-requirements.json"
   ]

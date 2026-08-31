@@ -1175,6 +1175,88 @@ describe("@aep-foundation/agent command clients", () => {
     expect(await credentialStore.listCredentials(serviceDid)).toEqual([]);
   });
 
+  it("does not infer protected-resource authentication methods", async () => {
+    const agent = createAepAgent({
+      credentialStore: createInMemorySessionCredentialStore(),
+      fetch: () => fetchJsonResponse(minimalInspectDocument),
+      identityProvider: {
+        getOrCreateIdentity: () => ({
+          agentDid: "did:web:agent.example.com:agents:123",
+          identityKind: "sovereign",
+          serviceDid: "did:web:api.example.com",
+          signingAlgorithms: ["ES256"]
+        }),
+        signerFor: () => () => "jwt.authenticate"
+      }
+    });
+
+    await expect(
+      agent.serviceSession({ serviceUrl: "https://api.example.com" }).authenticationHeaders()
+    ).rejects.toThrow("does not advertise AEP JWT authentication");
+  });
+
+  it("uses only advertised credentials in Service preference order", async () => {
+    const credentialStore = createInMemorySessionCredentialStore([
+      sessionCredentialRecord("oauth-1", "oauth-bearer"),
+      sessionCredentialRecord("api-key-1", "api-key")
+    ]);
+    const document: InspectDocument = {
+      ...minimalInspectDocument,
+      authentication: { methods: ["api-key", "oauth-bearer"] }
+    };
+    const agent = createAepAgent({
+      credentialStore,
+      fetch: () => fetchJsonResponse(document),
+      identityProvider: {
+        getOrCreateIdentity: () => ({
+          agentDid: "did:web:agent.example.com:agents:123",
+          identityKind: "sovereign",
+          serviceDid: "did:web:api.example.com",
+          signingAlgorithms: ["ES256"]
+        }),
+        signerFor: () => () => "jwt.authenticate"
+      }
+    });
+    const session = agent.serviceSession({ serviceUrl: "https://api.example.com" });
+
+    await expect(session.authenticationHeaders()).resolves.toEqual({
+      "X-API-Key": "api-key"
+    });
+    const restrictedAgent = createAepAgent({
+      credentialStore,
+      fetch: () =>
+        fetchJsonResponse({
+          ...minimalInspectDocument,
+          authentication: { methods: ["api-key"] }
+        }),
+      identityProvider: {
+        getOrCreateIdentity: () => ({
+          agentDid: "did:web:agent.example.com:agents:123",
+          identityKind: "sovereign",
+          serviceDid: "did:web:api.example.com",
+          signingAlgorithms: ["ES256"]
+        }),
+        signerFor: () => () => "jwt.authenticate"
+      }
+    });
+    const restricted = restrictedAgent.serviceSession({
+      serviceUrl: "https://api.example.com"
+    });
+    await expect(restricted.authenticationHeaders({ credentialId: "oauth-1" })).rejects.toThrow(
+      "does not advertise oauth-bearer authentication"
+    );
+    await expect(restricted.authenticationHeaders({ grantType: "basic" })).rejects.toThrow(
+      "does not advertise basic authentication"
+    );
+    await expect(restricted.authenticationHeaders({ credentialId: "missing" })).rejects.toThrow(
+      "Stored AEP credential was not found"
+    );
+    await credentialStore.deleteCredential("did:web:api.example.com", "oauth-1");
+    await expect(session.authenticationHeaders({ grantType: "oauth-bearer" })).rejects.toThrow(
+      "Stored oauth-bearer credential was not found"
+    );
+  });
+
   it("throws AepCommandError with Problem Details on command failures", async () => {
     await expect(
       withFetch(
@@ -2495,6 +2577,12 @@ function jsonResponse(
     json: () => Promise.resolve(body),
     ...(options.statusText === undefined ? {} : { statusText: options.statusText })
   };
+}
+
+function fetchJsonResponse(body: unknown): Promise<Response> {
+  return Promise.resolve(
+    new Response(JSON.stringify(body), { headers: { "content-type": AEP_MEDIA_TYPE } })
+  );
 }
 
 function sessionCredentialRecord(

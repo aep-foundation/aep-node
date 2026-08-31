@@ -40,6 +40,11 @@ The package covers the AEP Platform Hosted Identity Profile:
 import { createAepPlatform } from "@aep-foundation/platform";
 
 const platform = createAepPlatform({
+  authorizer: {
+    authorize(request, context) {
+      return applicationPolicy.allows(request, context);
+    }
+  },
   didHost: "platform.example.com",
   didUrlTemplate: "https://platform.example.com/agents/{agent_did_id}/did.json",
   discovery: {
@@ -119,6 +124,11 @@ Callers provide those through `PlatformIdentityStore`,
 `PlatformServiceDidResolver`, `PlatformAuthorizer`, and
 `PlatformLifecyclePolicy`. The example Platform in this repository uses
 in-memory implementations for those interfaces.
+
+`PlatformAuthorizer.authorize()` receives a typed operation request for every
+private Platform operation. It must return `true` to permit the request;
+`false` fails with the non-disclosing `not_recognized` response. Managed Agent
+DID documents remain public so Services can resolve verification material.
 
 `PlatformIdentityStore.findByServiceDid()` scopes lookup through the supplied
 request context. It must return the authenticated caller's existing identity
