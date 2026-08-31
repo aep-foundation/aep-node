@@ -124,13 +124,16 @@ export interface AepProblemDetails {
 }
 
 export type AepErrorCode =
+  | "enrollment_failed"
   | "invalid_request"
   | "not_recognized"
   | "identity_suspended"
   | "identity_terminated"
   | "identity_unavailable"
   | "verification_pending"
+  | "verification_timeout"
   | "requirements_unmet"
+  | "rate_limited"
   | "unsupported_grant_type"
   | "idempotency_conflict"
   | "authentication_required"

@@ -118,6 +118,12 @@ function validateCommands(value: unknown, issues: ValidationIssue[]): void {
   if (Array.isArray(supported) && !supported.includes("inspect")) {
     issues.push({ path: "$.commands.supported", message: "Expected inspect to be advertised." });
   }
+  if (Array.isArray(supported) && supported.includes("authenticate")) {
+    issues.push({
+      path: "$.commands.supported",
+      message: "authenticate is an assertion operation, not a command."
+    });
+  }
   const grantTypes = value["grant_types"];
   optionalStringArray(grantTypes, "$.commands.grant_types", issues, {
     itemPattern: ADVERTISEMENT_PATTERN

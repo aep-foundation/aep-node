@@ -83,6 +83,11 @@
           "contains": {
             "const": "inspect"
           },
+          "not": {
+            "contains": {
+              "const": "authenticate"
+            }
+          },
           "items": {
             "type": "string",
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"

@@ -1,0 +1,118 @@
+{
+  "id": "problem-details-validation",
+  "title": "Problem Details semantic validation",
+  "description": "AEP Problem Details require a title, bind type exactly to code, and do not disclose recognition metadata.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "category": "errors",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "core-http"
+    }
+  },
+  "input": {
+    "cases": [
+      {
+        "name": "valid_problem",
+        "body": {
+          "type": "urn:aep:error:not_recognized",
+          "title": "Not recognized",
+          "status": 401,
+          "code": "not_recognized"
+        },
+        "valid": true
+      },
+      {
+        "name": "title_omitted",
+        "body": {
+          "type": "urn:aep:error:not_recognized",
+          "status": 401,
+          "code": "not_recognized"
+        },
+        "valid": false
+      },
+      {
+        "name": "title_null",
+        "body": {
+          "type": "urn:aep:error:not_recognized",
+          "title": null,
+          "status": 401,
+          "code": "not_recognized"
+        },
+        "valid": false
+      },
+      {
+        "name": "title_empty",
+        "body": {
+          "type": "urn:aep:error:not_recognized",
+          "title": "",
+          "status": 401,
+          "code": "not_recognized"
+        },
+        "valid": false
+      },
+      {
+        "name": "type_code_mismatch",
+        "body": {
+          "type": "urn:aep:error:invalid_request",
+          "title": "Not recognized",
+          "status": 401,
+          "code": "not_recognized"
+        },
+        "valid": false
+      },
+      {
+        "name": "not_recognized_owner_action",
+        "body": {
+          "type": "urn:aep:error:not_recognized",
+          "title": "Not recognized",
+          "status": 401,
+          "code": "not_recognized",
+          "owner_action_required": "true"
+        },
+        "valid": false
+      },
+      {
+        "name": "not_recognized_requirements",
+        "body": {
+          "type": "urn:aep:error:not_recognized",
+          "title": "Not recognized",
+          "status": 401,
+          "code": "not_recognized",
+          "requirements_pending": ["contact.email"]
+        },
+        "valid": false
+      },
+      {
+        "name": "not_recognized_verification",
+        "body": {
+          "type": "urn:aep:error:not_recognized",
+          "title": "Not recognized",
+          "status": 401,
+          "code": "not_recognized",
+          "verification_pending": ["contact.email"]
+        },
+        "valid": false
+      }
+    ]
+  },
+  "expected": {
+    "valid_cases": ["valid_problem"],
+    "invalid_cases": [
+      "not_recognized_owner_action",
+      "not_recognized_requirements",
+      "not_recognized_verification",
+      "title_empty",
+      "title_null",
+      "title_omitted",
+      "type_code_mismatch"
+    ]
+  }
+}

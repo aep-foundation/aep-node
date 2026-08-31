@@ -396,6 +396,21 @@ describe("Inspect document validation", () => {
     expect(parseInspectDocument(minimalInspectDocument)).toEqual(minimalInspectDocument);
   });
 
+  it("rejects authenticate as an advertised command", () => {
+    const result = validateInspectDocument({
+      ...minimalInspectDocument,
+      commands: {
+        ...minimalInspectDocument.commands,
+        supported: [...minimalInspectDocument.commands.supported, "authenticate"]
+      }
+    });
+
+    expect(result.issues).toContainEqual({
+      path: "$.commands.supported",
+      message: "authenticate is an assertion operation, not a command."
+    });
+  });
+
   it("validates finalized OpenAPI advertisement fields", () => {
     const document = {
       ...minimalInspectDocument,
@@ -871,16 +886,25 @@ describe("Protocol message validation", () => {
     });
   });
 
-  it("rejects pending metadata on not_recognized Problem Details", () => {
-    expect(() =>
-      parseProblemDetails({
-        code: "not_recognized",
-        status: 404,
-        title: "Identity not recognized",
-        type: "urn:aep:error:not_recognized",
-        verification_pending: ["contact.email"]
-      })
-    ).toThrow(AepValidationError);
+  it("rejects invalid Problem Details semantics", () => {
+    const base = {
+      code: "not_recognized",
+      status: 401,
+      title: "Identity not recognized",
+      type: "urn:aep:error:not_recognized"
+    };
+
+    for (const invalid of [
+      { ...base, owner_action_required: "true" },
+      { ...base, requirements_pending: ["contact.email"] },
+      { code: base.code, status: base.status, type: base.type },
+      { ...base, title: "" },
+      { ...base, title: null },
+      { ...base, type: "urn:aep:error:invalid_request" },
+      { ...base, verification_pending: ["contact.email"] }
+    ]) {
+      expect(() => parseProblemDetails(invalid)).toThrow(AepValidationError);
+    }
   });
 
   it("accepts built-in Grant response profiles", () => {

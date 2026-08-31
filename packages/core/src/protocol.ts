@@ -34,7 +34,6 @@ const AGENT_STATUSES = new Set<string>([
   "unavailable"
 ]);
 const OWNER_ACTION_REQUIRED_VALUES = new Set<string>(["true", "false"]);
-const PROBLEM_TYPE_PATTERN = /^urn:aep:error:/;
 
 export function validateEnrollRequest(value: unknown): ValidationResult<EnrollRequest> {
   if (!isRecord(value)) {
@@ -252,10 +251,17 @@ export function validateProblemDetails(value: unknown): ValidationResult<AepProb
   }
 
   const issues: ValidationIssue[] = [];
-  requireString(value, "type", issues, { pattern: PROBLEM_TYPE_PATTERN });
+  requireString(value, "type", issues, { minLength: 1 });
   requireString(value, "title", issues, { minLength: 1 });
   requireInteger(value["status"], "$.status", issues);
   requireString(value, "code", issues, { minLength: 1 });
+  if (
+    typeof value["type"] === "string" &&
+    typeof value["code"] === "string" &&
+    value["type"] !== `urn:aep:error:${value["code"]}`
+  ) {
+    issues.push({ path: "$.type", message: "Expected an AEP error URN matching code." });
+  }
   optionalString(value["detail"], "$.detail", issues);
   optionalString(value["instance"], "$.instance", issues);
   optionalString(value["owner_action_required"], "$.owner_action_required", issues, {
@@ -265,11 +271,13 @@ export function validateProblemDetails(value: unknown): ValidationResult<AepProb
   optionalNonEmptyStringArray(value["requirements_pending"], "$.requirements_pending", issues);
   if (
     value["code"] === "not_recognized" &&
-    (value["verification_pending"] !== undefined || value["requirements_pending"] !== undefined)
+    (value["owner_action_required"] !== undefined ||
+      value["verification_pending"] !== undefined ||
+      value["requirements_pending"] !== undefined)
   ) {
     issues.push({
       path: "$",
-      message: "not_recognized must not expose pending-name metadata."
+      message: "not_recognized must not expose pending or owner-action metadata."
     });
   }
   return result(value as AepProblemDetails, issues);
