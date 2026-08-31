@@ -226,9 +226,7 @@ const keyStore = new ExampleKeyStore();
 const platformKey = createExampleKeyMaterial(platformDid);
 const platform = createAepPlatform({
   authorizer: {
-    authorizeIdentityAccess: (_identity, context) => isAuthorized(context),
-    authorizeList: isAuthorized,
-    authorizeProvision: (_request, context) => isAuthorized(context)
+    authorize: (_request, context) => isAuthorized(context)
   },
   didHost,
   didUrlTemplate,

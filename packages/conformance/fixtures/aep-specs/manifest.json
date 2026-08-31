@@ -1,9 +1,9 @@
 {
-  "source": "https://github.com/aep-foundation/aep-specs/tree/1228093a399caa24d7e818c25978c6ff647f200b/ietf",
+  "source": "https://github.com/aep-foundation/aep-specs/tree/8cbf3a08b85e4486f2a6c3338cc4bdf758e3d04e/ietf",
   "source_repository": "https://github.com/aep-foundation/aep-specs",
-  "source_revision": "1228093a399caa24d7e818c25978c6ff647f200b",
+  "source_revision": "8cbf3a08b85e4486f2a6c3338cc4bdf758e3d04e",
   "source_directory": "ietf",
-  "artifact_revision": "sha256:ea7b52564a26d1df2579cfaffaaca9cbfa81a9f5e04cfd5599d9c149ddb04cb5",
+  "artifact_revision": "sha256:dd87858ac31a70517228aa0da38013ae88bcf1762dba12ed5ab3da49a79cd621",
   "generated_by": "scripts/sync-aep-spec-artifacts.mjs",
   "artifacts": {
     "examples": [
@@ -130,6 +130,7 @@
       "openapi/path-matching.json",
       "openapi/security-inheritance.json",
       "openapi/url-resolution.json",
+      "platform/authorization-required.json",
       "platform/discovery.json",
       "platform/idempotency-replay-conflict.json",
       "platform/lifecycle-request.json",
@@ -156,6 +157,7 @@
       "protected-resource/inspect-authentication-methods.json",
       "protected-resource/operation-substitution-rejected.json",
       "protected-resource/redirect-safety.json",
+      "protected-resource/unadvertised-authentication-method.json",
       "status/response-active.json",
       "status/response-pending-requirements.json"
     ]

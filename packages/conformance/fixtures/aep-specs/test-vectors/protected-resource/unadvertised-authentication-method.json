@@ -1,0 +1,30 @@
+{
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "core-http"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
+  "category": "protected-resource",
+  "description": "An Agent rejects protected-resource authentication methods that the Service did not advertise and does not infer AEP JWT support from an omitted authentication object.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "expected": {
+    "explicit_unadvertised_credential": "reject",
+    "explicit_unadvertised_grant_type": "reject",
+    "inferred_method": null,
+    "omitted_authentication": "reject"
+  },
+  "id": "unadvertised-authentication-method",
+  "input": {
+    "advertised_methods": ["api-key"],
+    "unadvertised_credential": "oauth-bearer",
+    "unadvertised_grant_type": "basic"
+  },
+  "title": "Unadvertised authentication methods fail closed"
+}

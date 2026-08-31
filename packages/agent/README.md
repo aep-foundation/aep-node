@@ -84,6 +84,8 @@ returns the Service-scoped identity used by the remaining lifecycle commands.
 AEP client assertion when the Service advertises `aep-jwt` for protected
 resources. AEP command endpoints continue to use AEP client assertions
 regardless of the protected-resource methods advertised by the Service.
+An omitted `authentication.methods` advertises no protected-resource method.
+Explicit credential and grant-type selections must also be advertised.
 
 Known Claim Values are validated before Enroll. If the Inspect document
 advertises a required Claim Name that is absent from the submitted values,

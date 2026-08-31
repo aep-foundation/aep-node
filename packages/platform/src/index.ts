@@ -504,14 +504,38 @@ export interface PlatformServiceDidResolver {
   resolve(serviceDid: string, context: PlatformRequestContext): Awaitable<boolean>;
 }
 
+export type PlatformAuthorizationRequest =
+  | {
+      operation: "get-identity";
+      identity: PlatformIdentityRecord;
+    }
+  | {
+      operation: "list-identities";
+      query: PlatformIdentityListQuery;
+    }
+  | {
+      operation: "provision-identity";
+      request: PlatformProvisionRequest;
+    }
+  | {
+      operation: "sign";
+      identity: PlatformIdentityRecord;
+      request: PlatformSignRequest;
+    }
+  | {
+      operation: "update-identity";
+      identity: PlatformIdentityRecord;
+      request: PlatformLifecycleRequest;
+    }
+  | {
+      operation: "verify";
+      identity: PlatformIdentityRecord;
+      request: PlatformVerificationRequest;
+    };
+
 export interface PlatformAuthorizer {
-  authorizeIdentityAccess?(
-    identity: PlatformIdentityRecord,
-    context: PlatformRequestContext
-  ): Awaitable<boolean>;
-  authorizeList?(context: PlatformRequestContext): Awaitable<boolean>;
-  authorizeProvision?(
-    request: PlatformProvisionRequest,
+  authorize(
+    request: PlatformAuthorizationRequest,
     context: PlatformRequestContext
   ): Awaitable<boolean>;
 }
@@ -538,7 +562,7 @@ export type PlatformSignHandler = (
 
 export interface CreateAepPlatformOptions {
   agentDidIdGenerator?: () => string;
-  authorizer?: PlatformAuthorizer;
+  authorizer: PlatformAuthorizer;
   clock?: () => Date;
   defaultLifetimeSeconds?: number;
   didHost: string;
@@ -1039,6 +1063,10 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
   assertNonEmpty("didHost", options.didHost);
   assertNonEmpty("didUrlTemplate", options.didUrlTemplate);
 
+  if (!hasPlatformAuthorizer(requireRecord(options, "options")["authorizer"])) {
+    throw new TypeError("authorizer.authorize is required.");
+  }
+
   if (options.signingAlgorithms.length === 0) {
     throw new TypeError("signingAlgorithms must include at least one algorithm.");
   }
@@ -1047,7 +1075,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
   const idGenerator = options.idGenerator ?? randomPlatformId;
   const agentDidIdGenerator = options.agentDidIdGenerator ?? idGenerator;
   const lifecyclePolicy = options.lifecyclePolicy ?? defaultLifecyclePolicy;
-  const authorizer = options.authorizer ?? {};
+  const authorizer = options.authorizer;
 
   const discoveryDocument = createPlatformDiscoveryDocument({
     ...options.discovery,
@@ -1062,12 +1090,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     },
 
     async getDidDocument(agentIdentityId, context = {}) {
-      const identity = await authorizedIdentity(
-        agentIdentityId,
-        authorizer,
-        options.identityStore,
-        context
-      );
+      const identity = await options.identityStore.get(agentIdentityId, context);
 
       if (identity === undefined) {
         return problem(404, "not_recognized", "Identity not recognized.");
@@ -1087,6 +1110,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     async getIdentity(agentIdentityId, context = {}) {
       const identity = await authorizedIdentity(
         agentIdentityId,
+        { operation: "get-identity" },
         authorizer,
         options.identityStore,
         context
@@ -1100,7 +1124,12 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     },
 
     async list(query = {}, context = {}) {
-      if ((await authorizer.authorizeList?.(context)) === false) {
+      if (
+        !(await authorizer.authorize(
+          { operation: "list-identities", query: { ...query } },
+          context
+        ))
+      ) {
         return problem(404, "not_recognized", "Identity not recognized.");
       }
 
@@ -1125,7 +1154,12 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
         clock,
         options.idempotencyRetentionSeconds,
         async () => {
-          if ((await authorizer.authorizeProvision?.(request, context)) === false) {
+          if (
+            !(await authorizer.authorize(
+              { operation: "provision-identity", request: structuredClone(request) },
+              context
+            ))
+          ) {
             return problem(404, "not_recognized", "Identity not recognized.");
           }
 
@@ -1189,6 +1223,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
         async () => {
           const identity = await authorizedIdentity(
             agentIdentityId,
+            { operation: "sign", request },
             authorizer,
             options.identityStore,
             context
@@ -1257,6 +1292,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
       const request = parsePlatformLifecycleRequestBody(body);
       const identity = await authorizedIdentity(
         agentIdentityId,
+        { operation: "update-identity", request },
         authorizer,
         options.identityStore,
         context
@@ -1316,6 +1352,14 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
             if (
               identity === undefined ||
               identity.serviceDid !== request.service_did ||
+              !(await authorizer.authorize(
+                {
+                  identity: clonePlatformIdentityRecord(identity),
+                  operation: "verify",
+                  request: structuredClone(request)
+                },
+                context
+              )) ||
               !(await lifecyclePolicy.canVerify(identity, context))
             ) {
               return ok(200, unrecognizedVerification(request, "not_recognized"));
@@ -1467,6 +1511,10 @@ function problem(
 
 async function authorizedIdentity(
   agentIdentityId: string,
+  authorization:
+    | { operation: "get-identity" }
+    | { operation: "sign"; request: PlatformSignRequest }
+    | { operation: "update-identity"; request: PlatformLifecycleRequest },
   authorizer: PlatformAuthorizer,
   store: PlatformIdentityStore,
   context: PlatformRequestContext
@@ -1477,7 +1525,23 @@ async function authorizedIdentity(
     return undefined;
   }
 
-  if ((await authorizer.authorizeIdentityAccess?.(identity, context)) === false) {
+  const clonedIdentity = clonePlatformIdentityRecord(identity);
+  const request: PlatformAuthorizationRequest =
+    authorization.operation === "get-identity"
+      ? { identity: clonedIdentity, operation: authorization.operation }
+      : authorization.operation === "sign"
+        ? {
+            identity: clonedIdentity,
+            operation: authorization.operation,
+            request: structuredClone(authorization.request)
+          }
+        : {
+            identity: clonedIdentity,
+            operation: authorization.operation,
+            request: structuredClone(authorization.request)
+          };
+
+  if (!(await authorizer.authorize(request, context))) {
     return undefined;
   }
 
@@ -1671,6 +1735,15 @@ function isAssertionOperation(value: string): value is AepAssertionOperation {
 function isManagedAgentStatus(value: string): value is ManagedAgentStatus {
   return (
     value === "active" || value === "revoked" || value === "suspended" || value === "terminated"
+  );
+}
+
+function hasPlatformAuthorizer(value: unknown): value is PlatformAuthorizer {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof Reflect.get(value, "authorize") === "function"
   );
 }
 
