@@ -8,7 +8,7 @@
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["active", "pending", "rejected"]
+      "enum": ["active", "pending", "unavailable", "suspended", "terminated", "rejected"]
     },
     "owner_action_required": {
       "type": "string",

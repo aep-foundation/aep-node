@@ -664,10 +664,10 @@ describe("Protocol message validation", () => {
 
     expect(
       parseEnrollResponse({
-        status: "active"
+        status: "suspended"
       })
     ).toEqual({
-      status: "active"
+      status: "suspended"
     });
   });
 

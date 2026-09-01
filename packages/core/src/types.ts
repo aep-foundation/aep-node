@@ -66,8 +66,13 @@ export interface AepProtectedResourceAuthorization {
   scheme: AepProtectedResourceAuthorizationScheme;
 }
 
-export type AepEnrollmentStatus = "active" | "pending" | "rejected";
-export type AepAgentStatus = AepEnrollmentStatus | "suspended" | "terminated" | "unavailable";
+export type AepAgentStatus =
+  "active" | "pending" | "rejected" | "suspended" | "terminated" | "unavailable";
+export type AepEnrollmentDecisionStatus = Extract<
+  AepAgentStatus,
+  "active" | "pending" | "rejected"
+>;
+export type AepEnrollmentStatus = AepEnrollmentDecisionStatus;
 
 export interface InspectDocument {
   aep_version: string;
@@ -148,7 +153,7 @@ export interface EnrollRequest {
 }
 
 export interface EnrollResponse {
-  status: AepEnrollmentStatus;
+  status: AepAgentStatus;
   owner_action_required?: "true" | "false";
   verification_pending?: string[];
   requirements_pending?: string[];

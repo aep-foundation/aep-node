@@ -486,7 +486,10 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
   });
 
   it("returns an existing enrollment without reevaluating policy or replacing it", async () => {
-    const existing = activeEnrollment("did:web:agent.example.com:agents:123");
+    const existing = {
+      ...activeEnrollment("did:web:agent.example.com:agents:123"),
+      status: "suspended" as const
+    };
     const store = createInMemoryEnrollmentStore([existing]);
     const storedBefore = await store.findEnrollment(existing.agentDid);
     let policyCalls = 0;
@@ -509,7 +512,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     );
 
     expect(response).toEqual({
-      body: { status: "active" },
+      body: { status: "suspended" },
       contentType: "application/aep+json",
       status: 200
     });

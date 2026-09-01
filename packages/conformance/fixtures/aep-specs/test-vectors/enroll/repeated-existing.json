@@ -23,7 +23,7 @@
     "existing": {
       "agent_did": "did:web:agent.example.com:agents:123",
       "since": "2026-05-28T12:00:00Z",
-      "status": "active"
+      "status": "suspended"
     },
     "request": {
       "agent_did": "did:web:agent.example.com:agents:123",
@@ -35,7 +35,7 @@
     "record_replaced": false,
     "response": {
       "body": {
-        "status": "active"
+        "status": "suspended"
       },
       "content_type": "application/aep+json",
       "status": 200

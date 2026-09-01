@@ -24,7 +24,6 @@ import type {
 } from "./types.js";
 
 const ASSERTION_OPERATIONS = new Set<string>(AEP_ASSERTION_OPERATIONS);
-const ENROLLMENT_STATUSES = new Set<string>(["active", "pending", "rejected"]);
 const AGENT_STATUSES = new Set<string>([
   "active",
   "pending",
@@ -58,7 +57,7 @@ export function validateEnrollResponse(value: unknown): ValidationResult<EnrollR
 
   const issues: ValidationIssue[] = [];
   requireString(value, "status", issues, {
-    allowedValues: ENROLLMENT_STATUSES
+    allowedValues: AGENT_STATUSES
   });
   optionalString(value["owner_action_required"], "$.owner_action_required", issues, {
     allowedValues: OWNER_ACTION_REQUIRED_VALUES
