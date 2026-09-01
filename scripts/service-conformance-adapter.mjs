@@ -1032,7 +1032,11 @@ async function evaluateWrongApiKeyHeader(testCase) {
     method: "GET",
     url: "https://api.example.com/orders"
   });
-  return !result.authenticated && testCase.expected.accepted === false;
+  return (
+    !result.authenticated &&
+    testCase.expected.accepted === false &&
+    result.response.body.code === testCase.expected.code
+  );
 }
 
 async function evaluateAuthenticateAssertion(testCase) {
