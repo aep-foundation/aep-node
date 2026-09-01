@@ -27,11 +27,12 @@ import {
 import type {
   AepCommand,
   AepAuthenticationMethod,
+  AepAgentStatus,
   AepAssertionOperation,
   AepClaimName,
   AepClaimValues,
   AepClientAssertionClaims,
-  AepEnrollmentStatus,
+  AepEnrollmentDecisionStatus,
   AepBuiltInGrantResponse,
   AepBuiltInGrantType,
   AepGrantType,
@@ -204,7 +205,7 @@ export interface AepEnrollmentDecision {
   ownerActionRequired?: boolean;
   verificationPending?: string[];
   requirementsPending?: string[];
-  status?: AepEnrollmentStatus;
+  status?: AepEnrollmentDecisionStatus;
 }
 
 export interface AepEnrollmentPolicyContext {
@@ -296,7 +297,7 @@ export interface AepEnrollmentRecord {
   requirementsPending: string[];
   verificationPending?: string[];
   since: string;
-  status: AepEnrollmentStatus;
+  status: AepAgentStatus;
   updatedAt: string;
 }
 
