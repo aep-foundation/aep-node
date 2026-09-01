@@ -4,7 +4,7 @@
   "description": "The Service-selected Grant response header is authoritative; a conventional alias is not accepted.",
   "drafts": [
     "draft-kavian-agent-enrollment-protocol-04",
-    "draft-kavian-aep-api-key-session-credential-03"
+    "draft-kavian-aep-api-key-session-credential-04"
   ],
   "category": "protected-resource",
   "applicability": {
@@ -25,5 +25,5 @@
     "presented_header": "service-api-key",
     "api_key": "opaque-api-key"
   },
-  "expected": { "accepted": false, "code": "not_recognized" }
+  "expected": { "accepted": false, "code": "authentication_required" }
 }

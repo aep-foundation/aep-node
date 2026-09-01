@@ -6,8 +6,8 @@
   "version": "1.0.0",
   "wire_identifier": "api-key",
   "specification": {
-    "draft": "draft-kavian-aep-api-key-session-credential-03",
-    "path": "ietf/specs/grant-types/draft-kavian-aep-api-key-session-credential-03.md",
+    "draft": "draft-kavian-aep-api-key-session-credential-04",
+    "path": "ietf/specs/grant-types/draft-kavian-aep-api-key-session-credential-04.md",
     "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-api-key-session-credential/"
   },
   "summary": "Opaque API key issued through AEP Grant and revoked through AEP Revoke.",
