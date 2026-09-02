@@ -55,6 +55,6 @@
     "directory": "packages/adapters/fastify"
   },
   "devDependencies": {
-    "fastify": "^5.8.5"
+    "fastify": "^5.12.1"
   }
 }
