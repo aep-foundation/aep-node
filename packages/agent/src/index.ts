@@ -2586,17 +2586,23 @@ function parsePlatformAgentIdentityList(value: unknown): PlatformAgentIdentityLi
   const data = body["data"];
   if (!Array.isArray(data))
     throw new TypeError("Platform Agent identity list data must be an array.");
+  const count = parsePlatformPageCount(body["count"], "count");
+  const identities = data.map(parsePlatformAgentIdentity);
+  const total = parsePlatformPageCount(body["total"], "total");
+  if (count !== String(identities.length))
+    throw new TypeError("Platform Agent identity list count must equal data length.");
+  if (BigInt(total) < BigInt(count))
+    throw new TypeError("Platform Agent identity list total must not be less than count.");
   return {
-    count: parsePlatformPageCount(body["count"], "count"),
-    data: data.map(parsePlatformAgentIdentity),
-    total: parsePlatformPageCount(body["total"], "total")
+    count,
+    data: identities,
+    total
   };
 }
 
 function parsePlatformPageCount(value: unknown, field: string): string {
   if (typeof value === "string" && /^(?:0|[1-9][0-9]*)$/.test(value)) return value;
-  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value);
-  throw new TypeError(`${field} must be a non-negative integer.`);
+  throw new TypeError(`${field} must be a non-negative integer string.`);
 }
 
 function parsePlatformSignResponse(value: unknown): PlatformSignResponse {
