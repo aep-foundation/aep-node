@@ -837,6 +837,26 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     });
   });
 
+  it("rejects an assertion exactly at expiration plus clock skew", async () => {
+    const claims = clientAssertionClaims("status", "expiration-boundary");
+    const service = createAepService({
+      clientAssertion: {
+        clock: () => new Date((claims.exp + 30) * 1000),
+        clockSkewSeconds: 30
+      },
+      clientAssertionVerifier: parseJsonAssertion,
+      serviceDid: "did:web:api.example.com",
+      identityMethods: [didWebIdentityMethod()]
+    });
+
+    await expect(
+      service.status({ clientAssertion: JSON.stringify(claims) })
+    ).resolves.toMatchObject({
+      body: { code: "not_recognized" },
+      status: 401
+    });
+  });
+
   it("verifies signed JWT client assertions at the public command boundary", async () => {
     const { privateKey, publicKey } = generateKeyPairSync("ec", {
       namedCurve: "P-256"
