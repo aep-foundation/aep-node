@@ -820,6 +820,8 @@ export function createPlatformAgentIdentityListResponse(
   identities: PlatformAgentIdentity[],
   total = identities.length
 ): PlatformAgentIdentityListResponse {
+  if (!Number.isSafeInteger(total) || total < identities.length)
+    throw new TypeError("Platform Agent identity list total must include every returned identity.");
   return {
     count: String(identities.length),
     data: identities.map((identity) => structuredClone(identity)),

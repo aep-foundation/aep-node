@@ -240,6 +240,12 @@ describe("@aep-foundation/platform", () => {
       data: [identity],
       total: "10"
     });
+    expect(() => createPlatformAgentIdentityListResponse([identity], 0)).toThrow(
+      "total must include every returned identity"
+    );
+    expect(() => createPlatformAgentIdentityListResponse([], Number.MAX_SAFE_INTEGER + 1)).toThrow(
+      "total must include every returned identity"
+    );
   });
 
   it("builds Platform lifecycle update requests", () => {

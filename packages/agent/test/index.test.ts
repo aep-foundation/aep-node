@@ -2402,7 +2402,11 @@ describe("@aep-foundation/agent Platform clients", () => {
         calls.push(fetchCall(input, init));
         if (String(input).endsWith("/.well-known/aep-platform"))
           return jsonResponsePromise(minimalPlatformDiscoveryDocument);
-        return jsonResponsePromise({ count: 1, data: [platformIdentityFixture()], total: 1 });
+        return jsonResponsePromise({
+          count: "1",
+          data: [platformIdentityFixture()],
+          total: "999999999999999999999999"
+        });
       },
       () =>
         provider.getOrCreateIdentity({
@@ -2419,6 +2423,46 @@ describe("@aep-foundation/agent Platform clients", () => {
     expect(String(calls[1]?.input)).toBe(
       "https://platform.example.com/v1/aep/agent-identities?descending=true&limit=100&service_did=did%3Aweb%3Aapi.service.example"
     );
+  });
+
+  it.each([
+    {
+      body: { count: 1, data: [platformIdentityFixture()], total: "1" },
+      message: "count must be a non-negative integer string"
+    },
+    {
+      body: { count: "1", data: [platformIdentityFixture()], total: 1 },
+      message: "total must be a non-negative integer string"
+    },
+    {
+      body: { count: "0", data: [platformIdentityFixture()], total: "1" },
+      message: "count must equal data length"
+    },
+    {
+      body: { count: "1", data: [platformIdentityFixture()], total: "0" },
+      message: "total must not be less than count"
+    }
+  ])("rejects an invalid Platform identity list response: $message", async ({ body, message }) => {
+    const provider = createPlatformIdentityProvider({
+      authorization: "Bearer demo-agent",
+      platformUrl: "https://platform.example.com/"
+    });
+    await expect(
+      withFetch(
+        (input) =>
+          jsonResponsePromise(
+            String(input).endsWith("/.well-known/aep-platform")
+              ? minimalPlatformDiscoveryDocument
+              : body
+          ),
+        () =>
+          provider.getOrCreateIdentity({
+            inspect: minimalInspectDocument,
+            serviceDid: "did:web:api.service.example",
+            serviceUrl: "https://api.service.example/"
+          })
+      )
+    ).rejects.toThrow(message);
   });
 });
 
