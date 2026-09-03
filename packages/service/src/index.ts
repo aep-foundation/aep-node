@@ -1374,7 +1374,7 @@ function validateClientAssertionClaimsForCommand(
     claims.exp > claims.iat &&
     claims.exp - claims.iat <= maxTtlSeconds &&
     claims.iat <= now + clockSkewSeconds &&
-    claims.exp >= now - clockSkewSeconds
+    claims.exp > now - clockSkewSeconds
   );
 }
 
