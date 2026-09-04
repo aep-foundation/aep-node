@@ -48,6 +48,6 @@
     "directory": "packages/core"
   },
   "dependencies": {
-    "jose": "^6.2.3"
+    "jose": "^6.2.10"
   }
 }
