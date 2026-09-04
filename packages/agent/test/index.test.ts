@@ -1,7 +1,7 @@
 import { generateKeyPairSync } from "node:crypto";
 
 import { AEP_MEDIA_TYPE, verifyClientAssertionJwt } from "@aep-foundation/core";
-import type { InspectDocument } from "@aep-foundation/core";
+import type { InspectDocument, PlatformAgentIdentity } from "@aep-foundation/core";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -48,7 +48,6 @@ import type {
   InspectServiceResult,
   ResponseLike
 } from "../src/index.js";
-import type { PlatformAgentIdentity } from "@aep-foundation/platform";
 
 const minimalInspectDocument = {
   aep_version: "1.0",

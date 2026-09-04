@@ -5,6 +5,7 @@ export * from "./errors.js";
 export * from "./http.js";
 export * from "./inspect.js";
 export * from "./jwt.js";
+export * from "./platform.js";
 export * from "./protocol.js";
 export * from "./schemas.js";
 export type * from "./types.js";

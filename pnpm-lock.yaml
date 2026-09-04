@@ -363,9 +363,6 @@ importers:
       '@aep-foundation/core':
         specifier: workspace:^
         version: link:../core
-      '@aep-foundation/platform':
-        specifier: workspace:^
-        version: link:../platform
 
   packages/conformance:
     dependencies:
