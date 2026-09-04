@@ -1,5 +1,22 @@
 # @aep-foundation/platform
 
+## 0.3.0
+
+### Minor Changes
+
+- [#42](https://github.com/aep-foundation/aep-node/pull/42) [`4064f3c`](https://github.com/aep-foundation/aep-node/commit/4064f3cedf93ced6080297988f1fabb9999a6fd5) Thanks [@nkavian](https://github.com/nkavian)! - Require advertised protected-resource authentication methods and explicit operation-aware Platform authorization.
+
+### Patch Changes
+
+- [#49](https://github.com/aep-foundation/aep-node/pull/49) [`df158eb`](https://github.com/aep-foundation/aep-node/commit/df158eb98dca14a9b0242d15b82840bac39a402b) Thanks [@nkavian](https://github.com/nkavian)! - Move shared Platform client contracts and request builders into Core, remove the Agent package's dependency on the Platform implementation, and preserve Platform compatibility exports.
+
+- [#38](https://github.com/aep-foundation/aep-node/pull/38) [`bb9e9a3`](https://github.com/aep-foundation/aep-node/commit/bb9e9a398a48f8e4d7cd3a607377bd5b9432b47a) Thanks [@nkavian](https://github.com/nkavian)! - Enforce the normative client-assertion JOSE header, Agent identity binding, lifetime, protected-resource URI, and HTTPS `did:web` resolution requirements.
+
+- [#48](https://github.com/aep-foundation/aep-node/pull/48) [`030cf0e`](https://github.com/aep-foundation/aep-node/commit/030cf0e6233af36ad7e917f8a8528389de7b2a32) Thanks [@nkavian](https://github.com/nkavian)! - Reject invalid Platform identity-list pagination metadata and prevent Platform producers from constructing invalid totals.
+
+- Updated dependencies [[`6aadb9e`](https://github.com/aep-foundation/aep-node/commit/6aadb9ed25a5ac084ffc2c5be5161de1e30f92a1), [`9af941c`](https://github.com/aep-foundation/aep-node/commit/9af941c948a4a4a5383960bb614f9ea4d126264d), [`22422a5`](https://github.com/aep-foundation/aep-node/commit/22422a52fef708b957613bd13a9e506a4bf7f27a), [`df158eb`](https://github.com/aep-foundation/aep-node/commit/df158eb98dca14a9b0242d15b82840bac39a402b), [`3ec9a20`](https://github.com/aep-foundation/aep-node/commit/3ec9a20217e23a755065091b20b7cfa285f2e6f0), [`fade141`](https://github.com/aep-foundation/aep-node/commit/fade141bd82125c2cb84f58265cd2758c28a0256), [`bb9e9a3`](https://github.com/aep-foundation/aep-node/commit/bb9e9a398a48f8e4d7cd3a607377bd5b9432b47a)]:
+  - @aep-foundation/core@0.6.0
+
 ## 0.2.5
 
 ### Patch Changes

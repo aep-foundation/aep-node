@@ -1,5 +1,22 @@
 # @aep-foundation/service
 
+## 0.3.4
+
+### Patch Changes
+
+- [#41](https://github.com/aep-foundation/aep-node/pull/41) [`6aadb9e`](https://github.com/aep-foundation/aep-node/commit/6aadb9ed25a5ac084ffc2c5be5161de1e30f92a1) Thanks [@nkavian](https://github.com/nkavian)! - Require stable Service-issued identifiers for built-in credentials, type per-grant-type Revoke capabilities, and remove every locally stored credential covered by a successful Revoke.
+
+- [#40](https://github.com/aep-foundation/aep-node/pull/40) [`9af941c`](https://github.com/aep-foundation/aep-node/commit/9af941c948a4a4a5383960bb614f9ea4d126264d) Thanks [@nkavian](https://github.com/nkavian)! - Enforce the Core command idempotency header, Agent-and-key replay scope, and cross-command conflict behavior.
+
+- [#44](https://github.com/aep-foundation/aep-node/pull/44) [`3ec9a20`](https://github.com/aep-foundation/aep-node/commit/3ec9a20217e23a755065091b20b7cfa285f2e6f0) Thanks [@nkavian](https://github.com/nkavian)! - Return the complete Service lifecycle vocabulary from Enroll when an existing enrollment is found.
+
+- [#47](https://github.com/aep-foundation/aep-node/pull/47) [`4cec092`](https://github.com/aep-foundation/aep-node/commit/4cec092232fc1fa5f90598d80a2a986bf16f3172) Thanks [@nkavian](https://github.com/nkavian)! - Reject client assertions when the accepted clock-skew window reaches the expiration boundary.
+
+- [#38](https://github.com/aep-foundation/aep-node/pull/38) [`bb9e9a3`](https://github.com/aep-foundation/aep-node/commit/bb9e9a398a48f8e4d7cd3a607377bd5b9432b47a) Thanks [@nkavian](https://github.com/nkavian)! - Enforce the normative client-assertion JOSE header, Agent identity binding, lifetime, protected-resource URI, and HTTPS `did:web` resolution requirements.
+
+- Updated dependencies [[`6aadb9e`](https://github.com/aep-foundation/aep-node/commit/6aadb9ed25a5ac084ffc2c5be5161de1e30f92a1), [`9af941c`](https://github.com/aep-foundation/aep-node/commit/9af941c948a4a4a5383960bb614f9ea4d126264d), [`22422a5`](https://github.com/aep-foundation/aep-node/commit/22422a52fef708b957613bd13a9e506a4bf7f27a), [`df158eb`](https://github.com/aep-foundation/aep-node/commit/df158eb98dca14a9b0242d15b82840bac39a402b), [`3ec9a20`](https://github.com/aep-foundation/aep-node/commit/3ec9a20217e23a755065091b20b7cfa285f2e6f0), [`fade141`](https://github.com/aep-foundation/aep-node/commit/fade141bd82125c2cb84f58265cd2758c28a0256), [`bb9e9a3`](https://github.com/aep-foundation/aep-node/commit/bb9e9a398a48f8e4d7cd3a607377bd5b9432b47a)]:
+  - @aep-foundation/core@0.6.0
+
 ## 0.3.3
 
 ### Patch Changes

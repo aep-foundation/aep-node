@@ -1,6 +1,6 @@
 {
   "name": "@aep-foundation/next",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Next.js adapter for AEP Service handlers.",
   "homepage": "https://www.aep.foundation/",
   "type": "module",
