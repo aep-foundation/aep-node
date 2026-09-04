@@ -25,6 +25,9 @@ The package is ESM-first, includes a CommonJS entry point, and requires Node.js
 - HTTP binding helpers
 - Problem Details helpers
 - client assertion signing and verification primitives
+- shared Platform discovery, identity, provisioning, and delegated-signing wire
+  contracts
+- Platform provisioning and delegated-signing request builders
 - AEP Claim Value catalog types, schema metadata, and validation helpers
 - identity method and grant type registration primitives
 

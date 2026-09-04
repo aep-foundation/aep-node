@@ -20,6 +20,8 @@ import {
   commandPath,
   commandPathFromInspect,
   createProblemDetails,
+  createPlatformProvisionRequest,
+  createPlatformSignRequest,
   decodeJwtUnverified,
   didWebDocumentUrl,
   evaluateAepClaimSupport,
@@ -131,6 +133,113 @@ describe("@aep-foundation/core constants", () => {
     expect(AEP_AUTH_SCHEME).toBe("AEP");
     expect(AEP_WELL_KNOWN_PATH).toBe("/.well-known/aep");
     expect(AEP_BUILT_IN_GRANT_TYPES).toEqual(["oauth-bearer", "api-key", "basic"]);
+  });
+});
+
+describe("AEP Platform client contracts", () => {
+  it("builds provisioning and delegated-signing request bodies", () => {
+    expect(
+      createPlatformProvisionRequest({
+        idempotencyKey: "01J0AEPPLATFORM000000000001",
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toEqual({ service_did: "did:web:api.service.example" });
+
+    expect(
+      createPlatformSignRequest({
+        command: "authenticate",
+        jti: "01J0AEPASSERTION0000000001",
+        lifetimeSeconds: 300,
+        platformContext: { authorization_handle: "opaque-value" },
+        resource: "https://api.service.example/resource",
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toEqual({
+      jti: "01J0AEPASSERTION0000000001",
+      lifetime_seconds: "300",
+      op: "authenticate",
+      platform_context: { authorization_handle: "opaque-value" },
+      resource: "https://api.service.example/resource",
+      service_did: "did:web:api.service.example"
+    });
+    expect(
+      createPlatformSignRequest({
+        command: "enroll",
+        jti: "01J0AEPASSERTION0000000002",
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toEqual({
+      jti: "01J0AEPASSERTION0000000002",
+      op: "enroll",
+      service_did: "did:web:api.service.example"
+    });
+  });
+
+  it("does not retain caller-owned Platform context", () => {
+    const platformContext = { nested: { approved: true } };
+    const request = createPlatformSignRequest({
+      command: "enroll",
+      jti: "01J0AEPASSERTION0000000001",
+      platformContext,
+      serviceDid: "did:web:api.service.example"
+    });
+
+    platformContext.nested.approved = false;
+
+    expect(request.platform_context).toEqual({ nested: { approved: true } });
+  });
+
+  it("rejects malformed Platform request inputs", () => {
+    expect(() =>
+      createPlatformProvisionRequest({ idempotencyKey: "key", serviceDid: " " })
+    ).toThrow("serviceDid must be a non-empty string");
+    expect(() =>
+      createPlatformSignRequest({
+        command: "authenticate",
+        jti: "jti",
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toThrow("resource is required only for authenticate signing");
+    expect(() =>
+      createPlatformSignRequest({
+        command: "enroll",
+        jti: "jti",
+        resource: "https://api.service.example/resource",
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toThrow("resource is required only for authenticate signing");
+    expect(() =>
+      createPlatformSignRequest({
+        command: "enroll",
+        jti: " ",
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toThrow("jti must be a non-empty string");
+    expect(() =>
+      createPlatformSignRequest({
+        command: "enroll",
+        jti: "jti",
+        lifetimeSeconds: 0,
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toThrow("lifetimeSeconds must be a positive integer");
+    expect(() =>
+      createPlatformSignRequest({
+        command: "enroll",
+        jti: "jti",
+        lifetimeSeconds: 1,
+        maxLifetimeSeconds: 0,
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toThrow("maxLifetimeSeconds must be a positive integer");
+    expect(() =>
+      createPlatformSignRequest({
+        command: "enroll",
+        jti: "jti",
+        lifetimeSeconds: 301,
+        serviceDid: "did:web:api.service.example"
+      })
+    ).toThrow("lifetimeSeconds must not exceed maxLifetimeSeconds");
   });
 });
 

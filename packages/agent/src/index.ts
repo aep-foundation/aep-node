@@ -22,13 +22,11 @@ import {
   parseRevokeRequest,
   parseRevokeResponse,
   parseStatusResponse,
+  createPlatformProvisionRequest,
+  createPlatformSignRequest,
   renderProtectedResourceAuthorization,
   signClientAssertionJwt
 } from "@aep-foundation/core";
-import {
-  createPlatformProvisionRequest,
-  createPlatformSignRequest
-} from "@aep-foundation/platform";
 import type {
   AepBuiltInGrantResponse,
   AepAuthenticatedCommand,
@@ -48,17 +46,15 @@ import type {
   EnrollResponse,
   InspectDocument,
   OAuthBearerGrantResponse,
+  PlatformAgentIdentity,
+  PlatformAgentIdentityListResponse,
+  PlatformDiscoveryDocument,
+  PlatformSignResponse,
   RevokeRequest,
   RevokeResponse,
   StatusResponse,
   ValidationIssue
 } from "@aep-foundation/core";
-import type {
-  PlatformAgentIdentity,
-  PlatformAgentIdentityListResponse,
-  PlatformDiscoveryDocument,
-  PlatformSignResponse
-} from "@aep-foundation/platform";
 import {
   createInMemoryPublicDocumentCache,
   fetchAepPublicDocument,

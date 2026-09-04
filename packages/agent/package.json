@@ -39,8 +39,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@aep-foundation/core": "workspace:^",
-    "@aep-foundation/platform": "workspace:^"
+    "@aep-foundation/core": "workspace:^"
   },
   "publishConfig": {
     "access": "public",
