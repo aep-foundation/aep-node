@@ -4,8 +4,8 @@
   "description": "AEP JWT, Bearer, and Basic preserve their schemes through either accepted protected-resource carrier.",
   "drafts": [
     "draft-kavian-agent-enrollment-protocol-04",
-    "draft-kavian-aep-oauth-session-credential-03",
-    "draft-kavian-aep-basic-session-credential-03"
+    "draft-kavian-aep-oauth-session-credential-04",
+    "draft-kavian-aep-basic-session-credential-04"
   ],
   "category": "protected-resource",
   "applicability": {

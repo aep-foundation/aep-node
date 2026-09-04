@@ -19,6 +19,17 @@ Run only the example smoke matrix after a build with:
 pnpm smoke:examples
 ```
 
+## Dependency Updates
+
+Refresh dependencies throughout the workspace to the newest versions allowed by their declared
+ranges and synchronize the vendored AEP specification artifacts:
+
+```sh
+pnpm update:all
+```
+
+Review the manifest and lockfile changes, then run `pnpm verify` before committing them.
+
 ## Focused Package Verification
 
 Use `verify:pkg` with a Turbo filter for focused work:
