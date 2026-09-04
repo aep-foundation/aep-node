@@ -12,7 +12,7 @@
     "@aep-foundation/core": "workspace:^",
     "@aep-foundation/fastify": "workspace:^",
     "@aep-foundation/service": "workspace:^",
-    "fastify": "^5.8.5"
+    "fastify": "^5.12.1"
   },
   "devDependencies": {
     "typescript": "^5.6.0"
