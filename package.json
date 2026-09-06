@@ -20,7 +20,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
-    "test": "turbo run test",
+    "test": "node --test scripts/*.test.mjs && turbo run test",
     "update:all": "pnpm update --recursive --depth Infinity && pnpm sync:spec-artifacts",
     "coverage:changed": "node scripts/check-changed-coverage.mjs",
     "test:watch": "turbo run test:watch --parallel",
