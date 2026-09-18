@@ -25,7 +25,7 @@ repository [Integration Guide](../../INTEGRATION.md).
 - construct Inspect documents
 - explicitly enable supported identity methods and grant types
 - validate baseline AEP client assertions
-- verify Platform-hosted client assertions through hosted verification endpoints
+- verify `did:web` client assertions locally or through optional Platform hosted verification
 - handle Enroll and Status with pluggable enrollment persistence
 - enforce POST command idempotency through pluggable command idempotency storage
 - prevent client assertion replay through pluggable replay storage
@@ -153,8 +153,10 @@ JSON object members across the Claims tree, object depth includes the top-level
 Claims object, string length also applies to Claim Names and object member
 names, and encoded size is the UTF-8 JSON size.
 
-For Platform-hosted Agent identities, use hosted verification instead of local
-DID resolution:
+For a Platform-hosted `did:web` identity, the Service can verify the published
+DID document locally with `createDidWebClientAssertionVerifier()`. Hosted
+verification is an optional alternative when the Service has a separate trust
+relationship with the Platform:
 
 ```ts
 const hostedService = createAepService({
