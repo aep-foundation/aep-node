@@ -900,6 +900,31 @@ describe("@aep-foundation/agent command clients", () => {
     });
   });
 
+  it.each([{ token: "custom-secret", credential_id: "custom-id" }, null, [], "token"])(
+    "accepts only object responses for an advertised extension grant: %j",
+    async (body) => {
+      const result = grantService({
+        clientAssertion: "jwt.grant",
+        fetch: () => jsonResponsePromise(body),
+        grantType: "custom-token",
+        idempotencyKey: "custom-grant",
+        inspect: {
+          ...inspectResult(),
+          document: {
+            ...minimalInspectDocument,
+            commands: { ...minimalInspectDocument.commands, grant_types: ["custom-token"] }
+          }
+        },
+        serviceUrl: "https://api.example.com"
+      });
+      if (body !== null && typeof body === "object" && !Array.isArray(body)) {
+        await expect(result).resolves.toMatchObject({ body });
+      } else {
+        await expect(result).rejects.toThrow("Invalid AEP Grant response");
+      }
+    }
+  );
+
   it("normalizes null API-key Grant scopes", async () => {
     const result = await withFetch(
       () =>
@@ -1980,6 +2005,16 @@ describe("@aep-foundation/agent public documents and OpenAPI", () => {
             maxRedirects: 0,
             url: "https://api.example.com/items"
           })
+      )
+    ).rejects.toMatchObject({ code: "invalid_redirect" });
+    // A Location that is not a URI even relative to the current request.
+    await expect(
+      withFetch(
+        () =>
+          Promise.resolve(
+            new Response(null, { status: 302, headers: { location: "http://[unterminated" } })
+          ),
+        () => fetchProtectedResource({ agent, url: "https://api.example.com/items" })
       )
     ).rejects.toMatchObject({ code: "invalid_redirect" });
   });

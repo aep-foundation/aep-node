@@ -110,6 +110,12 @@ async function fetchDocument<T>(
   if (cached !== undefined && isFresh(cached, now))
     return resultFromRecord(options, requestedUrl, cached, "fresh");
   let current = new URL(cached?.finalUrl ?? requestedUrl);
+  if (options.sameOriginRedirects === true && current.origin !== requestedUrl.origin) {
+    // A cached final URL is only reachable through redirects this document type allows, so a
+    // record naming another origin cannot be trusted to revalidate against.
+    await options.cache?.delete(options.namespace, String(requestedUrl));
+    current = new URL(requestedUrl);
+  }
   const signal = completionSignal(options.signal, options.timeoutMs);
   let response: PublicDocumentResponse;
   for (let redirects = 0; ; redirects += 1) {

@@ -5,6 +5,13 @@ unchanged to the Service SDK for carrier selection.
 
 Thin Next.js adapter for `@aep-foundation/service`.
 
+On command routes, the baseline client assertion is read with the AEP scheme
+rules: the scheme is case-insensitive and may be followed by more than one
+space. A field carrying anything other than one well-formed `AEP` credential
+presents no assertion, and the Service answers with its usual recognition
+failure. A request body that is absent or not JSON reaches the Service as no
+body, which it reports as `invalid_request`.
+
 ## Install
 
 ```sh
@@ -33,6 +40,10 @@ route files.
 
 `createNextAepProtectedResourceHandler(service, onAuthenticated)` authenticates
 the Web `Request` through the Service SDK before application authorization.
+The callback receives `(request, principal)`. The principal contains the Agent
+identity and, for session credentials, credential metadata and scopes. Check
+application permissions there before returning the resource. Do not authenticate
+the same JWT again: its replay identifier has already been consumed.
 
 See the [complete Next.js-style example](../../../examples/aep-service-next/README.md)
 for all route handlers and a runnable local server.

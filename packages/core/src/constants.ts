@@ -5,10 +5,12 @@ export const AEP_PROBLEM_MEDIA_TYPE = "application/problem+json";
 export const AEP_AUTH_SCHEME = "AEP";
 export const AEP_AUTHORIZATION_HEADER = "AEP-Authorization";
 export const AEP_WELL_KNOWN_PATH = "/.well-known/aep";
+export const AEP_IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 export const DEFAULT_HTTP_ENDPOINT_BASE = "/aep/";
 
 export const AEP_COMMANDS = ["inspect", "enroll", "grant", "revoke", "status"] as const;
 export const AEP_AUTHENTICATED_COMMANDS = ["enroll", "grant", "revoke", "status"] as const;
+export const AEP_IDEMPOTENT_COMMANDS = ["enroll", "grant", "revoke"] as const;
 export const AEP_ASSERTION_OPERATIONS = [...AEP_AUTHENTICATED_COMMANDS, "authenticate"] as const;
 export const AEP_AUTHENTICATION_METHOD_JWT = "aep-jwt";
 

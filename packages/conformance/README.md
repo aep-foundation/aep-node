@@ -23,6 +23,8 @@ required to run the Agent or Service SDK.
   response objects
 - validate AEP Problem Details error responses and idempotency conflict fixtures
 - load Platform Hosted Identity schemas and test vectors through stable helpers
+- validate test vectors, including role/expectation/profile applicability
+- verify the bundled artifact tree against the digest its manifest records
 
 ## Example
 
@@ -102,3 +104,19 @@ pnpm check:spec-artifacts
 Continuous integration checks the snapshot against the current canonical
 `aep-specs` `main` branch. Specification updates therefore require a dedicated
 artifact synchronization change in this repository.
+
+The same check is available at runtime. `verifySpecArtifactIntegrity` recomputes
+the digest over the bundled artifacts and reports it alongside the revision the
+manifest records; `assertSpecArtifactIntegrity` raises `AepConformanceError`
+when the two disagree.
+
+```ts
+import { assertSpecArtifactIntegrity } from "@aep-foundation/conformance";
+
+const { expected, files } = await assertSpecArtifactIntegrity();
+console.log(`${String(files)} artifacts match ${expected}`);
+```
+
+Artifacts are resolved relative to the installed package, not the working
+directory of the process, and every path helper refuses a relative path that
+would escape the bundled tree.

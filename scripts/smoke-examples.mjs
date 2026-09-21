@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -61,6 +63,7 @@ try {
 }
 
 async function main() {
+  await smokeHostedVerificationRetry();
   const platformPort = await unusedPort();
   const platformUrl = `http://${host}:${platformPort}`;
   const platform = startProcess(
@@ -74,6 +77,7 @@ async function main() {
   );
 
   await waitForHttp(`${platformUrl}/health`, platform);
+  await smokePlatform({ platformUrl });
   await smokeClaimsExample({ platformUrl });
 
   for (const service of serviceExamples) {
@@ -82,6 +86,180 @@ async function main() {
       service
     });
   }
+}
+
+async function smokeHostedVerificationRetry() {
+  const core = await import("../packages/core/dist/index.js");
+  const services = await import("../packages/service/dist/index.js");
+  const platforms = await import("../packages/platform/dist/index.js");
+  const serviceDid = "did:web:service.example";
+  const agentDid = "did:web:platform.example:agents:abc";
+  const keys = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const timestamp = new Date().toISOString();
+  const identity = {
+    agentDid,
+    agentDidId: "abc",
+    agentIdentityId: "pai_smoke",
+    serviceDid,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    didDocumentUrl: "https://platform.example/agents/abc/did.json",
+    keyId: agentDid,
+    signingAlgorithms: ["ES256"],
+    status: "active"
+  };
+  const consumed = new Set();
+  const platform = platforms.createAepPlatform({
+    didHost: "platform.example",
+    didUrlTemplate: "https://platform.example/agents/{agent_did_id}/did.json",
+    discovery: {
+      platformName: "Hosted verification smoke",
+      endpointBase: "/aep",
+      endpoints: {
+        provision: "/aep/identities",
+        list: "/aep/identities",
+        sign: "/aep/identities/{agent_identity_id}/sign",
+        lifecycle: "/aep/identities/{agent_identity_id}"
+      }
+    },
+    signingAlgorithms: ["ES256"],
+    authorizer: { authorize: (_operation, context) => context.subject === "service" },
+    identityStore: {
+      get: (id) => (id === identity.agentIdentityId ? identity : undefined),
+      findByAgentDid: (did) => (did === agentDid ? identity : undefined)
+    },
+    keyStore: { verificationKey: () => keys.publicKey },
+    idempotencyStore: platforms.createInMemoryPlatformIdempotencyStore(),
+    replayStore: {
+      consume: (key) => {
+        if (consumed.has(key)) return false;
+        consumed.add(key);
+        return true;
+      }
+    },
+    serviceDidResolver: { resolve: () => true }
+  });
+  const statuses = [];
+  const verifier = services.createHostedPlatformClientAssertionVerifier({
+    endpoint: "https://platform.example/verify",
+    fetch: async (_url, init) => {
+      const response = await platform.verify(JSON.parse(init.body), {
+        subject: "service",
+        idempotencyKey: init.headers["Idempotency-Key"]
+      });
+      statuses.push(response.status);
+      return {
+        ok: response.status === 200,
+        status: response.status,
+        json: async () => response.body
+      };
+    }
+  });
+  let decisions = 0;
+  const service = services.createAepService({
+    serviceDid,
+    identityMethods: [services.didWebIdentityMethod()],
+    clientAssertionVerifier: verifier,
+    enrollmentPolicy: {
+      decideEnrollment: () => {
+        decisions++;
+        return { status: "active" };
+      }
+    }
+  });
+  const now = Math.floor(Date.now() / 1000);
+  for (const jti of ["first", "retry"]) {
+    const assertion = await core.signClientAssertionJwt(
+      {
+        iss: agentDid,
+        sub: agentDid,
+        aud: serviceDid,
+        iat: now,
+        exp: now + 60,
+        jti,
+        op: "enroll"
+      },
+      { alg: "ES256", key: keys.privateKey }
+    );
+    assert.equal(
+      (
+        await service.enroll(
+          { agent_did: agentDid },
+          {
+            clientAssertion: assertion,
+            idempotencyKey: "same-enrollment"
+          }
+        )
+      ).status,
+      200
+    );
+    // The Platform also permits an exact verification retry without consuming the assertion twice.
+    await verifier(assertion, {
+      clientAssertion: assertion,
+      command: "enroll",
+      serviceDid,
+      signingAlgorithms: ["ES256"],
+      idempotencyKey: "same-enrollment"
+    });
+  }
+  assert.deepEqual(statuses, [200, 200, 200, 200]);
+  assert.equal(consumed.size, 2);
+  assert.equal(decisions, 1);
+  console.log("Hosted Platform verification retry smoke passed.");
+}
+
+async function smokePlatform({ platformUrl }) {
+  const name = "aep-platform-ephemeral";
+  const endpoint = `${platformUrl}/v1/aep/agent-identities`;
+  const headers = {
+    authorization: platformAuthorization,
+    "content-type": "application/aep+json",
+    "idempotency-key": "platform-smoke-provision"
+  };
+  const request = {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ service_did: didForServiceUrl(platformUrl) }),
+    signal: AbortSignal.timeout(5000)
+  };
+  const responses = await Promise.all([fetch(endpoint, request), fetch(endpoint, request)]);
+  const identities = await Promise.all(responses.map((response) => response.json()));
+  assertEqual(responses[0].status, 200, name, "provision.status");
+  assertEqual(responses[1].status, 200, name, "retry.status");
+  assertEqual(
+    JSON.stringify(identities[0]),
+    JSON.stringify(identities[1]),
+    name,
+    "concurrent retry"
+  );
+  const refused = await fetch(endpoint, {
+    ...request,
+    headers: { ...headers, authorization: "Bearer invalid" }
+  });
+  assertEqual(refused.status, 404, name, "unauthorized cached retry");
+  const identity = identities[0];
+  const documentUrl = new URL(identity.did_document_url);
+  documentUrl.protocol = "http:";
+  assertEqual(
+    (await fetch(documentUrl, { signal: AbortSignal.timeout(5000) })).status,
+    200,
+    name,
+    "active DID"
+  );
+  const suspended = await fetch(`${endpoint}/${identity.agent_identity_id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ status: "suspended" }),
+    signal: AbortSignal.timeout(5000)
+  });
+  assertEqual(suspended.status, 200, name, "suspension");
+  assertEqual(
+    (await fetch(documentUrl, { signal: AbortSignal.timeout(5000) })).status,
+    404,
+    name,
+    "suspended DID"
+  );
+  console.log(`smoke-examples: ${name} authorization, concurrent retries, and DID lifecycle OK`);
 }
 
 async function smokeClaimsExample({ platformUrl }) {

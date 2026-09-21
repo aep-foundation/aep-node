@@ -38,14 +38,18 @@ app.addHook("onResponse", (request, reply, done) => {
   logExampleServiceInteraction(adapterName, request.method, request.url, reply.statusCode);
   done();
 });
-app.addContentTypeParser("application/aep+json", { parseAs: "string" }, (_request, body, done) => {
-  try {
-    done(null, JSON.parse(typeof body === "string" ? body : body.toString("utf8")));
-  } catch (error) {
-    done(error instanceof Error ? error : new Error("Invalid AEP JSON request body."));
-  }
+await app.register(async (aep) => {
+  const parseJson = aep.getDefaultJsonParser("error", "error");
+  aep.removeContentTypeParser("application/json");
+  aep.addContentTypeParser<string>(
+    ["application/json", "application/aep+json"],
+    { parseAs: "string" },
+    (request, body, done) => {
+      return parseJson(request, body, (error, value) => done(null, error ? undefined : value));
+    }
+  );
+  await aep.register(createFastifyAepRoutesPlugin(service));
 });
-await app.register(createFastifyAepRoutesPlugin(service));
 app.get(exampleServiceDidPath(serviceDid), () => exampleServiceDidDocument(serviceDid));
 app.get("/api/resource", { preHandler: requireAepJwt }, () => resourceBody());
 app.post("/api/profile", { preHandler: requireAepJwt }, () => profileBody());

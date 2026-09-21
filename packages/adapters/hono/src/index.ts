@@ -1,6 +1,7 @@
-import { commandPathFromInspect } from "@aep-foundation/core";
+import { commandPathFromInspect, parseProtectedResourceAuthorization } from "@aep-foundation/core";
 import { createAepService } from "@aep-foundation/service";
 import type {
+  AepAuthenticatedPrincipal,
   AepIdempotentServiceOptions,
   AepService,
   AepServiceOptions
@@ -11,7 +12,7 @@ export const AEP_HONO_WELL_KNOWN_PATH = "/.well-known/aep";
 export const AEP_HONO_MEDIA_TYPE = "application/aep+json";
 
 export interface HonoAepContext {
-  json(body: unknown, status?: number, headers?: Record<string, string>): unknown;
+  json(body: unknown, status?: number, headers?: Record<string, string>): Response;
   req?: {
     header(name: string): string | undefined;
     json(): Promise<unknown>;
@@ -19,9 +20,15 @@ export interface HonoAepContext {
   };
 }
 
-export function createHonoAepProtectedResourceHandler(input: HonoAepServiceInput): HonoAepHandler {
+export function createHonoAepProtectedResourceHandler(
+  input: HonoAepServiceInput,
+  onAuthenticated?: (
+    principal: AepAuthenticatedPrincipal,
+    context: HonoAepContext
+  ) => void | Promise<void>
+): (context: HonoAepContext, next?: () => Promise<void>) => Promise<Response | void> {
   const service = resolveService(input);
-  return async (context) => {
+  return async (context, next) => {
     const request = context.req?.raw;
     if (request === undefined)
       throw new TypeError("Hono protected-resource authentication requires req.raw.");
@@ -30,7 +37,11 @@ export function createHonoAepProtectedResourceHandler(input: HonoAepServiceInput
       method: request.method,
       url: request.url
     });
-    if (result.authenticated) return undefined;
+    if (result.authenticated) {
+      await onAuthenticated?.(result.principal, context);
+      await next?.();
+      return;
+    }
     return context.json(result.response.body, result.response.status, {
       ...result.response.headers,
       "Content-Type": result.response.contentType
@@ -110,9 +121,9 @@ function createHonoCommandHandler(
   command: "enroll" | "grant" | "revoke" | "status"
 ): HonoAepHandler {
   return async (context) => {
-    const clientAssertion = parseAepAuthorization(context.req?.header("Authorization"));
+    const clientAssertion = baselineClientAssertion(context.req?.header("Authorization"));
     const idempotencyKey = context.req?.header("Idempotency-Key");
-    const body = command === "status" ? undefined : await context.req?.json();
+    const body = command === "status" ? undefined : await requestBody(context);
     const commandOptions = idempotentOptions(clientAssertion, idempotencyKey);
     const result =
       command === "enroll"
@@ -140,14 +151,39 @@ function idempotentOptions(
   };
 }
 
-function parseAepAuthorization(authorization: string | undefined): string {
-  const prefix = "AEP ";
+/**
+ * Reads the command request body.
+ *
+ * A body that is absent or not JSON resolves to `undefined` so the Service reports it as
+ * `invalid_request`, rather than the parse rejection escaping as a framework error.
+ */
+async function requestBody(context: HonoAepContext): Promise<unknown> {
+  try {
+    return await context.req?.json();
+  } catch {
+    return undefined;
+  }
+}
 
-  if (authorization?.startsWith(prefix)) {
-    return authorization.slice(prefix.length);
+/**
+ * Reads the baseline client assertion from an `Authorization` field value.
+ *
+ * Scheme comparison is case-insensitive and the scheme may be followed by more than one
+ * space. Anything that is not exactly one well-formed `AEP` credential yields an empty
+ * assertion, which the Service reports as the common recognition failure rather than the
+ * adapter guessing which of several presented credentials to evaluate.
+ */
+function baselineClientAssertion(authorization: string | undefined): string {
+  if (authorization === undefined) {
+    return "";
   }
 
-  return "";
+  try {
+    const parsed = parseProtectedResourceAuthorization(authorization);
+    return parsed.scheme === "AEP" ? parsed.credentials : "";
+  } catch {
+    return "";
+  }
 }
 
 function resolveService(input: HonoAepServiceInput): AepService {

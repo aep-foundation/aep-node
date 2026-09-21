@@ -1,4 +1,5 @@
-import { generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync } from "node:crypto";
+import { storedCredentialFixture } from "./credential-fixture.js";
 
 import {
   AEP_AUTHENTICATED_COMMANDS,
@@ -1090,6 +1091,7 @@ describe("@aep-foundation/service protected resource authentication helpers", ()
         Promise.resolve(
           new Response(
             JSON.stringify({
+              id: "did:web:agent.example.com:agents:123",
               verificationMethod: [
                 {
                   id: "did:web:agent.example.com:agents:123#key-1",
@@ -1179,20 +1181,19 @@ describe("@aep-foundation/service protected resource authentication helpers", ()
       signingAlgorithms: ["ES256"]
     });
     expect(String(calls[0]?.input)).toBe("https://platform.example.com/v1/aep/verifications");
+    const body = calls[0]?.init?.body;
+    if (typeof body !== "string") {
+      throw new Error("Expected hosted verification request body to be a string.");
+    }
     expect(calls[0]?.init?.headers).toEqual({
       Accept: "application/aep+json",
       Authorization: "Bearer service-demo",
       "Content-Type": "application/aep+json",
-      "Idempotency-Key": "hosted-verifier-test"
+      "Idempotency-Key": createHash("sha256").update(body).digest("hex")
     });
     expect(calls[1]?.init?.headers).toMatchObject({
-      "Idempotency-Key": "hosted-verification-request"
+      "Idempotency-Key": createHash("sha256").update(body).digest("hex")
     });
-    const body = calls[0]?.init?.body;
-
-    if (typeof body !== "string") {
-      throw new Error("Expected hosted verification request body to be a string.");
-    }
 
     expect(JSON.parse(body)).toEqual({
       client_assertion: jwt,
@@ -1203,6 +1204,23 @@ describe("@aep-foundation/service protected resource authentication helpers", ()
 });
 
 describe("@aep-foundation/service Grant and Revoke handlers", () => {
+  it.each(["suspended", "terminated", "unavailable"] as const)(
+    "reports %s rather than pending verification",
+    async (status) => {
+      const agentDid = "did:web:agent.example.com:agents:123";
+      const response = await handleGrantRequest(
+        { grant_type: "oauth-bearer" },
+        {
+          agentDid,
+          handlers: new Map(),
+          idempotencyKey: status,
+          store: createInMemoryEnrollmentStore([{ ...activeEnrollment(agentDid), status }])
+        }
+      );
+      expect(response).toMatchObject({ status: 403, body: { code: `identity_${status}` } });
+      expect(response.body).not.toHaveProperty("verification_pending");
+    }
+  );
   it("dispatches Grant requests to the selected grant type handler", async () => {
     const store = createInMemoryEnrollmentStore([
       activeEnrollment("did:web:agent.example.com:agents:123")
@@ -1784,7 +1802,7 @@ function serviceCredentialRecord(
   return {
     agentDid,
     createdAt: "2026-05-28T12:00:00Z",
-    credential:
+    credential: storedCredentialFixture(
       grantType === "api-key"
         ? {
             api_key: "api-key",
@@ -1799,7 +1817,8 @@ function serviceCredentialRecord(
             expires_at: expiresAt,
             scopes: [],
             token_type: "Bearer"
-          },
+          }
+    ),
     credentialId,
     expiresAt,
     grantType

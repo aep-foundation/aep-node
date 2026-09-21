@@ -39,7 +39,8 @@ For production storage and tenancy guidance, see the repository
 import {
   createAepAgent,
   createInMemorySessionCredentialStore,
-  createPlatformIdentityProvider
+  createPlatformIdentityProvider,
+  selectGrantType
 } from "@aep-foundation/agent";
 
 const agent = createAepAgent({
@@ -65,17 +66,22 @@ await session.enroll({
 
 const status = await session.status();
 
+const grantType = selectGrantType(inspect, {
+  preferredGrantTypes: ["oauth-bearer", "api-key", "basic"]
+});
 const grant = await session.grant({
-  preferredGrantTypes: ["oauth-bearer", "api-key", "basic"],
+  grantType,
   requestedScopes: ["read"]
 });
 
 const headers = await session.authenticationHeaders();
 
-await session.revoke({
-  credentialId: grant.body.credential_id,
-  grantType: "oauth-bearer"
-});
+if (
+  inspect.document.commands.grant_types_config?.[grantType]?.supports_per_credential_revoke ===
+  "true"
+) {
+  await session.revoke({ credentialId: grant.body.credential_id, grantType });
+}
 ```
 
 Call `inspect()` before presenting capabilities to the Agent. `identity()`
@@ -86,13 +92,18 @@ resources. AEP command endpoints continue to use AEP client assertions
 regardless of the protected-resource methods advertised by the Service.
 An omitted `authentication.methods` advertises no protected-resource method.
 Explicit credential and grant-type selections must also be advertised.
+`allowedMethods` can restrict credential selection to the methods permitted by a
+particular resource. `fetchProtectedResource()` applies this restriction from OpenAPI.
+The example revokes only the credential it obtained. If per-credential revocation
+is unavailable, `session.revoke({ grantType })` revokes all credentials of that
+type; use it only when that broader revocation is intended.
 
 Known Claim Values are validated before Enroll. If the Inspect document
 advertises a required Claim Name that is absent from the submitted values,
 Enroll throws `AepClaimRequirementsError` before sending the request. Unknown
 preferred and optional Claim Names do not block enrollment.
 
-To keep Grant and protected-resource fetch calls alive while delegated signing
+To keep lifecycle commands and protected-resource fetch calls alive while delegated signing
 is pending, configure a generic resolver. It receives the complete pending
 result and a continuation that preserves its opaque Platform context:
 
@@ -153,6 +164,9 @@ const identityProvider = createPlatformIdentityProvider({
 
 The SDK always controls `Accept`, `Content-Type`, and `Idempotency-Key`; values
 for those names in caller-provided authentication headers are ignored.
+
+Authenticated Platform requests stay on the configured Platform origin and reject
+redirects. Configure the Platform's final origin rather than a redirecting alias.
 
 `createAepAgent()` accepts exactly one `identityProvider`. Platform-hosted
 `did:web` support is provided by `createPlatformIdentityProvider()`. Future
@@ -223,7 +237,13 @@ SDK-controlled AEP fields are rejected.
 for protected Service resources, and `protectedResourceAuthenticationHeaders()`
 renders either an issued built-in credential or an explicitly selected AEP JWT
 credential. The session API selects only methods advertised by the Service and
-uses their advertised order as the Service preference.
+uses their advertised order as the Service preference. A signer configured with
+an explicit `alg` still checks it against the advertisement, because an Agent
+selects an algorithm the Service advertised.
+
+Enroll, Grant, and Revoke require a non-empty idempotency key, and Grant and
+Revoke accept only a grant type the Service advertises. Every command forwards
+an `AbortSignal` supplied through its options.
 
 `probeProtectedResource()` sends the caller's request anonymously and
 classifies success, a valid AEP challenge, unrelated authentication, or another
@@ -232,6 +252,19 @@ discovery, credential selection or Grant, exact request replay, resource-bound
 `authenticate` signing, redirect credential stripping, and cancellation. A
 streaming body is rejected before authentication begins because it cannot be
 replayed safely.
+
+A protected-resource redirect must stay on HTTP or HTTPS, may not downgrade an
+HTTPS request to plaintext, may not target a plaintext origin that is not a
+loopback literal, and may not carry user information. A cross-origin redirect
+restarts anonymously at the new origin and requires a fresh AEP challenge
+before the Agent authenticates again.
+Caller-supplied headers are not forwarded to another origin, including custom
+API-key and payment fields. Destination credentials are selected independently
+after that destination's challenge is validated.
+
+A challenge that repeats a parameter is discarded rather than resolved to one
+of its values, and an API-key presentation is checked against the HTTP field
+name and API-key value syntaxes before it is placed in a request.
 
 When Inspect advertises OpenAPI 3.1, `inspectOpenApiPolicy()` returns the
 matched operation, policy source, public/required/fallback state, supported AEP

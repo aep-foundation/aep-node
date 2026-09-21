@@ -297,6 +297,7 @@ async function evaluateDidWebResolution(testCase) {
       return Promise.resolve(
         new Response(
           JSON.stringify({
+            id: testCase.input.did,
             verificationMethod: [
               {
                 id: testCase.input.kid,
@@ -319,7 +320,10 @@ async function evaluateDidWebResolution(testCase) {
   if (!isDeepStrictEqual(calls, [testCase.expected.document_url])) return false;
 
   const missingMethodVerifier = createDidWebClientAssertionVerifier({
-    fetch: () => Promise.resolve(new Response(JSON.stringify({ verificationMethod: [] })))
+    fetch: () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ id: testCase.input.did, verificationMethod: [] }))
+      )
   });
   if (!(await rejects(() => missingMethodVerifier(token, context)))) return false;
 
@@ -961,14 +965,25 @@ async function evaluateHostedVerificationRequest(testCase) {
       });
     }
   });
-  await verifier(testCase.input.client_assertion, {
+  const context = {
     clientAssertion: testCase.input.client_assertion,
     command: testCase.input.op,
     idempotencyKey: testCase.expected.idempotency_key_header,
     serviceDid: testCase.input.service_did,
     signingAlgorithms: ["ES256"]
-  });
-  return request.headers["Idempotency-Key"] === testCase.expected.idempotency_key_header;
+  };
+  await verifier(testCase.input.client_assertion, context);
+  const firstKey = request.headers["Idempotency-Key"];
+  const firstBody = JSON.parse(request.body);
+  await verifier(testCase.input.client_assertion, context);
+  // The fixture illustrates a non-empty verification key, not the Service's command retry key.
+  return (
+    typeof firstKey === "string" &&
+    firstKey.trim().length > 0 &&
+    request.headers["Idempotency-Key"] === firstKey &&
+    isDeepStrictEqual(firstBody, testCase.input) &&
+    isDeepStrictEqual(JSON.parse(request.body), testCase.input)
+  );
 }
 
 async function evaluateHostedRecognized(testCase) {

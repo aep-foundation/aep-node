@@ -305,13 +305,14 @@ function isIpv6Address(value: string): boolean {
 
   const compressed = value.includes("::");
   const sections = compressed ? value.split("::") : [value];
-  if (sections.length > 2) return false;
+  let groupCount = 0;
 
-  const left = ipv6Groups(sections[0] ?? "");
-  const right = ipv6Groups(sections[1] ?? "");
-  if (left === undefined || right === undefined) return false;
+  for (const section of sections) {
+    const groups = ipv6Groups(section);
+    if (groups === undefined) return false;
+    groupCount += groups;
+  }
 
-  const groupCount = left + right;
   return compressed ? groupCount < 8 : groupCount === 8;
 }
 
@@ -320,8 +321,7 @@ function ipv6Groups(value: string): number | undefined {
   const groups = value.split(":");
   let count = 0;
 
-  for (let index = 0; index < groups.length; index += 1) {
-    const group = groups[index] ?? "";
+  for (const [index, group] of groups.entries()) {
     if (group.includes(".")) {
       if (index !== groups.length - 1 || !isIpv4Address(group)) return undefined;
       count += 2;
@@ -338,11 +338,11 @@ function encodedLength(value: string): number {
 }
 
 function isFullDate(value: string): boolean {
-  const match = FULL_DATE_PATTERN.exec(value);
-  if (match === null) return false;
+  if (!FULL_DATE_PATTERN.test(value)) return false;
 
-  const [year, month, day] = value.split("-").map(Number);
-  if (year === undefined || month === undefined || day === undefined) return false;
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
   if (month < 1 || month > 12 || day < 1) return false;
 
   const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);

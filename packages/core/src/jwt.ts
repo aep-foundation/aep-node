@@ -8,8 +8,12 @@ import type {
   KeyObject
 } from "jose";
 
+import { AEP_SIGNING_ALGORITHMS } from "./constants.js";
 import { parseClientAssertionClaims } from "./protocol.js";
 import type { AepClientAssertionClaims, AepSigningAlgorithm } from "./types.js";
+
+const PROHIBITED_ALGORITHM_PATTERN = /^(?:none|HS[0-9]+|dir|A[0-9]+(?:GCM)?KW|PBES2-.+)$/i;
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export type AepJoseKey = CryptoKey | JWK | KeyObject | Uint8Array;
 
@@ -32,7 +36,6 @@ export interface SignClientAssertionJwtOptions {
   allowInsecureLoopback?: boolean;
   key: AepImportableJoseKey;
   kid?: string;
-  typ?: "JWT";
 }
 
 export interface VerifyClientAssertionJwtOptions {
@@ -55,6 +58,7 @@ export async function signClientAssertionJwt(
   claims: AepClientAssertionClaims,
   options: SignClientAssertionJwtOptions
 ): Promise<string> {
+  assertAgentIdentityAlgorithms([options.alg]);
   const parsed = parseClientAssertionClaims(claims, {
     ...(options.allowInsecureLoopback === undefined
       ? {}
@@ -78,8 +82,11 @@ export async function verifyClientAssertionJwt(
   clientAssertion: string,
   options: VerifyClientAssertionJwtOptions
 ): Promise<AepClientAssertionClaims> {
+  const algorithms = assertAgentIdentityAlgorithms(
+    options.algorithms ?? [...AEP_SIGNING_ALGORITHMS]
+  );
   const verifyOptions = {
-    ...(options.algorithms === undefined ? {} : { algorithms: options.algorithms }),
+    algorithms,
     ...(options.audience === undefined ? {} : { audience: options.audience }),
     ...(options.clockTolerance === undefined ? {} : { clockTolerance: options.clockTolerance }),
     ...(options.currentDate === undefined ? {} : { currentDate: options.currentDate }),
@@ -98,9 +105,10 @@ export async function verifyClientAssertionJwt(
       verifyOptions
     );
   } else {
+    const key = options.key;
     result = await jwtVerify<AepClientAssertionClaims>(
       clientAssertion,
-      await importJoseKey(options.key, options.algorithms?.[0]),
+      (protectedHeader: JWTHeaderParameters) => importJoseKey(key, protectedHeader.alg),
       verifyOptions
     );
   }
@@ -117,6 +125,25 @@ export async function verifyClientAssertionJwt(
 
   requireClientAssertionKid(result.protectedHeader.kid, claims);
   return claims;
+}
+
+/**
+ * Rejects `none` and symmetric JOSE algorithms, which cannot bind an assertion to an Agent
+ * identity. Verification defaults to the AEP core signing algorithms rather than to whatever
+ * the presented key happens to support, so a token cannot select its own algorithm.
+ */
+function assertAgentIdentityAlgorithms(algorithms: string[]): string[] {
+  if (algorithms.length === 0) {
+    throw new TypeError("AEP client assertion verification requires at least one algorithm.");
+  }
+
+  for (const algorithm of algorithms) {
+    if (PROHIBITED_ALGORITHM_PATTERN.test(algorithm)) {
+      throw new TypeError(`AEP Agent identity assertions must not use the ${algorithm} algorithm.`);
+    }
+  }
+
+  return algorithms;
 }
 
 function requireClientAssertionKid(kid: string, claims: AepClientAssertionClaims): void {
@@ -152,10 +179,23 @@ export async function importJwkJoseKey(jwk: JWK, alg?: string): Promise<AepJoseK
   return importJWK(jwk, alg);
 }
 
+/**
+ * Decodes the header and payload of a compact JWS without verifying its signature.
+ *
+ * The token must be exactly three non-empty base64url segments. Callers use this only to
+ * discover which key to resolve; the returned claims are untrusted until
+ * {@link verifyClientAssertionJwt} has accepted the same token.
+ */
 export function decodeJwtUnverified(token: string): DecodedJwtParts {
-  const [encodedHeader, encodedPayload] = token.split(".");
+  const segments = token.split(".");
+  const [encodedHeader, encodedPayload] = segments;
 
-  if (encodedHeader === undefined || encodedPayload === undefined) {
+  if (
+    segments.length !== 3 ||
+    encodedHeader === undefined ||
+    encodedPayload === undefined ||
+    !segments.every((segment) => BASE64URL_PATTERN.test(segment))
+  ) {
     throw new Error("Invalid JWT.");
   }
 

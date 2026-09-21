@@ -1,10 +1,6 @@
 import { AEP_BUILT_IN_GRANT_TYPES, didWebDocumentUrl } from "@aep-foundation/core";
-import type { AepBuiltInGrantResponse, AepBuiltInGrantType } from "@aep-foundation/core";
-import type {
-  AepServiceCredentialRecord,
-  AepServiceCredentialStore,
-  AepServiceOptions
-} from "@aep-foundation/service";
+import type { AepBuiltInGrantType } from "@aep-foundation/core";
+import type { AepServiceOptions } from "@aep-foundation/service";
 import {
   createInMemoryClientAssertionReplayStore,
   createInMemoryCommandIdempotencyStore,
@@ -76,23 +72,6 @@ export function requiredExampleConfig(name: string, value: string | undefined): 
   }
 
   return value;
-}
-
-export async function findActiveCredential(
-  store: AepServiceCredentialStore,
-  agentDid: string,
-  grantType: AepBuiltInGrantType,
-  matches: (credential: AepBuiltInGrantResponse) => boolean
-): Promise<AepServiceCredentialRecord | undefined> {
-  const now = Date.now();
-  const records = await store.listCredentials(agentDid, grantType);
-
-  return records.find(
-    (record) =>
-      record.revokedAt === undefined &&
-      Date.parse(record.expiresAt) > now &&
-      matches(record.credential)
-  );
 }
 
 export function resourceBody(): Record<string, unknown> {

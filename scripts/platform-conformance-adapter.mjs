@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import {
   createAepPlatform,
+  createInMemoryPlatformIdempotencyStore,
   createJwtPlatformDelegatedSigner,
   createPlatformDiscoveryDocument,
   createPlatformLifecycleRequest
@@ -168,7 +169,10 @@ async function evaluateAuthorizationRequired(testCase) {
     deniedVerification.body.verified === testCase.expected.verification_denied.verified &&
     deniedVerification.body.reason === testCase.expected.verification_denied.reason &&
     (stored.identities.length === 1) === !testCase.expected.side_effects &&
-    isDeepStrictEqual([...new Set(operations)].sort(), [...testCase.input.private_operations].sort())
+    isDeepStrictEqual(
+      [...new Set(operations)].sort(),
+      [...testCase.input.private_operations].sort()
+    )
   );
 }
 
@@ -192,7 +196,34 @@ function evaluateDiscovery(testCase) {
 }
 
 async function evaluateIdempotency(testCase) {
-  const platform = platformFixture();
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const records = [];
+  const store = createInMemoryPlatformIdempotencyStore();
+  const platform = platformFixture({
+    idempotencyStore: {
+      execute(input, execute, context) {
+        return store.execute(
+          input,
+          async () => {
+            const record = await execute();
+            records.push(record);
+            return record;
+          },
+          context
+        );
+      }
+    },
+    keyStore: createMemoryKeyStore({
+      sign(identity, claims) {
+        return createJwtPlatformDelegatedSigner({
+          alg: "ES256",
+          key: privateKey,
+          kid: identity.agentDid
+        })(claims);
+      },
+      verificationKey: () => publicKey
+    })
+  });
   const context = {
     idempotencyKey: "01J0AEPPLATFORM000000000001",
     subject: testCase.input.principal
@@ -233,7 +264,7 @@ async function evaluateIdempotency(testCase) {
     subject: PRINCIPAL
   };
   const verification = {
-    client_assertion: "header.payload.signature",
+    client_assertion: sign.body.client_assertion,
     op: "enroll",
     service_did: SERVICE_DID
   };
@@ -244,10 +275,16 @@ async function evaluateIdempotency(testCase) {
     verificationContext
   );
   return (
+    verified.body.verified === true &&
     isDeepStrictEqual(verifiedReplay, verified) &&
     verificationConflict.status === 409 &&
     verificationConflict.body.code === "idempotency_conflict" &&
-    Number(testCase.expected.retention_seconds_minimum) === 3600
+    records.length === 3 &&
+    records.every(
+      (record) =>
+        Date.parse(record.expiresAt) - NOW.getTime() >=
+        Number(testCase.expected.retention_seconds_minimum) * 1000
+    )
   );
 }
 
@@ -445,15 +482,11 @@ async function evaluateCompletedSign(testCase) {
 }
 
 async function evaluateMissingResource(testCase) {
-  let rejected = false;
-  try {
-    await platformFixture().verify(testCase.input.request, {
-      idempotencyKey: "verification-missing-resource",
-      subject: PRINCIPAL
-    });
-  } catch {
-    rejected = true;
-  }
+  const response = await platformFixture().verify(testCase.input.request, {
+    idempotencyKey: "verification-missing-resource",
+    subject: PRINCIPAL
+  });
+  const rejected = response.status === 400 && response.body.code === "invalid_request";
   return rejected === !testCase.expected.valid;
 }
 
@@ -529,7 +562,7 @@ function platformFixture(options = {}) {
       platformName: "Example Platform"
     },
     idGenerator: options.idGenerator ?? (() => "01J0AEPPLATFORM000000000001"),
-    idempotencyStore: createMemoryIdempotencyStore(),
+    idempotencyStore: options.idempotencyStore ?? createMemoryIdempotencyStore(),
     identityStore: options.identityStore ?? createMemoryIdentityStore(),
     keyStore: options.keyStore ?? createMemoryKeyStore(),
     replayStore: createMemoryReplayStore(),
@@ -606,15 +639,7 @@ function createMemoryIdentityStore(initial = []) {
 }
 
 function createMemoryIdempotencyStore() {
-  const records = new Map();
-  return {
-    get(principal, idempotencyKey) {
-      return structuredClone(records.get(`${principal}\u001f${idempotencyKey}`));
-    },
-    set(record) {
-      records.set(`${record.principal}\u001f${record.idempotencyKey}`, structuredClone(record));
-    }
-  };
+  return createInMemoryPlatformIdempotencyStore();
 }
 
 function createMemoryReplayStore() {

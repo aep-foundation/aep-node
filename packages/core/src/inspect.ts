@@ -1,9 +1,11 @@
 import {
   AEP_AUTHENTICATED_COMMANDS,
   AEP_BINDINGS,
+  AEP_IDENTITY_METHOD_DID_WEB,
   AEP_SIGNING_ALGORITHMS,
   AEP_VERSION
 } from "./constants.js";
+import { didWebDocumentUrl } from "./did-web.js";
 import { AepValidationError } from "./errors.js";
 import type { InspectDocument, ValidationIssue, ValidationResult } from "./types.js";
 
@@ -55,6 +57,85 @@ function validateAuthentication(value: unknown, issues: ValidationIssue[]): void
     itemPattern: ADVERTISEMENT_PATTERN,
     uniqueItems: true
   });
+}
+
+/**
+ * Thrown when a Service DID does not encode the origin that served its Inspect document.
+ *
+ * This is a local failure, not a Problem Details response from the Service: resolving a DID
+ * proves the DID document exists, not that the origin serving Inspect controls that DID. An
+ * Agent that skipped this check could be induced to mint an assertion whose audience names a
+ * victim Service, or to send that Service's credentials to an attacker.
+ */
+export class AepServiceIdentityMismatchError extends Error {
+  readonly code = "service_identity_mismatch";
+  readonly serviceDid: string;
+  readonly inspectUrl: string;
+
+  constructor(message: string, serviceDid: string, inspectUrl: string) {
+    super(message);
+    this.name = "AepServiceIdentityMismatchError";
+    this.serviceDid = serviceDid;
+    this.inspectUrl = inspectUrl;
+  }
+}
+
+export interface ServiceDidOriginBindingOptions {
+  allowInsecureLoopback?: boolean;
+}
+
+/**
+ * Reports whether a Service DID encodes the origin of the final Inspect response URL.
+ *
+ * Only `did:web` has an origin-control binding defined for it, so any other DID method is
+ * reported as unbound until its own specification defines an equivalent check. DID path
+ * components do not alter the encoded origin, so `did:web:api.example.com:services:primary`
+ * binds to `https://api.example.com`.
+ */
+export function isServiceDidBoundToOrigin(
+  serviceDid: string,
+  inspectUrl: string | URL,
+  options: ServiceDidOriginBindingOptions = {}
+): boolean {
+  if (!serviceDid.startsWith(`${AEP_IDENTITY_METHOD_DID_WEB}:`)) {
+    return false;
+  }
+
+  let documentUrl: URL;
+  let responseUrl: URL;
+
+  try {
+    documentUrl = didWebDocumentUrl(serviceDid, {
+      ...(options.allowInsecureLoopback === undefined
+        ? {}
+        : { allowInsecureLoopback: options.allowInsecureLoopback })
+    });
+    responseUrl = new URL(String(inspectUrl));
+  } catch {
+    return false;
+  }
+
+  return documentUrl.origin === responseUrl.origin;
+}
+
+/**
+ * Throws unless the document's `service.did` encodes the origin that served it.
+ *
+ * Call this before provisioning an Agent identity, requesting a client assertion, or
+ * transmitting credentials to the Service. Directory membership is not a substitute.
+ */
+export function assertServiceDidOriginBinding(
+  document: InspectDocument,
+  inspectUrl: string | URL,
+  options: ServiceDidOriginBindingOptions = {}
+): void {
+  if (!isServiceDidBoundToOrigin(document.service.did, inspectUrl, options)) {
+    throw new AepServiceIdentityMismatchError(
+      "The Service DID does not encode the Inspect response origin.",
+      document.service.did,
+      String(inspectUrl)
+    );
+  }
 }
 
 export function isInspectDocument(value: unknown): value is InspectDocument {
@@ -263,6 +344,7 @@ function validateHttp(value: unknown, issues: ValidationIssue[]): void {
     issues.push({ path: "$.http.openapi.url", message: "Expected a non-empty string." });
   else if (typeof openapi["url"] === "string" && !isUriReference(openapi["url"]))
     issues.push({ path: "$.http.openapi.url", message: "Expected a URI reference." });
+  else if (typeof openapi["url"] === "string") validateOpenApiUrlTransport(openapi["url"], issues);
   const pathMatching = openapi["path_matching"];
   if (!requireRecord(pathMatching, "http.openapi.path_matching", issues)) return;
   rejectUnknownProperties(pathMatching, ["trailing_slash"], "$.http.openapi.path_matching", issues);
@@ -272,6 +354,47 @@ function validateHttp(value: unknown, issues: ValidationIssue[]): void {
       path: "$.http.openapi.path_matching.trailing_slash",
       message: "Expected strict or equivalent."
     });
+}
+
+/**
+ * An absolute OpenAPI reference must not weaken the transport or carry credentials.
+ *
+ * Plaintext HTTP is permitted only when the host is syntactically one of the loopback
+ * literals, for development. A name that merely resolves to a loopback address does not
+ * qualify, because the check is on the advertised URL, not on what DNS returns.
+ */
+function validateOpenApiUrlTransport(value: string, issues: ValidationIssue[]): void {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    return;
+  }
+
+  if (url.username.length > 0 || url.password.length > 0) {
+    issues.push({
+      path: "$.http.openapi.url",
+      message: "Expected no user information."
+    });
+  }
+
+  if (url.protocol === "https:") {
+    return;
+  }
+
+  if (url.protocol === "http:" && isLoopbackLiteral(url.hostname)) {
+    return;
+  }
+
+  issues.push({
+    path: "$.http.openapi.url",
+    message: "Expected an HTTPS URL or a loopback development URL."
+  });
+}
+
+function isLoopbackLiteral(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 function validateIdentity(value: unknown, issues: ValidationIssue[]): void {
