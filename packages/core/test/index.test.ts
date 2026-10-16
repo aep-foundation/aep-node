@@ -94,36 +94,36 @@ function minimalClaims(): AepClientAssertionClaims {
     op: "status",
     sub: "did:web:agent.example.com:agents:123"
   };
+}
 
-  describe("protected-resource authorization carriers", () => {
-    it("parses and renders the standard and dedicated fields without changing schemes", () => {
-      expect(AEP_AUTHORIZATION_HEADER).toBe("AEP-Authorization");
-      expect(
-        renderProtectedResourceAuthorization({
-          carrier: "dedicated",
-          scheme: "Bearer",
-          credentials: "token"
-        })
-      ).toEqual({
-        "AEP-Authorization": "Bearer token"
-      });
-      expect(parseProtectedResourceAuthorization("Basic credentials", "dedicated")).toEqual({
+describe("protected-resource authorization carriers", () => {
+  it("parses and renders the standard and dedicated fields without changing schemes", () => {
+    expect(AEP_AUTHORIZATION_HEADER).toBe("AEP-Authorization");
+    expect(
+      renderProtectedResourceAuthorization({
         carrier: "dedicated",
-        credentials: "credentials",
-        scheme: "Basic"
-      });
+        scheme: "Bearer",
+        credentials: "token"
+      })
+    ).toEqual({
+      "AEP-Authorization": "Bearer token"
     });
-
-    it("rejects malformed and combined dedicated fields without disclosing credentials", () => {
-      expect(() =>
-        parseProtectedResourceAuthorization("Bearer secret, Basic other", "dedicated")
-      ).toThrow("ambiguous");
-      expect(() => parseProtectedResourceAuthorization("Payment secret", "dedicated")).toThrow(
-        "not recognized"
-      );
+    expect(parseProtectedResourceAuthorization("Basic credentials", "dedicated")).toEqual({
+      carrier: "dedicated",
+      credentials: "credentials",
+      scheme: "Basic"
     });
   });
-}
+
+  it("rejects malformed and combined dedicated fields without disclosing credentials", () => {
+    expect(() =>
+      parseProtectedResourceAuthorization("Bearer secret, Basic other", "dedicated")
+    ).toThrow("ambiguous");
+    expect(() => parseProtectedResourceAuthorization("Payment secret", "dedicated")).toThrow(
+      "not recognized"
+    );
+  });
+});
 
 describe("@aep-foundation/core constants", () => {
   it("exports baseline protocol constants", () => {
@@ -239,7 +239,7 @@ describe("AEP Platform client contracts", () => {
         lifetimeSeconds: 301,
         serviceDid: "did:web:api.service.example"
       })
-    ).toThrow("lifetimeSeconds must not exceed maxLifetimeSeconds");
+    ).toThrow("lifetimeSeconds must not exceed 300 seconds");
   });
 });
 
@@ -427,6 +427,14 @@ describe("AEP claim values", () => {
 });
 
 describe("did:web helpers", () => {
+  it("preserves encoded path segments without resolving them as parent directories", () => {
+    for (const segment of ["%252e%252e", "%252E", "account%3A123", "%2541"]) {
+      expect(String(didWebDocumentUrl(`did:web:example.com:users:${segment}:other`))).toBe(
+        `https://example.com/users/${segment}/other/did.json`
+      );
+    }
+  });
+
   it("builds DID document URLs for root and path did:web identifiers", () => {
     expect(String(didWebDocumentUrl("did:web:api.example.com"))).toBe(
       "https://api.example.com/.well-known/did.json"
@@ -459,6 +467,7 @@ describe("did:web helpers", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
+              id: "did:web:agent.example.com:agents:123",
               verificationMethod: [
                 {
                   id: "did:web:agent.example.com:agents:123#key-1",
@@ -489,7 +498,11 @@ describe("did:web helpers", () => {
         did: "did:web:127.0.0.1%3A4100:agents:123",
         fetch: (input) => {
           expect(String(input)).toBe("http://127.0.0.1:4100/agents/123/did.json");
-          return Promise.resolve(new Response(JSON.stringify({ verificationMethod: [] })));
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ id: "did:web:127.0.0.1%3A4100:agents:123", verificationMethod: [] })
+            )
+          );
         },
         kid: "did:web:127.0.0.1%3A4100:agents:123#missing"
       })
@@ -1091,6 +1104,58 @@ describe("JWT helpers", () => {
 });
 
 describe("Client assertion JWT helpers", () => {
+  it.each(["EdDSA", "ES256"] as const)(
+    "verifies %s PEM keys independently of allowlist order",
+    async (alg) => {
+      const pair =
+        alg === "EdDSA"
+          ? generateKeyPairSync("ed25519")
+          : generateKeyPairSync("ec", { namedCurve: "P-256" });
+      const key = {
+        format: "spki" as const,
+        pem: pair.publicKey.export({ format: "pem", type: "spki" }).toString()
+      };
+      const claims = {
+        aud: "did:web:api.example.com",
+        exp: 1779969900,
+        iat: 1779969600,
+        iss: "did:web:agent.example.com",
+        jti: "pem-algorithm-test",
+        op: "enroll",
+        sub: "did:web:agent.example.com"
+      } satisfies AepClientAssertionClaims;
+      const token = await signClientAssertionJwt(claims, { alg, key: pair.privateKey });
+      const options = { key, currentDate: new Date("2026-05-28T12:00:00.000Z") };
+
+      await expect(verifyClientAssertionJwt(token, options)).resolves.toEqual(claims);
+      for (const algorithms of [["EdDSA", "ES256"], ["ES256", "EdDSA"], [alg]]) {
+        await expect(verifyClientAssertionJwt(token, { ...options, algorithms })).resolves.toEqual(
+          claims
+        );
+      }
+      await expect(
+        verifyClientAssertionJwt(token, {
+          ...options,
+          algorithms: [alg === "EdDSA" ? "ES256" : "EdDSA"]
+        })
+      ).rejects.toThrow('"alg" (Algorithm) Header Parameter value not allowed');
+
+      const wrongPair =
+        alg === "EdDSA"
+          ? generateKeyPairSync("ed25519")
+          : generateKeyPairSync("ec", { namedCurve: "P-256" });
+      await expect(
+        verifyClientAssertionJwt(token, {
+          ...options,
+          key: {
+            format: "spki",
+            pem: wrongPair.publicKey.export({ format: "pem", type: "spki" }).toString()
+          }
+        })
+      ).rejects.toThrow("signature verification failed");
+    }
+  );
+
   it("signs and verifies baseline client assertions with PEM keys", async () => {
     const { privateKey, publicKey } = generateKeyPairSync("ec", {
       namedCurve: "P-256",

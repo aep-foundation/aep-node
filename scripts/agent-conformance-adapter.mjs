@@ -667,6 +667,7 @@ async function evaluateServiceDidBinding(testCase) {
   }
   return (
     matching.document.service.did === testCase.input.matching_service_did &&
+    errors.length === 2 &&
     errors.every(
       (error) => error instanceof AepInspectError && error.code === "service_identity_mismatch"
     )
@@ -703,31 +704,116 @@ async function evaluateTransport(testCase) {
   return result.finalUrl?.href === testCase.input.redirect_url && rejected;
 }
 
-async function evaluateDiscoveryCache() {
-  const cache = createInMemoryPublicDocumentCache();
-  let requests = 0;
-  const fetch = (_url, init) => {
-    requests += 1;
-    if (requests === 2 && new Headers(init?.headers).get("if-none-match") === '"inspect-1"') {
-      return Promise.resolve(
-        new Response(null, { status: 304, headers: { "cache-control": "max-age=300" } })
+async function evaluateDiscoveryCache(testCase) {
+  for (const namespace of ["inspect", "platform-discovery"]) {
+    const origin = namespace === "inspect" ? SERVICE_ORIGIN : PLATFORM_ORIGIN;
+    const document = namespace === "inspect" ? baseInspectDocument() : platformDiscoveryDocument();
+    const url = `${origin}/.well-known/${namespace === "inspect" ? "aep" : "aep-platform"}`;
+    const read = (cache) =>
+      namespace === "inspect"
+        ? inspectService({ serviceUrl: origin, publicDocumentCache: cache })
+        : discoverPlatform({ platformUrl: origin, publicDocumentCache: cache });
+    for (const validator of ["etag", "last-modified"]) {
+      const cache = createInMemoryPublicDocumentCache();
+      const value = validator === "etag" ? '"revision-1"' : "Mon, 06 Jul 2026 12:00:00 GMT";
+      const conditional = validator === "etag" ? "if-none-match" : "if-modified-since";
+      let requests = 0;
+      await withGlobalFetch(
+        async (_url, init) => {
+          requests += 1;
+          if (requests === 1)
+            return jsonResponse(document, 200, "application/aep+json", {
+              headers: { "cache-control": "no-cache", [validator]: value }
+            });
+          if (new Headers(init?.headers).get(conditional) !== value)
+            throw new Error("Missing cache validator");
+          return new Response(null, {
+            status: testCase.input.conditional_status,
+            headers: { "cache-control": "max-age=300" }
+          });
+        },
+        async () => {
+          const first = await read(cache);
+          const second = await read(cache);
+          const third = await read(cache);
+          if (
+            requests !== 2 ||
+            (namespace === "platform-discovery" &&
+              (second.freshness !== "revalidated" || third.freshness !== "fresh")) ||
+            !isDeepStrictEqual(first.document, second.document)
+          )
+            throw new Error("Revalidation failed");
+        }
       );
     }
-    return jsonResponse(baseInspectDocument(), 200, "application/aep+json", {
-      headers: { "cache-control": "no-cache", etag: '"inspect-1"' }
-    });
-  };
-  const first = await inspectService({
-    fetch,
-    publicDocumentCache: cache,
-    serviceUrl: SERVICE_ORIGIN
-  });
-  const second = await inspectService({
-    fetch,
-    publicDocumentCache: cache,
-    serviceUrl: SERVICE_ORIGIN
-  });
-  return first.document.service.did === second.document.service.did && requests === 2;
+    for (const directive of ["no-store", undefined]) {
+      const cache = createInMemoryPublicDocumentCache();
+      let requests = 0;
+      await withGlobalFetch(
+        () => {
+          requests += 1;
+          return jsonResponse(document, 200, "application/aep+json", {
+            headers: directive === undefined ? {} : { "cache-control": directive }
+          });
+        },
+        async () => {
+          await read(cache);
+          await read(cache);
+          const record = await cache.get(namespace, url);
+          if (directive === "no-store") {
+            if (requests !== 2 || record !== undefined) throw new Error("no-store persisted");
+          } else {
+            if (requests !== 1 || record === undefined)
+              throw new Error("Default freshness not used");
+            await cache.set({
+              ...record,
+              cachedAt: new Date(
+                Date.now() - (Number(testCase.expected.default_freshness_seconds) + 1) * 1000
+              ).toISOString()
+            });
+            await read(cache);
+            if (requests !== 2) throw new Error("Default freshness did not expire");
+          }
+        }
+      );
+    }
+    const cache = createInMemoryPublicDocumentCache();
+    const finalUrl = `${origin}/discovery.json`;
+    const requests = [];
+    await withGlobalFetch(
+      (input, init) => {
+        requests.push(String(input));
+        if (String(input) === url)
+          return Promise.resolve(
+            new Response(null, {
+              status: 302,
+              headers: { location: finalUrl }
+            })
+          );
+        if (requests.length === 3) {
+          if (new Headers(init?.headers).get("if-none-match") !== '"redirected"')
+            throw new Error("Missing final URL validator");
+          return Promise.resolve(new Response(null, { status: 304 }));
+        }
+        return jsonResponse(document, 200, "application/aep+json", {
+          headers: { "cache-control": "no-cache", etag: '"redirected"' }
+        });
+      },
+      async () => {
+        await read(cache);
+        const record = await cache.get(namespace, finalUrl);
+        if (!isDeepStrictEqual(record?.value, document))
+          throw new Error("Missing final URL cache record");
+        const second = await read(cache);
+        if (
+          (namespace === "platform-discovery" && second.freshness !== "revalidated") ||
+          !isDeepStrictEqual(requests, [url, finalUrl, finalUrl])
+        )
+          throw new Error("Redirect cache revalidation failed");
+      }
+    );
+  }
+  return true;
 }
 
 async function evaluateOpenApiPathMatching(testCase) {
@@ -1152,7 +1238,59 @@ function evaluateOperationBinding(testCase) {
   );
 }
 
-async function evaluateProtectedResourceSafety(id) {
+function protectedResourceAgent(method = "aep-jwt") {
+  const { privateKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+    privateKeyEncoding: { format: "pem", type: "pkcs8" },
+    publicKeyEncoding: { format: "pem", type: "spki" }
+  });
+  return createAepAgent({
+    fetch: () =>
+      jsonResponse({
+        ...baseInspectDocument(),
+        authentication: { methods: [method] }
+      }),
+    credentialStore: createInMemorySessionCredentialStore(
+      method === "aep-jwt"
+        ? []
+        : [
+            {
+              credential: grantResponse(method),
+              credentialId: grantResponse(method).credential_id,
+              expiresAt: grantResponse(method).expires_at,
+              grantType: method,
+              issuedAt: "2026-07-06T12:00:00Z",
+              serviceDid: SERVICE_DID,
+              serviceUrl: SERVICE_ORIGIN
+            }
+          ]
+    ),
+    identityProvider: {
+      getOrCreateIdentity: () => ({
+        agentDid: AGENT_DID,
+        identityKind: "sovereign",
+        serviceDid: SERVICE_DID,
+        signingAlgorithms: ["ES256"]
+      }),
+      signerFor: () =>
+        createJwtClientAssertionSigner({
+          alg: "ES256",
+          key: { format: "pkcs8", pem: privateKey }
+        })
+    }
+  });
+}
+
+function resourceChallenge() {
+  return new Response(null, {
+    status: 401,
+    headers: {
+      "www-authenticate": `AEP service_did="${SERVICE_DID}", inspect="${SERVICE_ORIGIN}/.well-known/aep"`
+    }
+  });
+}
+
+async function evaluateProtectedResourceSafety(id, testCase) {
   if (id === "authorization-field-safety") {
     const headers = await clientAssertionAuthenticationHeaders({
       agentDid: AGENT_DID,
@@ -1165,54 +1303,99 @@ async function evaluateProtectedResourceSafety(id) {
     );
   }
   if (id === "redirect-safety") {
-    let authenticationCalls = 0;
-    const agent = {
-      serviceSession: () => ({
-        authenticationHeaders: async () => {
-          authenticationCalls += 1;
-          return { Authorization: "AEP signed" };
-        },
-        openApiPolicy: async () => ({
-          source: "openapi",
-          state: "fallback",
-          methods: [],
-          freshness: "fetched"
-        }),
-        inspect: async () => inspectResult()
-      })
-    };
-    let call = 0;
-    const response = await fetchProtectedResource({
-      agent,
-      fetch: (url, init) => {
-        call += 1;
-        const authenticated = new Headers(init?.headers).has("authorization");
-        if (!authenticated) {
-          return Promise.resolve(
-            new Response(null, {
-              status: 401,
-              headers: {
-                "www-authenticate": `AEP service_did="${SERVICE_DID}", inspect="${SERVICE_ORIGIN}/.well-known/aep"`
-              }
-            })
-          );
-        }
-        if (new URL(url).pathname.endsWith("/123")) {
-          return Promise.resolve(
-            new Response(null, { status: 302, headers: { location: "/v1/orders/124" } })
-          );
-        }
-        return Promise.resolve(new Response("ok", { status: 200 }));
-      },
-      url: "https://api.example.com/v1/orders/123"
+    const tokens = [];
+    const same = await fetchProtectedResource({
+      agent: protectedResourceAgent(),
+      url: testCase.input.source,
+      fetch: async (url, init) => {
+        const authorization = new Headers(init?.headers).get("authorization");
+        if (authorization === null) return resourceChallenge();
+        tokens.push(authorization.slice(4));
+        return String(url) === testCase.input.source
+          ? new Response(null, { status: 302, headers: { location: testCase.input.same_origin } })
+          : new Response("ok");
+      }
     });
-    return response.status === 200 && authenticationCalls === 2 && call === 4;
+    if (same.status !== 200 || tokens.length !== 2 || tokens[0] === tokens[1]) return false;
+    const claims = tokens.map((token) => JSON.parse(Buffer.from(token.split(".")[1], "base64url")));
+    if (
+      claims[0].resource !== testCase.input.source ||
+      claims[1].resource !== testCase.expected.same_origin.new_authenticate_assertion_resource ||
+      claims.some((claim) => claim.op !== "authenticate" || claim.aud !== SERVICE_DID)
+    )
+      return false;
+    for (const [method, carrier] of [
+      ["aep-jwt", "standard"],
+      ["aep-jwt", "dedicated"],
+      ["oauth-bearer", "standard"],
+      ["api-key", "standard"],
+      ["basic", "standard"]
+    ]) {
+      let destinationHeaders;
+      let authenticatedSource = false;
+      const response = await fetchProtectedResource({
+        agent: protectedResourceAgent(method),
+        carrier,
+        url: testCase.input.source,
+        additionalAuthenticationHeaders: { "x-caller-secret": "secret" },
+        fetch: async (url, init) => {
+          const headers = new Headers(init?.headers);
+          if (String(url) === testCase.input.cross_origin) {
+            destinationHeaders = headers;
+            return new Response("public destination");
+          }
+          if (
+            !headers.has("authorization") &&
+            !headers.has("aep-authorization") &&
+            !headers.has("x-api-key")
+          )
+            return resourceChallenge();
+          authenticatedSource = true;
+          return new Response(null, {
+            status: 302,
+            headers: { location: testCase.input.cross_origin }
+          });
+        }
+      });
+      if (
+        response.status !== 200 ||
+        !authenticatedSource ||
+        destinationHeaders === undefined ||
+        ["authorization", "aep-authorization", "x-api-key", "x-caller-secret"].some((name) =>
+          destinationHeaders.has(name)
+        )
+      )
+        return false;
+    }
+    return true;
   }
   if (id === "assertion-and-credential-failures") {
-    const headers = await protectedResourceAuthenticationHeaders({
-      credential: grantResponse("oauth-bearer")
-    });
-    return headers.Authorization?.startsWith("Bearer ") === true;
+    // The Agent preserves the Service's failure; assertion verification belongs to the Service.
+    for (const failure of testCase.input.cases) {
+      const code = testCase.expected[failure];
+      const status = failure === "insufficient_scope" ? 403 : 401;
+      const body = { type: `urn:aep:error:${code}`, title: "Authentication failed", status, code };
+      let authenticatedRequests = 0;
+      const response = await fetchProtectedResource({
+        agent: protectedResourceAgent(failure.includes("credential") ? "oauth-bearer" : "aep-jwt"),
+        url: `${SERVICE_ORIGIN}/resource`,
+        fetch: async (_url, init) => {
+          if (!new Headers(init?.headers).has("authorization")) return resourceChallenge();
+          authenticatedRequests += 1;
+          return new Response(JSON.stringify(body), {
+            status,
+            headers: { "content-type": "application/problem+json" }
+          });
+        }
+      });
+      if (
+        authenticatedRequests !== 1 ||
+        response.status !== status ||
+        !isDeepStrictEqual(await response.json(), body)
+      )
+        return false;
+    }
+    return true;
   }
   const dedicated = await clientAssertionAuthenticationHeaders({
     agentDid: AGENT_DID,

@@ -20,7 +20,7 @@ The package is ESM-first, includes a CommonJS entry point, and requires Node.js
 ## What It Provides
 
 - protocol constants and wire types
-- JSON Schema-backed validation helpers
+- protocol validation helpers and exported JSON Schemas
 - Inspect document parsing and construction primitives
 - HTTP binding helpers
 - Problem Details helpers
@@ -29,7 +29,6 @@ The package is ESM-first, includes a CommonJS entry point, and requires Node.js
   contracts
 - Platform provisioning and delegated-signing request builders
 - AEP Claim Value catalog types, schema metadata, and validation helpers
-- identity method and grant type registration primitives
 
 Protected-resource helpers parse and render standard `Authorization` and
 dedicated `AEP-Authorization` carriers while preserving the `AEP`, `Bearer`,
@@ -79,6 +78,33 @@ The package exports:
   public-key lookup
 - `decodeJwtUnverified` for reading untrusted JWT headers and payloads before
   key resolution
+- `assertServiceDidOriginBinding` and `isServiceDidBoundToOrigin` for the
+  Service DID origin check, with `AepServiceIdentityMismatchError`
+- `selectProtectedResourceAuthorization`,
+  `parseProtectedResourceAuthorization`, and
+  `renderProtectedResourceAuthorization` for protected-resource credential
+  carriage
+- `resolveIdempotencyKey`, `AEP_IDEMPOTENCY_KEY_HEADER`, and
+  `AEP_IDEMPOTENT_COMMANDS` for the idempotency contract on state-mutating
+  commands
+- `isAssertionOperationAllowed` and `assertAssertionOperationAllowed` for
+  binding an assertion operation to its valid target
+
+Verification defaults to the AEP core signing algorithms. `none` and symmetric
+JOSE algorithms are rejected for Agent identity assertions, so a presented
+token cannot select its own algorithm.
+
+An Agent enforces the Service DID origin binding before it provisions identity
+material, requests an assertion, or transmits credentials:
+
+```ts
+import { assertServiceDidOriginBinding, parseInspectDocument } from "@aep-foundation/core";
+
+const response = await fetch("https://api.example.com/.well-known/aep");
+const document = parseInspectDocument(await response.json());
+
+assertServiceDidOriginBinding(document, response.url);
+```
 
 JWT helpers accept PEM (`pkcs8`, `spki`, or `x509`), JWK, `CryptoKey`,
 `KeyObject`, or raw key material where `jose` supports it.

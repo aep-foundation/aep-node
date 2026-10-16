@@ -38,10 +38,10 @@ repository [Integration Guide](../../INTEGRATION.md).
 ## Create a Service
 
 ```ts
+import { randomBytes, randomUUID } from "node:crypto";
+
 import {
-  apiKeyGrantType,
   authenticateProtectedResource,
-  basicGrantType,
   createAepService,
   createDidWebClientAssertionVerifier,
   createHostedPlatformClientAssertionVerifier,
@@ -49,7 +49,6 @@ import {
   createInMemoryEnrollmentStore,
   createInMemoryServiceCredentialStore,
   createStaticEnrollmentPolicy,
-  createJwtClientAssertionVerifier,
   didWebIdentityMethod,
   storedOAuthBearerGrantType
 } from "@aep-foundation/service";
@@ -58,13 +57,8 @@ const credentialStore = createInMemoryServiceCredentialStore();
 const service = createAepService({
   serviceDid: "did:web:api.example.com",
   commandIdempotencyStore: createInMemoryCommandIdempotencyStore(),
-  clientAssertionVerifier: createJwtClientAssertionVerifier({
-    algorithms: ["ES256"],
-    key: {
-      format: "spki",
-      pem: process.env.AEP_AGENT_PUBLIC_KEY_PEM!
-    }
-  }),
+  clientAssertionVerifier: createDidWebClientAssertionVerifier(),
+  authenticationMethods: ["oauth-bearer"],
   enrollmentPolicy: createStaticEnrollmentPolicy({
     status: "active"
   }),
@@ -74,15 +68,13 @@ const service = createAepService({
     storedOAuthBearerGrantType({
       store: credentialStore,
       issue: async (request) => ({
-        access_token: await mintAccessToken(request),
-        credential_id: crypto.randomUUID(),
+        access_token: randomBytes(32).toString("base64url"),
+        credential_id: randomUUID(),
         expires_at: new Date(Date.now() + 3600_000).toISOString(),
         scopes: request.requested_scopes ?? [],
         token_type: "Bearer"
       })
-    }),
-    apiKeyGrantType(),
-    basicGrantType()
+    })
   ],
   claims: {
     required: ["contact.email"],
@@ -193,6 +185,46 @@ Services should provide durable stores for enrollment state and command
 idempotency, and an atomic replay store appropriate for the Service's
 deployment.
 
+## Credentials and Challenges
+
+A few constraints the package enforces, worth knowing before you plug in your
+own credential store:
+
+- **`serviceDid` and `inspectUrl` end up in a `WWW-Authenticate` challenge**, so
+  neither may contain a double quote, a backslash, or a control character. An
+  Agent parses those parameters to decide where to enroll, and a value that
+  escaped its quoted string could append a second `inspect` naming another
+  origin. `createAepService` refuses such a value up front.
+- **A protected-resource `url` must be absolute.** It becomes the `resource`
+  claim the Agent's assertion is bound to, and it supplies the origin of the
+  Inspect URL in a challenge.
+- **Credential comparison is constant time**, and a request whose credentials
+  match more than one stored record is refused unless every match names the
+  same Agent and the same scopes. Presenting two valid API keys belonging to two
+  different Agents authenticates as neither.
+
+The stored grant handlers return the issued secret in the Grant response, but
+pass only metadata and a salted verifier to `AepServiceCredentialStore`.
+API keys and OAuth Bearer tokens use SHA-256 with a random 16-byte salt. Basic
+credentials use asynchronous scrypt (`N=16384`, `r=8`, `p=1`) with a random
+16-byte salt and a 32-byte output. The SDK compares verifier digests in constant time. Credential issuers
+must generate secrets with the entropy required by their AEP grant profile.
+
+`AepServiceCredentialRecord.credential` is an `AepStoredServiceCredential`:
+it contains `credential_id`, `expires_at`, `scopes`, and `verifier.salt` and
+`verifier.digest` as hexadecimal strings. It also contains `header` for an API
+key, `username` for Basic, or `token_type: "Bearer"` for OAuth. It contains no
+`api_key`, `password`, or `access_token`. Custom stores persist this record and
+return it unchanged; the SDK performs verification and checks expiration and
+revocation. `createInMemoryServiceCredentialStore` uses the same record format
+and is suitable for examples and tests, not durable production storage.
+
+The command idempotency store is separate: a cached successful Grant response
+contains the issued secret so a retry can receive the same response. Protect
+those cached responses as secrets, including encryption at rest, restricted
+access, and retention controls. Do not log either issued credentials or cached
+Grant responses.
+
 ## Minimum Integration
 
 A Service integration needs to:
@@ -220,9 +252,10 @@ and verifies baseline AEP client assertion JWTs against the Service DID.
 `createHostedPlatformClientAssertionVerifier()` posts the assertion to a
 Platform hosted verification endpoint and lets the existing Service command
 path enforce AEP audience, command, time window, TTL, and replay checks against
-the returned claims. Hosted verification reuses a command's idempotency key
-when one is available and otherwise uses the assertion `jti` as its stable
-retry key.
+the returned claims. Hosted verification requires HTTPS, refuses redirects, and
+uses a 30-second timeout (configurable with `timeoutMs`). Its idempotency key is
+derived from the verification request body: retrying that exact request preserves
+the key, while a command retry with a fresh assertion gets a separate verification.
 `service.authenticateProtectedResource({ headers, method, url })` (or the
 equivalent exported helper) authenticates protected resources independently of
 authorization. Configure `authenticationMethods` in Service preference order.

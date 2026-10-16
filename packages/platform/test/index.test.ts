@@ -6,6 +6,7 @@ import { verifyClientAssertionJwt } from "@aep-foundation/core";
 import {
   InMemoryManagedAgentRegistry,
   createAepPlatform,
+  createInMemoryPlatformIdempotencyStore,
   createPlatformAgentIdentityListResponse,
   createPlatformAgentIdentity,
   createManagedAgentIdentity,
@@ -32,7 +33,6 @@ import type {
   PlatformDiscoveryDocumentOptions,
   PlatformIdentityRecord,
   PlatformIdentityStore,
-  PlatformIdempotencyRecord,
   PlatformIdempotencyStore,
   PlatformReplayStore
 } from "../src/index.js";
@@ -882,7 +882,7 @@ describe("@aep-foundation/platform", () => {
         serviceDid: "did:web:api.service.example",
         lifetimeSeconds: 301
       })
-    ).toThrow("lifetimeSeconds must not exceed maxLifetimeSeconds");
+    ).toThrow("lifetimeSeconds must not exceed 300 seconds");
   });
 
   it("builds hosted verification request and rich response bodies", () => {
@@ -1020,18 +1020,7 @@ function createMemoryIdentityStore(): PlatformIdentityStore {
 }
 
 function createMemoryIdempotencyStore(): PlatformIdempotencyStore {
-  const records = new Map<string, PlatformIdempotencyRecord>();
-
-  return {
-    get(principal, idempotencyKey) {
-      const record = records.get(`${principal}\u001f${idempotencyKey}`);
-
-      return record === undefined ? undefined : structuredClone(record);
-    },
-    set(record) {
-      records.set(`${record.principal}\u001f${record.idempotencyKey}`, structuredClone(record));
-    }
-  };
+  return createInMemoryPlatformIdempotencyStore();
 }
 
 function createMemoryReplayStore(): PlatformReplayStore {

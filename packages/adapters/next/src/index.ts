@@ -1,5 +1,7 @@
+import { parseProtectedResourceAuthorization } from "@aep-foundation/core";
 import { createAepService } from "@aep-foundation/service";
 import type {
+  AepAuthenticatedPrincipal,
   AepIdempotentServiceOptions,
   AepService,
   AepServiceOptions
@@ -26,7 +28,10 @@ export function createNextAepRouteHandler(input: NextAepServiceInput): NextAepRo
 
 export function createNextAepProtectedResourceHandler(
   input: NextAepServiceInput,
-  onAuthenticated: (request: Request) => Promise<Response> | Response
+  onAuthenticated: (
+    request: Request,
+    principal: AepAuthenticatedPrincipal
+  ) => Promise<Response> | Response
 ): NextAepRouteHandler {
   const service = resolveService(input);
   return async (request) => {
@@ -36,7 +41,7 @@ export function createNextAepProtectedResourceHandler(
       method: request.method,
       url: request.url
     });
-    if (result.authenticated) return onAuthenticated(request);
+    if (result.authenticated) return onAuthenticated(request, result.principal);
     return new Response(JSON.stringify(result.response.body), {
       headers: { ...result.response.headers, "Content-Type": result.response.contentType },
       status: result.response.status
@@ -51,11 +56,12 @@ export function createNextAepCommandRouteHandler(
   const service = resolveService(input);
 
   return async (request) => {
-    const clientAssertion = parseAepAuthorization(
-      request?.headers.get("Authorization") ?? undefined
+    if (request === undefined) throw new TypeError("An AEP command request is required.");
+    const clientAssertion = baselineClientAssertion(
+      request.headers.get("Authorization") ?? undefined
     );
-    const idempotencyKey = request?.headers.get("Idempotency-Key") ?? undefined;
-    const body = command === "status" ? undefined : await request?.json();
+    const idempotencyKey = request.headers.get("Idempotency-Key") ?? undefined;
+    const body = command === "status" ? undefined : await requestBody(request);
     const commandOptions = idempotentOptions(clientAssertion, idempotencyKey);
     const result =
       command === "enroll"
@@ -110,14 +116,39 @@ export function createNextAepRoute(
   };
 }
 
-function parseAepAuthorization(authorization: string | undefined): string {
-  const prefix = "AEP ";
+/**
+ * Reads the command request body.
+ *
+ * A body that is absent or not JSON resolves to `undefined` so the Service reports it as
+ * `invalid_request`, rather than the parse rejection escaping as a framework error.
+ */
+async function requestBody(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    return undefined;
+  }
+}
 
-  if (authorization?.startsWith(prefix)) {
-    return authorization.slice(prefix.length);
+/**
+ * Reads the baseline client assertion from an `Authorization` field value.
+ *
+ * Scheme comparison is case-insensitive and the scheme may be followed by more than one
+ * space. Anything that is not exactly one well-formed `AEP` credential yields an empty
+ * assertion, which the Service reports as the common recognition failure rather than the
+ * adapter guessing which of several presented credentials to evaluate.
+ */
+function baselineClientAssertion(authorization: string | undefined): string {
+  if (authorization === undefined) {
+    return "";
   }
 
-  return "";
+  try {
+    const parsed = parseProtectedResourceAuthorization(authorization);
+    return parsed.scheme === "AEP" ? parsed.credentials : "";
+  } catch {
+    return "";
+  }
 }
 
 function resolveService(input: NextAepServiceInput): AepService {

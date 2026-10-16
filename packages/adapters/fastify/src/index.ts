@@ -1,6 +1,11 @@
-import { commandPathFromInspect } from "@aep-foundation/core";
+import {
+  commandPathFromInspect,
+  createProblemDetails,
+  parseProtectedResourceAuthorization
+} from "@aep-foundation/core";
 import { createAepService } from "@aep-foundation/service";
 import type {
+  AepAuthenticatedPrincipal,
   AepIdempotentServiceOptions,
   AepService,
   AepServiceOptions
@@ -9,6 +14,7 @@ import type {
 export const packageName = "@aep-foundation/fastify";
 export const AEP_FASTIFY_WELL_KNOWN_PATH = "/.well-known/aep";
 export const AEP_FASTIFY_MEDIA_TYPE = "application/aep+json";
+export const AEP_FASTIFY_PROBLEM_MEDIA_TYPE = "application/problem+json";
 
 export interface FastifyAepReply {
   header?(name: string, value: string): FastifyAepReply;
@@ -26,16 +32,23 @@ export interface FastifyAepRequest {
 
 export function createFastifyAepProtectedResourceHandler(
   input: FastifyAepServiceInput,
-  resourceBaseUrl: string | URL
-): FastifyAepHandler {
+  resourceBaseUrl: string | URL,
+  onAuthenticated?: (
+    principal: AepAuthenticatedPrincipal,
+    request: FastifyAepRequest
+  ) => void | Promise<void>
+): (request: FastifyAepRequest, reply: FastifyAepReply) => Promise<unknown> {
   const service = resolveService(input);
   return async (request, reply) => {
     const result = await service.authenticateProtectedResource({
       headers: request.headers ?? {},
       method: request.method ?? "GET",
-      url: new URL(request.url ?? "/", resourceBaseUrl)
+      url: protectedResourceUrl(request.url ?? "/", resourceBaseUrl)
     });
-    if (result.authenticated) return;
+    if (result.authenticated) {
+      await onAuthenticated?.(result.principal, request);
+      return;
+    }
     for (const [name, value] of Object.entries(result.response.headers ?? {}))
       reply.header?.(name, value);
     reply.status?.(result.response.status);
@@ -68,7 +81,20 @@ export interface FastifyAepRouteHandlers {
 export function createFastifyAepHandler(input: FastifyAepServiceInput): FastifyAepHandler {
   const service = resolveService(input);
 
-  return (_request, reply) => {
+  return (request, reply) => {
+    if (request.method !== undefined && request.method !== "GET") {
+      reply.header?.("Allow", "GET");
+      reply.status?.(405);
+      return reply.type(AEP_FASTIFY_PROBLEM_MEDIA_TYPE).send(
+        createProblemDetails({
+          code: "invalid_request",
+          detail: "AEP Inspect only supports GET requests.",
+          status: 405,
+          title: "Method Not Allowed"
+        })
+      );
+    }
+
     reply.status?.(200);
     return reply.type(AEP_FASTIFY_MEDIA_TYPE).send(service.inspectDocument());
   };
@@ -119,8 +145,8 @@ function createFastifyCommandHandler(
   command: "enroll" | "grant" | "revoke" | "status"
 ): FastifyAepHandler {
   return async (request, reply) => {
-    const clientAssertion = parseAepAuthorization(headerValue(request.headers, "authorization"));
-    const idempotencyKey = headerValue(request.headers, "idempotency-key");
+    const clientAssertion = baselineClientAssertion(request.headers?.["authorization"]);
+    const idempotencyKey = singleFieldValue(request.headers?.["idempotency-key"]);
     const commandOptions = idempotentOptions(clientAssertion, idempotencyKey);
     const result =
       command === "enroll"
@@ -147,23 +173,54 @@ function idempotentOptions(
   };
 }
 
-function headerValue(
-  headers: Record<string, string | string[] | undefined> | undefined,
-  name: string
-): string | undefined {
-  const value = headers?.[name] ?? headers?.[name.toLowerCase()];
-
-  return Array.isArray(value) ? value[0] : value;
+/**
+ * Resolves the protected-resource target.
+ *
+ * A request target can arrive in absolute form, so only its path and query identify the
+ * resource on this Service. Everything else is discarded and the result is resolved against
+ * the configured base URL, so a caller cannot move the `resource` an assertion binds to onto
+ * another origin.
+ */
+function protectedResourceUrl(target: string, resourceBaseUrl: string | URL): URL {
+  // A leading // in an HTTP request target is a path, not a replacement authority.
+  const pathOnly = new URL(target.startsWith("/") ? `http://aep.invalid${target}` : target);
+  const resource = new URL(resourceBaseUrl);
+  resource.pathname = pathOnly.pathname;
+  resource.search = pathOnly.search;
+  resource.hash = "";
+  return resource;
 }
 
-function parseAepAuthorization(authorization: string | undefined): string {
-  const prefix = "AEP ";
+/**
+ * Reads the baseline client assertion from an `Authorization` field value.
+ *
+ * Scheme comparison is case-insensitive and the scheme may be followed by more than one
+ * space. Anything that is not exactly one well-formed `AEP` credential yields an empty
+ * assertion, which the Service reports as the common recognition failure rather than the
+ * adapter guessing which of several presented credentials to evaluate.
+ */
+function baselineClientAssertion(authorization: string | string[] | undefined): string {
+  const value = singleFieldValue(authorization);
 
-  if (authorization?.startsWith(prefix)) {
-    return authorization.slice(prefix.length);
+  if (value === undefined) {
+    return "";
   }
 
-  return "";
+  try {
+    const parsed = parseProtectedResourceAuthorization(value);
+    return parsed.scheme === "AEP" ? parsed.credentials : "";
+  } catch {
+    return "";
+  }
+}
+
+/** A repeated field line is ambiguous, so it resolves to no value rather than to its first. */
+function singleFieldValue(value: string | string[] | undefined): string | undefined {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  return value.length === 1 ? value[0] : undefined;
 }
 
 function resolveService(input: FastifyAepServiceInput): AepService {

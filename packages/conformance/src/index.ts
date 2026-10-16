@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   parseBuiltInGrantResponse,
@@ -41,10 +42,12 @@ import type {
   ValidationResult
 } from "@aep-foundation/core";
 
-const requireFromCwd = createRequire(`${process.cwd()}/`);
-const packageRoot = path.dirname(
-  requireFromCwd.resolve("@aep-foundation/conformance/package.json")
-);
+/**
+ * The bundled artifacts are located relative to this module rather than to the process working
+ * directory, so the package resolves its own copy wherever a consumer runs it from and cannot
+ * pick up a different installed version.
+ */
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const specArtifactsRoot = path.join(packageRoot, "fixtures/aep-specs");
 export const schemaArtifactsRoot = path.join(specArtifactsRoot, "schemas");
@@ -78,15 +81,59 @@ export interface AepTestVectorApplicability {
 
 export interface AepTestVector<TInput = unknown, TExpected = unknown> {
   id: string;
-  title?: string;
-  description?: string;
-  drafts?: string[];
-  category?: string;
+  title: string;
+  description: string;
+  drafts: string[];
+  category: string;
   applicability: Record<AepConformanceRole, AepTestVectorApplicability>;
   input: TInput;
   expected: TExpected;
   [key: string]: unknown;
 }
+
+export const AEP_CONFORMANCE_ROLES = ["agent", "platform", "service"] as const;
+export const AEP_CONFORMANCE_EXPECTATIONS = ["optional", "required", "unsupported"] as const;
+export const AEP_CONFORMANCE_PROFILES = [
+  "api-key",
+  "basic",
+  "claims",
+  "core-http",
+  "oauth-bearer",
+  "platform-hosted-identity"
+] as const;
+
+export type AepConformanceProfile = (typeof AEP_CONFORMANCE_PROFILES)[number];
+
+const VECTOR_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ROLES = new Set<string>(AEP_CONFORMANCE_ROLES);
+const EXPECTATIONS = new Set<string>(AEP_CONFORMANCE_EXPECTATIONS);
+const PROFILES = new Set<string>(AEP_CONFORMANCE_PROFILES);
+const VECTOR_CATEGORIES = new Set([
+  "caching",
+  "claims",
+  "inspect",
+  "openapi",
+  "client-assertion",
+  "errors",
+  "idempotency",
+  "enroll",
+  "status",
+  "grant-revoke",
+  "platform",
+  "protected-resource",
+  "credentials/oauth-bearer",
+  "credentials/api-key",
+  "credentials/basic"
+]);
+const VECTOR_DRAFTS = new Set([
+  "draft-kavian-agent-enrollment-protocol-04",
+  "draft-kavian-aep-claims-01",
+  "draft-kavian-aep-oauth-session-credential-04",
+  "draft-kavian-aep-api-key-session-credential-04",
+  "draft-kavian-aep-basic-session-credential-04",
+  "draft-kavian-aep-did-web-identity-method-00",
+  "draft-kavian-aep-platform-hosted-identity-01"
+]);
 
 export class AepConformanceError extends Error {
   readonly issues: ValidationIssue[];
@@ -98,20 +145,219 @@ export class AepConformanceError extends Error {
   }
 }
 
+/**
+ * Checks a value against the test-vector contract.
+ *
+ * A vector names the behavior under test, the drafts it comes from, and how each role is
+ * expected to treat it. A harness dispatches on those fields, so a vector that misdeclares them
+ * would silently change which cases a role is held to.
+ */
+export function validateTestVector(value: unknown): ValidationResult<AepTestVector> {
+  if (!isRecord(value)) {
+    return { ok: false, issues: [{ path: "$", message: "Expected an object." }] };
+  }
+
+  const issues: ValidationIssue[] = [];
+  const id = value["id"];
+
+  if (typeof id !== "string" || !VECTOR_ID_PATTERN.test(id)) {
+    issues.push({ path: "$.id", message: "Expected a lowercase hyphenated identifier." });
+  }
+
+  for (const field of ["title", "description", "category"] as const) {
+    if (typeof value[field] !== "string" || value[field].trim().length === 0) {
+      issues.push({ path: `$.${field}`, message: "Expected a non-empty string." });
+    }
+  }
+
+  const drafts = value["drafts"];
+  if (typeof value["category"] === "string" && !VECTOR_CATEGORIES.has(value["category"])) {
+    issues.push({ path: "$.category", message: "Expected a known vector category." });
+  }
+
+  if (!Array.isArray(drafts) || drafts.length === 0) {
+    issues.push({ path: "$.drafts", message: "Expected a non-empty array." });
+  } else {
+    drafts.forEach((draft, index) => {
+      if (typeof draft !== "string" || !VECTOR_DRAFTS.has(draft)) {
+        issues.push({ path: `$.drafts[${index}]`, message: "Expected a draft identifier." });
+      }
+    });
+  }
+
+  validateApplicability(value["applicability"], issues);
+
+  for (const field of ["input", "expected"] as const) {
+    if (!isRecord(value[field])) {
+      issues.push({ path: `$.${field}`, message: "Expected an object." });
+    }
+  }
+
+  if (issues.length > 0) {
+    return { ok: false, issues };
+  }
+
+  return { ok: true, issues: [], value: value as unknown as AepTestVector };
+}
+
+/**
+ * Every role is classified exactly once. An executable classification names the profile that
+ * activates the case, and an unsupported one names none, so a harness cannot dispatch a case to
+ * a role the vector does not cover.
+ */
+function validateApplicability(value: unknown, issues: ValidationIssue[]): void {
+  if (!isRecord(value)) {
+    issues.push({ path: "$.applicability", message: "Expected an object." });
+    return;
+  }
+
+  for (const role of Object.keys(value)) {
+    if (!ROLES.has(role)) {
+      issues.push({ path: `$.applicability.${role}`, message: "Expected a known role." });
+    }
+  }
+
+  for (const role of AEP_CONFORMANCE_ROLES) {
+    const classification = value[role];
+    const rolePath = `$.applicability.${role}`;
+
+    if (!isRecord(classification)) {
+      issues.push({ path: rolePath, message: "Expected a classification for this role." });
+      continue;
+    }
+
+    const expectation = classification["expectation"];
+    const profile = classification["profile"];
+
+    if (typeof expectation !== "string" || !EXPECTATIONS.has(expectation)) {
+      issues.push({
+        path: `${rolePath}.expectation`,
+        message: "Expected required, optional, or unsupported."
+      });
+      continue;
+    }
+
+    if (expectation === "unsupported") {
+      if (profile !== undefined) {
+        issues.push({
+          path: `${rolePath}.profile`,
+          message: "Expected no profile for an unsupported classification."
+        });
+      }
+      continue;
+    }
+
+    if (typeof profile !== "string" || !PROFILES.has(profile)) {
+      issues.push({
+        path: `${rolePath}.profile`,
+        message: "Expected a known conformance profile."
+      });
+    }
+  }
+}
+
+/** Throws unless the value satisfies the test-vector contract. */
+export function assertTestVector(value: unknown): AepTestVector {
+  const result = validateTestVector(value);
+
+  if (!result.ok) {
+    throw new AepConformanceError("Test vector failed AEP conformance validation.", result.issues);
+  }
+
+  return result.value;
+}
+
+export interface SpecArtifactIntegrityResult {
+  ok: boolean;
+  expected: string;
+  actual: string;
+  files: number;
+}
+
+/**
+ * Recomputes the digest the sync script recorded for the bundled artifacts.
+ *
+ * The manifest itself is excluded, because the digest is taken before the manifest that carries
+ * it is written. A mismatch means the shipped artifacts no longer match the revision the manifest
+ * names, so a conformance run would be measuring against something other than the pinned specs.
+ */
+export async function verifySpecArtifactIntegrity(): Promise<SpecArtifactIntegrityResult> {
+  const manifest = await loadSpecArtifactManifest();
+  const files = (await listSpecArtifactFiles(specArtifactsRoot)).filter(
+    (file) => file !== "manifest.json"
+  );
+  const hash = createHash("sha256");
+
+  for (const file of files) {
+    hash.update(file);
+    hash.update("\0");
+    hash.update(await readFile(path.join(specArtifactsRoot, file)));
+    hash.update("\0");
+  }
+
+  const actual = `sha256:${hash.digest("hex")}`;
+
+  return {
+    ok: actual === manifest.artifact_revision,
+    expected: manifest.artifact_revision,
+    actual,
+    files: files.length
+  };
+}
+
+/** Throws unless the bundled artifacts still match the digest the manifest records. */
+export async function assertSpecArtifactIntegrity(): Promise<SpecArtifactIntegrityResult> {
+  const result = await verifySpecArtifactIntegrity();
+
+  if (!result.ok) {
+    throw new AepConformanceError("Bundled AEP spec artifacts failed integrity verification.", [
+      {
+        path: "$.artifact_revision",
+        message: `Expected ${result.expected}, computed ${result.actual}.`
+      }
+    ]);
+  }
+
+  return result;
+}
+
+async function listSpecArtifactFiles(root: string): Promise<string[]> {
+  const files: string[] = [];
+
+  const visit = async (directory: string): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+
+      if (entry.isDirectory()) {
+        await visit(absolute);
+      } else if (entry.isFile() && (entry.name.endsWith(".json") || entry.name.endsWith(".md"))) {
+        files.push(path.relative(root, absolute).split(path.sep).join("/"));
+      }
+    }
+  };
+
+  await visit(root);
+  return files.sort();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function loadSpecArtifactManifest(): Promise<SpecArtifactManifest> {
   return readJson<SpecArtifactManifest>(specArtifactManifestPath);
 }
 
 export function schemaArtifactPath(relativePath: string): string {
-  return path.join(schemaArtifactsRoot, relativePath);
+  return containedArtifactPath(schemaArtifactsRoot, relativePath, "schema");
 }
 
 export function exampleArtifactPath(relativePath: string): string {
-  return path.join(exampleArtifactsRoot, relativePath);
+  return containedArtifactPath(exampleArtifactsRoot, relativePath, "example");
 }
 
 export function registryArtifactPath(relativePath: string): string {
-  return path.join(registryArtifactsRoot, relativePath);
+  return containedArtifactPath(registryArtifactsRoot, relativePath, "registry");
 }
 
 export async function loadExampleArtifact(relativePath: string): Promise<string> {
@@ -123,17 +369,49 @@ export async function loadRegistryArtifact<T = unknown>(relativePath: string): P
 }
 
 export function testVectorArtifactPath(relativePath: string): string {
-  return path.join(testVectorArtifactsRoot, relativePath);
+  return containedArtifactPath(testVectorArtifactsRoot, relativePath, "test vector");
+}
+
+/**
+ * Resolves an artifact path and refuses one that leaves its root.
+ *
+ * Vector and schema paths are frequently taken from an index or a harness configuration, so a
+ * path that traverses upwards would let that input read files the package does not ship.
+ */
+function containedArtifactPath(root: string, relativePath: string, label: string): string {
+  const resolved = path.resolve(root, relativePath);
+
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new AepConformanceError(`AEP ${label} path escapes the bundled spec artifacts.`, [
+      { path: "$", message: `Expected a path inside the bundled ${label} artifacts.` }
+    ]);
+  }
+
+  return resolved;
 }
 
 export async function loadSchemaArtifact<T = unknown>(relativePath: string): Promise<T> {
   return readJson<T>(schemaArtifactPath(relativePath));
 }
 
+/**
+ * Loads a bundled test vector and checks it against the vector contract before returning it, so
+ * a harness never dispatches on fields that were never verified.
+ */
 export async function loadTestVector<TInput = unknown, TExpected = unknown>(
   relativePath: string
 ): Promise<AepTestVector<TInput, TExpected>> {
-  return readJson<AepTestVector<TInput, TExpected>>(testVectorArtifactPath(relativePath));
+  const vector = await readJson<unknown>(testVectorArtifactPath(relativePath));
+  const validated = assertTestVector(vector);
+  if (path.normalize(relativePath) !== path.join(validated.category, `${validated.id}.json`)) {
+    throw new AepConformanceError("Test vector path does not match its category and identifier.", [
+      {
+        path: relativePath,
+        message: "Expected the vector category and identifier to match its path."
+      }
+    ]);
+  }
+  return validated as unknown as AepTestVector<TInput, TExpected>;
 }
 
 export function validateInspectConformance(value: unknown): ValidationResult<InspectDocument> {
@@ -708,10 +986,18 @@ export function loadPlatformVerificationResponseUnrecognizedTestVector(): Promis
 }
 
 async function readJson<T>(file: string): Promise<T> {
-  return JSON.parse(await readFile(file, "utf8")) as T;
+  const contents = await readFile(file, "utf8");
+
+  try {
+    return JSON.parse(contents) as T;
+  } catch {
+    throw new AepConformanceError(`AEP spec artifact ${file} is not valid JSON.`, [
+      { path: "$", message: "Expected a JSON document." }
+    ]);
+  }
 }
 
-interface AepCommandRequestExpectation<TBody> {
+export interface AepCommandRequestExpectation<TBody> {
   authorization_scheme: string;
   body: TBody;
   client_assertion_op: string;

@@ -17,7 +17,7 @@ import {
   isActiveProtectedResourceAuthentication
 } from "@aep-foundation/service";
 import express from "express";
-import type { Request, RequestHandler, Response } from "express";
+import type { ErrorRequestHandler, Request, RequestHandler, Response } from "express";
 
 import {
   exampleListenUrl,
@@ -66,14 +66,27 @@ const requireAepJwt: RequestHandler = (request, response, next) => {
 };
 
 const app = express();
-app.use(express.json({ type: ["application/json", "application/aep+json"] }));
 app.use((request, response, next) => {
   response.on("finish", () => {
     logExampleServiceInteraction(adapterName, request.method, request.path, response.statusCode);
   });
   next();
 });
+const invalidAepJson: ErrorRequestHandler = (error: unknown, request, _response, next) => {
+  if (error instanceof SyntaxError && "type" in error && error.type === "entity.parse.failed") {
+    request.body = undefined;
+    next();
+  } else {
+    next(error);
+  }
+};
+app.use(
+  ["/aep/enroll", "/aep/grant", "/aep/revoke"],
+  express.json({ type: ["application/json", "application/aep+json"] }),
+  invalidAepJson
+);
 registerExpressAepRoutes(app, service);
+app.use(express.json({ type: ["application/json", "application/aep+json"] }));
 app.get(exampleServiceDidPath(serviceDid), (_request, response) =>
   response.json(exampleServiceDidDocument(serviceDid))
 );

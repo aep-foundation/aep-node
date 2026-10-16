@@ -1,5 +1,6 @@
 import {
   AEP_ASSERTION_OPERATIONS,
+  AEP_AUTHENTICATED_COMMANDS,
   AEP_GRANT_TYPE_API_KEY,
   AEP_GRANT_TYPE_BASIC,
   AEP_GRANT_TYPE_OAUTH_BEARER
@@ -7,6 +8,8 @@ import {
 import { validateAepClaimValues } from "./claims.js";
 import { AepValidationError } from "./errors.js";
 import type {
+  AepAssertionOperation,
+  AepAuthenticatedCommand,
   AepBuiltInGrantResponse,
   AepClientAssertionClaims,
   AepProblemDetails,
@@ -33,6 +36,10 @@ const AGENT_STATUSES = new Set<string>([
   "unavailable"
 ]);
 const OWNER_ACTION_REQUIRED_VALUES = new Set<string>(["true", "false"]);
+const COMMAND_TARGETS = new Set<string>(AEP_AUTHENTICATED_COMMANDS);
+const ERROR_CODE_PATTERN = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
+const RFC3339_DATE_TIME_PATTERN =
+  /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[Zz]|[+-]\d{2}:\d{2})$/;
 
 export function validateEnrollRequest(value: unknown): ValidationResult<EnrollRequest> {
   if (!isRecord(value)) {
@@ -163,6 +170,54 @@ export function parseRevokeResponse(value: unknown): RevokeResponse {
   return parseWith(validateRevokeResponse(value), "Invalid AEP Revoke response.");
 }
 
+/**
+ * The target an assertion is being presented to: one AEP command endpoint, or any protected
+ * Service resource.
+ */
+export type AepAssertionTarget = AepAuthenticatedCommand | "protected-resource";
+
+/**
+ * Reports whether an assertion operation may be presented at a target.
+ *
+ * Each command operation is exclusive to its own endpoint and `authenticate` is exclusive to
+ * protected resources, so a command endpoint never accepts `authenticate` and a protected
+ * resource never accepts a command operation. Every other pairing is a substitution attempt.
+ */
+export function isAssertionOperationAllowed(
+  operation: string,
+  target: AepAssertionTarget
+): boolean {
+  if (target === "protected-resource") {
+    return operation === "authenticate";
+  }
+
+  return operation === target && COMMAND_TARGETS.has(target);
+}
+
+/**
+ * Throws unless the assertion's `op` matches the target it was presented to.
+ *
+ * The thrown issue carries no detail about which check failed, because a Service reports every
+ * operation-substitution attempt as the common `not_recognized` error.
+ */
+export function assertAssertionOperationAllowed(
+  claims: AepClientAssertionClaims,
+  target: AepAssertionTarget
+): void {
+  if (!isAssertionOperationAllowed(claims.op, target)) {
+    throw new AepValidationError("Invalid AEP client assertion claims.", [
+      { path: "$.op", message: "Expected the operation bound to this target." }
+    ]);
+  }
+}
+
+/**
+ * Narrows an unknown string to an AEP assertion operation defined by this document.
+ */
+export function isAepAssertionOperation(value: unknown): value is AepAssertionOperation {
+  return typeof value === "string" && ASSERTION_OPERATIONS.has(value);
+}
+
 export interface ValidateClientAssertionClaimsOptions {
   allowInsecureLoopback?: boolean;
 }
@@ -229,10 +284,18 @@ export function parseClientAssertionClaims(
   );
 }
 
+/**
+ * An `authenticate` assertion binds to one protected-resource target, so the URI must be
+ * absolute HTTPS and carry no fragment. A bare `#` is rejected along with a populated one,
+ * because the assertion and the request target would then differ by a character the URL
+ * parser discards.
+ */
 function isAllowedResourceUri(value: string, allowInsecureLoopback: boolean): boolean {
+  if (value.includes("#")) return false;
+
   try {
     const url = new URL(value);
-    if (url.hash.length !== 0) return false;
+    if (url.username.length !== 0 || url.password.length !== 0) return false;
     if (url.protocol === "https:") return true;
     return allowInsecureLoopback && url.protocol === "http:" && isLoopbackHostname(url.hostname);
   } catch {
@@ -252,8 +315,8 @@ export function validateProblemDetails(value: unknown): ValidationResult<AepProb
   const issues: ValidationIssue[] = [];
   requireString(value, "type", issues, { minLength: 1 });
   requireString(value, "title", issues, { minLength: 1 });
-  requireInteger(value["status"], "$.status", issues);
-  requireString(value, "code", issues, { minLength: 1 });
+  requireHttpStatus(value["status"], "$.status", issues);
+  requireString(value, "code", issues, { minLength: 1, pattern: ERROR_CODE_PATTERN });
   if (
     typeof value["type"] === "string" &&
     typeof value["code"] === "string" &&
@@ -469,10 +532,42 @@ function requireInteger(value: unknown, path: string, issues: ValidationIssue[])
   }
 }
 
-function requireDateTime(value: unknown, path: string, issues: ValidationIssue[]): void {
-  if (typeof value === "string" && Number.isNaN(Date.parse(value))) {
-    issues.push({ path, message: "Expected a valid date-time string." });
+function requireHttpStatus(value: unknown, path: string, issues: ValidationIssue[]): void {
+  if (!Number.isInteger(value) || (value as number) < 100 || (value as number) > 599) {
+    issues.push({ path, message: "Expected an HTTP status code." });
   }
+}
+
+function requireDateTime(value: unknown, path: string, issues: ValidationIssue[]): void {
+  if (typeof value !== "string") {
+    return;
+  }
+
+  // The calendar check runs before `Date.parse`, which is lenient: it happily rolls
+  // `2026-02-30` over into March rather than rejecting it. `Date.parse` still runs afterwards to
+  // catch what the date alone cannot, such as an hour of 25.
+  if (
+    !RFC3339_DATE_TIME_PATTERN.test(value) ||
+    !isFullDate(value) ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    issues.push({ path, message: "Expected an RFC 3339 date-time string." });
+  }
+}
+
+/** Whether the leading `YYYY-MM-DD` of an RFC 3339 date-time names a day that exists. */
+function isFullDate(value: string): boolean {
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = Number(value.slice(8, 10));
+
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= (daysInMonth[month - 1] ?? 0);
 }
 
 function optionalStringArray(value: unknown, path: string, issues: ValidationIssue[]): void {
@@ -501,6 +596,10 @@ function normalizedScopes(value: unknown): string[] {
     : [];
 }
 
+/**
+ * The pending dimensions carry names only. An empty array is omitted rather than serialized,
+ * duplicates are meaningless, and an empty name would name nothing.
+ */
 function optionalNonEmptyStringArray(
   value: unknown,
   path: string,
@@ -508,9 +607,21 @@ function optionalNonEmptyStringArray(
 ): void {
   if (value === undefined) return;
   requireStringArray(value, path, issues);
-  if (Array.isArray(value) && value.length === 0) {
+  if (!Array.isArray(value)) return;
+
+  if (value.length === 0) {
     issues.push({ path, message: "Expected at least 1 item(s)." });
   }
+
+  if (new Set(value).size !== value.length) {
+    issues.push({ path, message: "Expected unique items." });
+  }
+
+  value.forEach((item, index) => {
+    if (item === "") {
+      issues.push({ path: `${path}[${index}]`, message: "Expected at least 1 character(s)." });
+    }
+  });
 }
 
 function requireStringArray(value: unknown, path: string, issues: ValidationIssue[]): void {

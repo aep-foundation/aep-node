@@ -489,6 +489,8 @@ export type AgentRevokeSessionOptions = RevokeServiceSelector & {
 };
 
 export interface AgentAuthenticationHeadersOptions {
+  /** Restricts selection to methods permitted by the resource's authentication policy. */
+  allowedMethods?: readonly AepAuthenticationMethod[];
   carrier?: AepProtectedResourceAuthorizationCarrier;
   preferCredential?: boolean;
   credentialId?: string;
@@ -743,7 +745,11 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
       });
     })();
 
-    return inspectPromise;
+    try {
+      return await inspectPromise;
+    } finally {
+      inspectPromise = undefined;
+    }
   };
 
   const identityOnce = async (): Promise<AgentServiceIdentity> => {
@@ -821,8 +827,15 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
 
   const assertionOptions = (): Pick<
     AepCommandOptions,
-    "allowInsecureLoopback" | "assertionClock" | "assertionJti" | "assertionTtlSeconds"
+    | "allowInsecureLoopback"
+    | "assertionClock"
+    | "assertionJti"
+    | "assertionTtlSeconds"
+    | "pendingSignResolver"
   > => ({
+    ...(state.pendingSignResolver === undefined
+      ? {}
+      : { pendingSignResolver: state.pendingSignResolver }),
     ...(state.allowInsecureLoopback === undefined
       ? {}
       : { allowInsecureLoopback: state.allowInsecureLoopback }),
@@ -848,7 +861,9 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
   return {
     async authenticationHeaders(options = {}) {
       const inspected = await inspectOnce();
-      const methods = inspected.document.authentication?.methods ?? [];
+      const methods = (inspected.document.authentication?.methods ?? []).filter(
+        (method) => options.allowedMethods === undefined || options.allowedMethods.includes(method)
+      );
 
       if (options.grantType !== undefined && !methods.includes(options.grantType)) {
         throw new TypeError(
@@ -871,6 +886,9 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
               );
 
         if (credential !== undefined) {
+          if (options.grantType !== undefined && credential.grantType !== options.grantType) {
+            throw new TypeError("Stored AEP credential does not match the requested grant type.");
+          }
           if (!methods.includes(credential.grantType)) {
             throw new TypeError(
               `Service does not advertise ${credential.grantType} authentication for protected resources.`
@@ -944,7 +962,14 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
             ? {}
             : { preferredGrantTypes: options.preferredGrantTypes })
         });
-      const flightKey = `${inspected.document.service.did}\u0000${grantType}\u0000${[...(options.requestedScopes ?? [])].sort().join(" ")}`;
+      // Calls with custom parameters or cancellation have independent request lifecycles.
+      const flightKey = JSON.stringify([
+        inspected.document.service.did,
+        grantType,
+        [...(options.requestedScopes ?? [])].sort(),
+        options.idempotencyKey,
+        options.parameters !== undefined || options.signal !== undefined ? randomJti() : undefined
+      ]);
       const existingFlight = state.grantFlights.get(flightKey);
       if (existingFlight !== undefined) return existingFlight;
       const flight = (async () => {
@@ -981,7 +1006,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
                   : { requestedScopes: [...options.requestedScopes] }),
                 serviceDid: inspected.document.service.did
               });
-        return grantService({
+        const result = await grantService({
           ...assertionOptions(),
           agentDid: identity.agentDid,
           clientAssertionSigner: signer,
@@ -1001,24 +1026,21 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
             ? {}
             : { requestedScopes: options.requestedScopes })
         });
+        await state.credentialStore.saveCredential(
+          sessionCredentialRecordFromGrantResult(result, {
+            grantType,
+            inspect: inspected,
+            serviceUrl
+          })
+        );
+        return result;
       })();
       state.grantFlights.set(flightKey, flight);
-      let result: GrantServiceResult;
       try {
-        result = await flight;
+        return await flight;
       } finally {
         state.grantFlights.delete(flightKey);
       }
-
-      await state.credentialStore.saveCredential(
-        sessionCredentialRecordFromGrantResult(result, {
-          grantType,
-          inspect: inspected,
-          serviceUrl
-        })
-      );
-
-      return result;
     },
     identity: identityOnce,
     inspect: inspectOnce,
@@ -1213,7 +1235,7 @@ export function createJwtClientAssertionSigner(
 ): AepClientAssertionSigner {
   return (claims, context) =>
     signClientAssertionJwt(claims, {
-      alg: options.alg ?? preferredSigningAlgorithm(context.signingAlgorithms),
+      alg: selectedSigningAlgorithm(options.alg, context.signingAlgorithms),
       ...(options.allowInsecureLoopback === undefined
         ? {}
         : { allowInsecureLoopback: options.allowInsecureLoopback }),
@@ -1261,6 +1283,7 @@ export async function provisionPlatformIdentity(
       platformUrl: options.platformUrl
     }));
   const commandUrl = discovery.endpointUrl("provision");
+  assertPlatformCommandOrigin(commandUrl, options.platformUrl);
   const body = createPlatformProvisionRequest({
     idempotencyKey: options.idempotencyKey,
     serviceDid: options.serviceDid
@@ -1274,7 +1297,8 @@ export async function provisionPlatformIdentity(
       "Content-Type": AEP_MEDIA_TYPE,
       "Idempotency-Key": options.idempotencyKey
     },
-    method: "POST"
+    method: "POST",
+    redirect: "error"
   });
 
   await throwCommandError(response, "Platform provision");
@@ -1299,6 +1323,7 @@ export async function listPlatformIdentities(
         : { publicDocumentCache: options.publicDocumentCache })
     }));
   const commandUrl = discovery.endpointUrl("list");
+  assertPlatformCommandOrigin(commandUrl, options.platformUrl);
   if (options.descending !== undefined)
     commandUrl.searchParams.set("descending", String(options.descending));
   if (options.limit !== undefined) commandUrl.searchParams.set("limit", String(options.limit));
@@ -1308,7 +1333,8 @@ export async function listPlatformIdentities(
   if (options.status !== undefined) commandUrl.searchParams.set("status", options.status);
   const authenticationHeaders = await resolvePlatformAuthenticationHeaders(options);
   const response = await fetchImpl(commandUrl, {
-    headers: { ...authenticationHeaders, Accept: AEP_MEDIA_TYPE }
+    headers: { ...authenticationHeaders, Accept: AEP_MEDIA_TYPE },
+    redirect: "error"
   });
   await throwCommandError(response, "Platform identity list");
   return {
@@ -1336,6 +1362,7 @@ export function createPlatformDelegatedSigner(
       "sign",
       options.identity.agent_identity_id
     );
+    assertPlatformCommandOrigin(commandUrl, options.platformUrl);
     const lifetimeSeconds = claims.exp - claims.iat;
     const request = createPlatformSignRequest({
       command: claims.op,
@@ -1363,6 +1390,7 @@ export function createPlatformDelegatedSigner(
         "Idempotency-Key": idempotencyKey
       },
       method: "POST",
+      redirect: "error",
       ...(context.signal === undefined ? {} : { signal: context.signal })
     });
 
@@ -1384,6 +1412,12 @@ export function createPlatformDelegatedSigner(
       ...(parsed.platform_context === undefined ? {} : { platformContext: parsed.platform_context })
     };
   };
+}
+
+function assertPlatformCommandOrigin(commandUrl: URL, platformUrl: string | URL): void {
+  if (commandUrl.origin !== normalizePlatformUrl(platformUrl).origin) {
+    throw new TypeError("Platform command URL must remain on the configured Platform origin.");
+  }
 }
 
 async function resolvePlatformAuthenticationHeaders(options: {
@@ -1414,16 +1448,19 @@ async function resolvePlatformAuthenticationHeaders(options: {
 export function createPlatformIdentityProvider(
   options: CreatePlatformIdentityProviderOptions
 ): PlatformIdentityProvider {
+  const publicDocumentCache = options.publicDocumentCache ?? createInMemoryPublicDocumentCache();
   let discoveryPromise: Promise<DiscoverPlatformResult> | undefined;
 
-  const discovery = (): Promise<DiscoverPlatformResult> => {
+  const discovery = async (): Promise<DiscoverPlatformResult> => {
     discoveryPromise ??= discoverPlatform({
       platformUrl: options.platformUrl,
-      ...(options.publicDocumentCache === undefined
-        ? {}
-        : { publicDocumentCache: options.publicDocumentCache })
+      publicDocumentCache
     });
-    return discoveryPromise;
+    try {
+      return await discoveryPromise;
+    } finally {
+      discoveryPromise = undefined;
+    }
   };
 
   const findIdentityByServiceDid = async (
@@ -1474,17 +1511,20 @@ export function createPlatformIdentityProvider(
         throw new TypeError("Platform identity provider cannot sign for a sovereign identity.");
       }
 
-      const platformDiscovery = await discovery();
-
-      return createPlatformDelegatedSigner({
+      const signerOptions = {
         ...(options.authenticationHeaders === undefined
           ? {}
           : { authenticationHeaders: options.authenticationHeaders }),
         ...(options.authorization === undefined ? {} : { authorization: options.authorization }),
-        discovery: platformDiscovery,
         identity: platformAgentIdentityFromAgentIdentity(identity),
         platformUrl: options.platformUrl
-      });
+      };
+      return Promise.resolve<AepClientAssertionSigner>(async (claims, context) =>
+        createPlatformDelegatedSigner({
+          ...signerOptions,
+          discovery: await discovery()
+        })(claims, context)
+      );
     }
   };
 }
@@ -1575,17 +1615,14 @@ export function createInMemorySessionCredentialStore(
     },
     findUsableCredential(serviceDid, now = new Date()) {
       purgeInvalidCredentials(credentials, now);
-      const nowMs = now.getTime();
 
       for (const record of credentials.values()) {
         if (record.serviceDid !== serviceDid) {
           continue;
         }
 
-        if (record.expiresAt !== undefined) {
-          const expiry = Date.parse(record.expiresAt);
-          if (Number.isNaN(expiry) || expiry <= nowMs) continue;
-        }
+        const expiry = credentialExpiry(record);
+        if (expiry === undefined || expiry <= now.getTime()) continue;
 
         return cloneCredential(record);
       }
@@ -1608,6 +1645,13 @@ export function createInMemorySessionCredentialStore(
   };
 }
 
+/**
+ * Drops records that can no longer be presented: a credential that is not a valid built-in
+ * profile, and a credential whose expiry has passed or cannot be determined.
+ *
+ * Every built-in Grant response carries `expires_at`, so a record with no determinable expiry is
+ * malformed rather than perpetual, and is discarded rather than presented.
+ */
 function purgeInvalidCredentials(
   credentials: Map<string, AepSessionCredentialRecord>,
   now: Date
@@ -1615,13 +1659,33 @@ function purgeInvalidCredentials(
   for (const [key, record] of credentials) {
     try {
       parseBuiltInGrantResponse(record.grantType, record.credential);
-      if (record.expiresAt === undefined || Date.parse(record.expiresAt) <= now.getTime()) {
+      const expiry = credentialExpiry(record);
+      if (expiry === undefined || expiry <= now.getTime()) {
         credentials.delete(key);
       }
     } catch {
       credentials.delete(key);
     }
   }
+}
+
+/**
+ * The effective expiry of a stored credential, in milliseconds.
+ *
+ * The record-level value wins, falling back to the credential's own `expires_at` so a record
+ * assembled by hand is judged by the same clock as one built from a Grant result.
+ */
+function credentialExpiry(record: AepSessionCredentialRecord): number | undefined {
+  const raw =
+    record.expiresAt ??
+    (isRecord(record.credential) && typeof record.credential["expires_at"] === "string"
+      ? record.credential["expires_at"]
+      : undefined);
+
+  if (raw === undefined) return undefined;
+
+  const expiry = Date.parse(raw);
+  return Number.isNaN(expiry) ? undefined : expiry;
 }
 
 async function findCompatibleCredential(
@@ -1743,6 +1807,15 @@ export function sessionCredentialRecordFromGrantResult(
   };
 }
 
+/** RFC 9110 token, which is what an HTTP field name may contain. */
+const FIELD_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+/**
+ * The API-key value syntax: visible ASCII excluding whitespace, control characters, and the
+ * characters that would make a field value ambiguous to parse.
+ */
+const API_KEY_VALUE_PATTERN = /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/;
+
 export function credentialPresentationHeaders(
   credential: AepBuiltInGrantResponse,
   carrier: AepProtectedResourceAuthorizationCarrier = "standard"
@@ -1756,6 +1829,22 @@ export function credentialPresentationHeaders(
   }
 
   if (isApiKeyGrantResponse(credential)) {
+    // The dedicated carrier does not apply to this grant type: an API key is presented in
+    // exactly the Service-selected field, so the carrier argument is deliberately unused here.
+    if (!FIELD_NAME_PATTERN.test(credential.header)) {
+      throw new AepAuthorizationCarrierError(
+        "The Service-selected API-key field name is not a valid HTTP field name.",
+        "invalid_request"
+      );
+    }
+
+    if (!API_KEY_VALUE_PATTERN.test(credential.api_key)) {
+      throw new AepAuthorizationCarrierError(
+        "The issued API-key value is not a valid API-key presentation.",
+        "invalid_request"
+      );
+    }
+
     return {
       [credential.header]: credential.api_key
     };
@@ -1817,6 +1906,15 @@ export async function protectedResourceAuthenticationHeaders(
     return credentialPresentationHeaders(options.credential, options.carrier);
   }
 
+  // An assertion presented to a protected resource carries `authenticate` and binds to that
+  // target, so building one without a resource would mint a command assertion the resource is
+  // required to reject.
+  if (options.resource === undefined) {
+    throw new TypeError(
+      "AEP protected-resource authentication requires the protected-resource URI."
+    );
+  }
+
   return clientAssertionAuthenticationHeaders(options);
 }
 
@@ -1857,6 +1955,7 @@ export async function fetchProtectedResource(
   try {
     let target = new URL(options.url);
     const initialOrigin = target.origin;
+    let requireChallenge = false;
     let redirects = 0;
     for (;;) {
       const session = options.agent.serviceSession({ serviceUrl: target.origin });
@@ -1871,20 +1970,31 @@ export async function fetchProtectedResource(
         policy = undefined;
       }
       const anonymous =
-        policy?.state === "required"
+        policy?.state === "required" && !requireChallenge
           ? undefined
           : await probeProtectedResource({
               ...(options.body === undefined ? {} : { body: options.body }),
               ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
               ...(options.headers === undefined
                 ? {}
-                : { headers: withoutAuthenticationHeaders(options.headers) }),
+                : {
+                    headers: !requireChallenge
+                      ? withoutAuthenticationHeaders(options.headers)
+                      : undefined
+                  }),
               ...(options.method === undefined ? {} : { method: options.method }),
               signal,
               url: target
             });
       if (anonymous !== undefined && isRedirect(anonymous.response.status)) {
-        target = redirectTarget(anonymous.response, target, redirects++, options.maxRedirects ?? 5);
+        const next = redirectTarget(
+          anonymous.response,
+          target,
+          redirects++,
+          options.maxRedirects ?? 5
+        );
+        requireChallenge ||= next.origin !== target.origin;
+        target = next;
         continue;
       }
       if (
@@ -1920,9 +2030,15 @@ export async function fetchProtectedResource(
         throw new TypeError("OpenAPI requires authentication but supplies no usable AEP method.");
       }
       const selectedGrant = options.grantType ?? methods.find((method) => method !== "aep-jwt");
+      if (options.grantType !== undefined && !methods.includes(options.grantType)) {
+        throw new TypeError(
+          "Requested grant type is not permitted by the resource authentication policy."
+        );
+      }
       let headers: Record<string, string>;
       try {
         headers = await session.authenticationHeaders({
+          allowedMethods: methods,
           ...(options.carrier === undefined ? {} : { carrier: options.carrier }),
           ...(options.credentialId === undefined ? {} : { credentialId: options.credentialId }),
           ...(options.grantType === undefined ? {} : { grantType: options.grantType }),
@@ -1933,12 +2049,14 @@ export async function fetchProtectedResource(
         if (
           error instanceof AepPendingSignError ||
           error instanceof AepPendingSignResolverError ||
+          options.credentialId !== undefined ||
           signal.aborted
         )
           throw error;
         if (selectedGrant === undefined) throw error;
         await session.grant({ grantType: selectedGrant, signal });
         headers = await session.authenticationHeaders({
+          allowedMethods: methods,
           ...(options.carrier === undefined ? {} : { carrier: options.carrier }),
           grantType: selectedGrant,
           resource: String(target),
@@ -1948,9 +2066,7 @@ export async function fetchProtectedResource(
       const authenticated = await (options.fetch ?? globalFetch())(target, {
         ...(options.body === undefined ? {} : { body: options.body }),
         headers: mergeAuthoritativeHeaders(
-          target.origin === initialOrigin
-            ? options.headers
-            : withoutAuthenticationHeaders(options.headers),
+          target.origin === initialOrigin ? options.headers : undefined,
           target.origin === initialOrigin ? options.additionalAuthenticationHeaders : undefined,
           headers
         ),
@@ -1960,6 +2076,7 @@ export async function fetchProtectedResource(
       });
       if (isRedirect(authenticated.status)) {
         const next = redirectTarget(authenticated, target, redirects++, options.maxRedirects ?? 5);
+        requireChallenge ||= next.origin !== target.origin;
         target = next;
         continue;
       }
@@ -1975,12 +2092,15 @@ function parseAepAuthenticationChallenge(
 ): AepAuthenticationChallenge | undefined {
   if (value === null || !/^AEP(?:\s|$)/i.test(value)) return undefined;
   const parameters: Record<string, string> = {};
-  for (const match of value.matchAll(/([a-z_]+)="([^"]*)"/gi)) {
+  for (const match of value.matchAll(/([a-z_]+)[\t ]*=[\t ]*"([^"]*)"/gi)) {
     const name = match[1];
     const parameterValue = match[2];
-    if (name !== undefined && parameterValue !== undefined) {
-      parameters[name.toLowerCase()] = parameterValue;
-    }
+    if (name === undefined || parameterValue === undefined) continue;
+    const key = name.toLowerCase();
+    // Each challenge parameter occurs at most once. A repeat is ambiguous, so the whole
+    // challenge is discarded rather than letting a later value override an earlier one.
+    if (Object.hasOwn(parameters, key)) return undefined;
+    parameters[key] = parameterValue;
   }
   if (parameters["service_did"] === undefined || parameters["inspect"] === undefined)
     return undefined;
@@ -2049,13 +2169,50 @@ function isRedirect(status: number): boolean {
   return [301, 302, 303, 307, 308].includes(status);
 }
 
+/**
+ * Resolves a protected-resource redirect target.
+ *
+ * A redirect may move the request to another origin, where the flow restarts anonymously, but it
+ * may never weaken the transport, introduce credentials in the URL, or leave HTTP altogether.
+ * Plaintext is accepted only when the current request is already plaintext on a loopback host,
+ * which is the local development case.
+ */
 function redirectTarget(response: Response, current: URL, redirects: number, maximum: number): URL {
   if (redirects >= maximum)
     throw new AepInspectError("Protected-resource redirect limit exceeded.", "invalid_redirect");
   const location = response.headers.get("location");
   if (location === null)
     throw new AepInspectError("Redirect omitted Location.", "invalid_redirect");
-  return new URL(location, current);
+
+  let next: URL;
+
+  try {
+    next = new URL(location, current);
+  } catch {
+    throw new AepInspectError("Redirect Location is not a valid URI.", "invalid_redirect");
+  }
+
+  if (next.protocol !== "https:" && next.protocol !== "http:") {
+    throw new AepInspectError("Redirect Location changed scheme.", "invalid_redirect");
+  }
+
+  if (current.protocol === "https:" && next.protocol !== "https:") {
+    throw new AepInspectError("Redirect downgraded transport.", "invalid_redirect");
+  }
+
+  if (next.protocol === "http:" && !isLoopbackHostname(next.hostname)) {
+    throw new AepInspectError("Redirect targeted a plaintext origin.", "invalid_redirect");
+  }
+
+  if (next.username.length > 0 || next.password.length > 0) {
+    throw new AepInspectError("Redirect Location carried user information.", "invalid_redirect");
+  }
+
+  return next;
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 function globalFetch(): typeof fetch {
@@ -2332,6 +2489,7 @@ async function readBoundedResponse(response: ResponseLike, maxBytes: number): Pr
 }
 
 export async function enrollService(options: EnrollServiceOptions): Promise<EnrollServiceResult> {
+  assertIdempotencyKey(options.idempotencyKey);
   const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "enroll");
@@ -2364,7 +2522,8 @@ export async function enrollService(options: EnrollServiceOptions): Promise<Enro
       "Content-Type": AEP_MEDIA_TYPE,
       "Idempotency-Key": options.idempotencyKey
     },
-    method: "POST"
+    method: "POST",
+    ...(options.signal === undefined ? {} : { signal: options.signal })
   });
 
   await throwCommandError(response, "Enroll");
@@ -2377,8 +2536,10 @@ export async function enrollService(options: EnrollServiceOptions): Promise<Enro
 }
 
 export async function grantService(options: GrantServiceOptions): Promise<GrantServiceResult> {
+  assertIdempotencyKey(options.idempotencyKey);
   const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
+  assertAdvertisedGrantType(inspect, options.grantType);
   const commandUrl = commandUrlFromInspect(options.serviceUrl, inspect, "grant");
   const clientAssertion = await resolveClientAssertion(options, inspect, "grant");
   const body = parseGrantRequest({
@@ -2410,8 +2571,12 @@ export async function grantService(options: GrantServiceOptions): Promise<GrantS
 }
 
 export async function revokeService(options: RevokeServiceOptions): Promise<RevokeServiceResult> {
+  assertIdempotencyKey(options.idempotencyKey);
   const fetchImpl = options.fetch ?? requireFetch();
   const inspect = await resolveInspect(options);
+  if (options.allGrantTypes !== true) {
+    assertAdvertisedGrantType(inspect, options.grantType);
+  }
   if (options.credentialId !== undefined) {
     const config = inspect.document.commands.grant_types_config?.[options.grantType];
     if (config?.supports_per_credential_revoke !== "true") {
@@ -2434,7 +2599,8 @@ export async function revokeService(options: RevokeServiceOptions): Promise<Revo
       "Content-Type": AEP_MEDIA_TYPE,
       "Idempotency-Key": options.idempotencyKey
     },
-    method: "POST"
+    method: "POST",
+    ...(options.signal === undefined ? {} : { signal: options.signal })
   });
 
   await throwCommandError(response, "Revoke");
@@ -2456,7 +2622,8 @@ export async function statusService(options: StatusServiceOptions): Promise<Stat
       Accept: AEP_MEDIA_TYPE,
       Authorization: `${AEP_AUTH_SCHEME} ${clientAssertion}`
     },
-    method: "GET"
+    method: "GET",
+    ...(options.signal === undefined ? {} : { signal: options.signal })
   });
 
   await throwCommandError(response, "Status");
@@ -2953,6 +3120,47 @@ function isBasicGrantResponse(
 
 function base64(value: string): string {
   return Buffer.from(value, "utf8").toString("base64");
+}
+
+/**
+ * State-mutating commands are retried with the same key, so a key that is absent or blank
+ * cannot identify the attempt. The Service would reject it as `invalid_request`; failing here
+ * keeps the Agent from spending a signature on a request it already knows is malformed.
+ */
+function assertIdempotencyKey(idempotencyKey: string): void {
+  if (typeof idempotencyKey !== "string" || idempotencyKey.trim().length === 0) {
+    throw new TypeError("AEP state-mutating commands require a non-empty idempotency key.");
+  }
+}
+
+/** Grant and Revoke may only name a grant type the Service advertises. */
+function assertAdvertisedGrantType(inspect: InspectServiceResult, grantType: AepGrantType): void {
+  const advertised = inspect.document.commands.grant_types ?? [];
+
+  if (!advertised.includes(grantType)) {
+    throw new TypeError(`AEP Service does not advertise the ${grantType} grant type.`);
+  }
+}
+
+/**
+ * Chooses the signing algorithm for a client assertion.
+ *
+ * An Agent selects an algorithm the Service advertised, so an explicitly configured algorithm is
+ * still checked against the advertisement rather than overriding it.
+ */
+function selectedSigningAlgorithm(
+  configured: AepSigningAlgorithm | undefined,
+  advertised: AepSigningAlgorithm[]
+): AepSigningAlgorithm {
+  if (configured === undefined) {
+    return preferredSigningAlgorithm(advertised);
+  }
+
+  if (advertised.length > 0 && !advertised.includes(configured)) {
+    throw new TypeError(`AEP Service does not advertise the ${configured} signing algorithm.`);
+  }
+
+  return configured;
 }
 
 function preferredSigningAlgorithm(algorithms: AepSigningAlgorithm[]): AepSigningAlgorithm {

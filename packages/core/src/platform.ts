@@ -1,6 +1,10 @@
 import type { AepAssertionOperation, AepSigningAlgorithm } from "./types.js";
 
-const DEFAULT_ASSERTION_LIFETIME_SECONDS = 300;
+/**
+ * AEP core sets the maximum client assertion validity interval. A Platform may enforce a
+ * shorter local maximum, but never a longer one.
+ */
+const MAX_ASSERTION_LIFETIME_SECONDS = 300;
 
 export type ManagedAgentStatus = "active" | "revoked" | "suspended" | "terminated";
 
@@ -62,6 +66,10 @@ export interface PlatformProvisionRequest {
 }
 
 export interface PlatformProvisionRequestOptions {
+  /**
+   * The value the caller will send in the `Idempotency-Key` field. Provisioning is
+   * state-mutating, so the key is required and must be non-empty.
+   */
   idempotencyKey: string;
   serviceDid: string;
 }
@@ -107,6 +115,7 @@ export type PlatformSignResponse = PlatformSignCompletedResponse | PlatformSignP
 export function createPlatformProvisionRequest(
   options: PlatformProvisionRequestOptions
 ): PlatformProvisionRequest {
+  assertNonEmpty("idempotencyKey", options.idempotencyKey);
   assertNonEmpty("serviceDid", options.serviceDid);
 
   return {
@@ -147,7 +156,7 @@ function assertNonEmpty(label: string, value: string): void {
 
 function validateLifetimeSeconds(
   lifetimeSeconds: number,
-  maxLifetimeSeconds = DEFAULT_ASSERTION_LIFETIME_SECONDS
+  maxLifetimeSeconds = MAX_ASSERTION_LIFETIME_SECONDS
 ): number {
   if (!Number.isInteger(lifetimeSeconds) || lifetimeSeconds <= 0) {
     throw new TypeError("lifetimeSeconds must be a positive integer.");
@@ -157,8 +166,10 @@ function validateLifetimeSeconds(
     throw new TypeError("maxLifetimeSeconds must be a positive integer.");
   }
 
-  if (lifetimeSeconds > maxLifetimeSeconds) {
-    throw new TypeError("lifetimeSeconds must not exceed maxLifetimeSeconds.");
+  const effectiveMaximum = Math.min(maxLifetimeSeconds, MAX_ASSERTION_LIFETIME_SECONDS);
+
+  if (lifetimeSeconds > effectiveMaximum) {
+    throw new TypeError(`lifetimeSeconds must not exceed ${String(effectiveMaximum)} seconds.`);
   }
 
   return lifetimeSeconds;

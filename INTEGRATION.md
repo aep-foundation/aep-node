@@ -99,6 +99,14 @@ state, authorization, and key custody ports:
 - `PlatformAuthorizer` for product authorization
 - `PlatformLifecyclePolicy` for identity lifecycle transitions
 
+`PlatformIdempotencyStore.execute()` coordinates the full lookup, conflict check,
+callback execution, and persistence atomically for each authenticated principal
+and key. Use shared transactional storage or equivalent coordination across
+workers. Exact retries return the stored record; changed operations or request
+fingerprints return a conflict. Keep records until their supplied `expiresAt`.
+Authenticate the request before constructing its stable `subject`; the Platform
+also calls the authorizer before replaying a stored result.
+
 Key custody is an application concern. A production Platform should use a KMS,
 HSM, cloud key service, or equivalent product-approved custody layer rather
 than keeping private signing keys in process memory.
@@ -115,7 +123,8 @@ tests small:
 - `createInMemoryCommandIdempotencyStore()`
 - `createInMemoryClientAssertionReplayStore()`
 - `createInMemoryServiceCredentialStore()`
-- Platform memory stores exported by `@aep-foundation/platform`
+- `InMemoryManagedAgentRegistry` and `createInMemoryPlatformIdempotencyStore()`
+  from `@aep-foundation/platform`
 
 Do not use these helpers for production data. They are process-local, volatile,
 and do not provide cross-process durability.

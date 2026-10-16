@@ -213,7 +213,9 @@ export interface OAuthBearerGrantResponse {
   access_token: string;
   credential_id: string;
   expires_at: string;
+  /** Normalized to an array. An omitted or null wire value means no scope-limited authorization. */
   scopes: string[];
+  token_format?: string;
   token_type: "Bearer";
   [key: string]: unknown;
 }
@@ -223,6 +225,7 @@ export interface ApiKeyGrantResponse {
   credential_id: string;
   expires_at: string;
   header: string;
+  /** Normalized to an array. An omitted or null wire value means no scope-limited authorization. */
   scopes: string[];
   [key: string]: unknown;
 }
@@ -232,6 +235,7 @@ export interface BasicGrantResponse {
   expires_at: string;
   password: string;
   realm?: string;
+  /** Normalized to an array. An omitted or null wire value means no scope-limited authorization. */
   scopes: string[];
   username: string;
   [key: string]: unknown;

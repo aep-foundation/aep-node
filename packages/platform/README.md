@@ -76,7 +76,8 @@ const provision = await platform.provision(
   },
   {
     authorization: "Bearer platform-api-token",
-    idempotencyKey: "01J0AEPPLATFORM000000000001"
+    idempotencyKey: "01J0AEPPLATFORM000000000001",
+    subject: "authenticated-owner-id"
   }
 );
 
@@ -93,7 +94,9 @@ const assertion = await platform.sign(
     service_did: provision.body.service_did
   },
   {
-    authorization: "Bearer platform-api-token"
+    authorization: "Bearer platform-api-token",
+    idempotencyKey: "01J0AEPPLATFORM000000000002",
+    subject: "authenticated-owner-id"
   }
 );
 
@@ -108,7 +111,9 @@ const verification = await platform.verify(
     service_did: provision.body.service_did
   },
   {
-    authorization: "Bearer platform-api-token"
+    authorization: "Bearer platform-api-token",
+    idempotencyKey: "01J0AEPPLATFORM000000000003",
+    subject: "authenticated-owner-id"
   }
 );
 
@@ -147,6 +152,20 @@ stable authorization `subject` in `PlatformRequestContext`. Idempotency records
 are scoped by subject and key and preserve the operation, canonical request
 fingerprint, complete HTTP response, and expiry.
 
+Derive `subject` from authenticated application state, including tenant scope
+where needed; do not accept it from an untrusted request field. Authorization
+runs on every request, including retries. An authorized exact retry returns
+the original result without repeating signing or assertion replay consumption.
+
+`PlatformIdempotencyStore.execute()` must atomically check the principal and
+key, compare the operation and fingerprint, and either return the saved record,
+report a conflict, or run the supplied callback once and save its record.
+Coordinate concurrent requests across every application worker. Failed callbacks
+must release the reservation without recording a successful result. Persist the
+complete record until `expiresAt`, at least one hour after completion.
+`createInMemoryPlatformIdempotencyStore()` implements this contract within one
+process for examples and tests; production requires durable shared storage.
+
 Low-level helpers remain available when an implementation needs to assemble
 individual protocol objects:
 
@@ -184,6 +203,35 @@ const didDocument = createManagedAgentDidDocument({
   ]
 });
 ```
+
+## Lifetimes, Endpoints, and Published Keys
+
+Three constraints the package enforces on your behalf, each of them a `MUST` in
+the Platform Hosted Identity profile:
+
+- **The assertion lifetime is capped at 300 seconds.** `maxAssertionLifetimeSeconds`
+  is that ceiling. `maxLifetimeSeconds` on the Platform options and on the
+  individual builders can only lower it. A Sign request that omits
+  `lifetime_seconds` takes the lifetime you advertise as
+  `signing.default_lifetime_seconds`, so configure `defaultLifetimeSeconds` and
+  `maxLifetimeSeconds` together — an advertised default above the maximum is
+  refused when the Platform is constructed rather than on the first request.
+- **Advertised endpoints stay on the Platform origin.** `endpointBase` and every
+  entry in `endpoints` must be an origin-relative path. A value beginning `//`,
+  or containing a backslash, control character, query, or fragment, is refused:
+  an Agent joins these to the Platform base URL, and such a value would send its
+  Sign request somewhere else.
+- **The primary verification method is published under the bare Agent DID.**
+  Platform Hosted Identity binds the JOSE `kid` to the Service-scoped Agent DID
+  carried in `key_id`, with no verification-method fragment, so
+  `createManagedAgentDidDocument` gives the first method that id and any further
+  methods `#key-2` onward. Pass an explicit `id` to override.
+
+Invalid request bodies return `400 invalid_request` with the reason in `detail`.
+Invalid configuration throws at construction. Application callbacks, including
+storage and signing, can throw; the HTTP integration must handle those failures.
+Unavailable DID documents return `404 not_recognized` rather than exposing key
+material for an inactive identity.
 
 ## Conformance
 

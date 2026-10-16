@@ -50,6 +50,12 @@ export const platformHostedIdentityDraft = "draft-kavian-aep-platform-hosted-ide
 
 export const defaultAssertionLifetimeSeconds = 300;
 
+/**
+ * The ceiling AEP Platform Hosted Identity places on an effective assertion lifetime. A Platform
+ * may configure a shorter local maximum, never a longer one.
+ */
+export const maxAssertionLifetimeSeconds = 300;
+
 export interface PlatformDiscoveryDocumentOptions {
   aepVersion?: string;
   defaultLifetimeSeconds?: number;
@@ -296,11 +302,15 @@ export interface PlatformVerificationRequestOptions {
   resource?: string;
 }
 
+export const AEP_PLATFORM_VERIFICATION_REASONS = ["not_recognized", "verified"] as const;
+
+export type PlatformVerificationReason = (typeof AEP_PLATFORM_VERIFICATION_REASONS)[number];
+
 export interface PlatformVerificationResponse {
   agent_did?: string;
   agent_identity_id?: string;
   op?: AepAssertionOperation;
-  reason: string;
+  reason: PlatformVerificationReason;
   service_did: string;
   status?: ManagedAgentStatus;
   verified: boolean;
@@ -310,7 +320,7 @@ export interface PlatformVerificationResponseOptions {
   agentDid?: string;
   agentIdentityId?: string;
   command?: AepAssertionOperation;
-  reason: string;
+  reason: PlatformVerificationReason;
   serviceDid: string;
   status?: ManagedAgentStatus;
   verified: boolean;
@@ -395,12 +405,59 @@ export interface PlatformIdempotencyRecord {
 }
 
 export interface PlatformIdempotencyStore {
-  get(
-    principal: string,
-    idempotencyKey: string,
+  /** Atomically compare, execute once, and persist the result per principal and key. */
+  execute(
+    input: Pick<
+      PlatformIdempotencyRecord,
+      "principal" | "idempotencyKey" | "operation" | "fingerprint"
+    > & { now: string },
+    execute: () => Awaitable<PlatformIdempotencyRecord>,
     context: PlatformRequestContext
-  ): Awaitable<PlatformIdempotencyRecord | undefined>;
-  set(record: PlatformIdempotencyRecord, context: PlatformRequestContext): Awaitable<void>;
+  ): Awaitable<{ state: "completed"; record: PlatformIdempotencyRecord } | { state: "conflict" }>;
+}
+
+/** Process-local storage for examples and tests; production stores must coordinate all workers. */
+export function createInMemoryPlatformIdempotencyStore(
+  initialRecords: PlatformIdempotencyRecord[] = []
+): PlatformIdempotencyStore {
+  const records = new Map(
+    initialRecords.map((record) => [
+      JSON.stringify([record.principal, record.idempotencyKey]),
+      structuredClone(record)
+    ])
+  );
+  const pending = new Map<string, Promise<void>>();
+  return {
+    async execute(input, execute) {
+      const key = JSON.stringify([input.principal, input.idempotencyKey]);
+      for (;;) {
+        const waiting = pending.get(key);
+        if (waiting === undefined) break;
+        await waiting;
+      }
+      const existing = records.get(key);
+      if (existing !== undefined && Date.parse(existing.expiresAt) > Date.parse(input.now)) {
+        return existing.operation !== input.operation || existing.fingerprint !== input.fingerprint
+          ? { state: "conflict" }
+          : { state: "completed", record: structuredClone(existing) };
+      }
+      let release: (() => void) | undefined;
+      pending.set(
+        key,
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+      );
+      try {
+        const record = await execute();
+        records.set(key, structuredClone(record));
+        return { state: "completed", record: structuredClone(record) };
+      } finally {
+        pending.delete(key);
+        release?.();
+      }
+    }
+  };
 }
 
 export interface PlatformReplayStore {
@@ -935,8 +992,15 @@ export function createPlatformVerificationRequest(
 export function createPlatformVerificationResponse(
   options: PlatformVerificationResponseOptions
 ): PlatformVerificationResponse {
-  assertNonEmpty("reason", options.reason);
   assertNonEmpty("serviceDid", options.serviceDid);
+
+  if (!AEP_PLATFORM_VERIFICATION_REASONS.some((reason) => reason === options.reason)) {
+    throw new TypeError("reason must be 'not_recognized' or 'verified'.");
+  }
+
+  if (options.verified !== (options.reason === "verified")) {
+    throw new TypeError("verified must be true exactly when reason is 'verified'.");
+  }
 
   return {
     ...(options.agentDid === undefined ? {} : { agent_did: options.agentDid }),
@@ -954,6 +1018,17 @@ export function createPlatformVerificationResponse(
 export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatform {
   assertNonEmpty("didHost", options.didHost);
   assertNonEmpty("didUrlTemplate", options.didUrlTemplate);
+  const sampleDidId = "aep-configuration-check";
+  const sampleDid = createServiceScopedAgentDid({
+    agentDidId: sampleDidId,
+    host: options.didHost,
+    pathPrefix: options.didPathPrefix ?? "agents"
+  });
+  if (
+    renderDidUrlTemplate(options.didUrlTemplate, sampleDidId) !== didWebDocumentUrl(sampleDid).href
+  ) {
+    throw new TypeError("didUrlTemplate must match didHost and didPathPrefix.");
+  }
 
   if (!hasPlatformAuthorizer(requireRecord(options, "options")["authorizer"])) {
     throw new TypeError("authorizer.authorize is required.");
@@ -963,6 +1038,19 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     throw new TypeError("signingAlgorithms must include at least one algorithm.");
   }
 
+  // Platform idempotency records must survive at least an hour. Refusing a shorter retention at
+  // construction fails closed, rather than throwing out of the first request that uses the store.
+  if (
+    options.idempotencyRetentionSeconds !== undefined &&
+    (!Number.isInteger(options.idempotencyRetentionSeconds) ||
+      options.idempotencyRetentionSeconds < 3600)
+  ) {
+    throw new RangeError("idempotencyRetentionSeconds must be an integer of at least 3600.");
+  }
+
+  // PLT-SIGN-009: a Sign request that omits `lifetime_seconds` takes the lifetime the Platform
+  // advertises as `signing.default_lifetime_seconds`, not an implicit library default.
+  const defaultLifetimeSeconds = options.defaultLifetimeSeconds ?? defaultAssertionLifetimeSeconds;
   const clock = options.clock ?? (() => new Date());
   const idGenerator = options.idGenerator ?? randomPlatformId;
   const agentDidIdGenerator = options.agentDidIdGenerator ?? idGenerator;
@@ -971,7 +1059,13 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
 
   const discoveryDocument = createPlatformDiscoveryDocument({
     ...options.discovery,
-    defaultLifetimeSeconds: options.defaultLifetimeSeconds ?? defaultAssertionLifetimeSeconds,
+    defaultLifetimeSeconds,
+    // The signing ceiling and the advertised default are one configuration. Without this the
+    // advertised default could exceed the maximum the signer enforces, and every Sign request
+    // that omitted `lifetime_seconds` would fail at request time instead of at construction.
+    ...(options.maxLifetimeSeconds === undefined
+      ? {}
+      : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
     didUrlTemplate: options.didUrlTemplate,
     signingAlgorithms: options.signingAlgorithms
   });
@@ -984,7 +1078,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     async getDidDocument(agentIdentityId, context = {}) {
       const identity = await options.identityStore.get(agentIdentityId, context);
 
-      if (identity === undefined) {
+      if (identity === undefined || identity.status !== "active") {
         return problem(404, "not_recognized", "Identity not recognized.");
       }
 
@@ -1037,7 +1131,23 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     },
 
     async provision(body, context = {}) {
-      const request = parsePlatformProvisionRequestBody(body);
+      let request: PlatformProvisionRequest;
+
+      try {
+        request = parsePlatformProvisionRequestBody(body);
+      } catch (cause) {
+        return invalidRequestBody(cause);
+      }
+
+      if (
+        !(await authorizer.authorize(
+          { operation: "provision-identity", request: structuredClone(request) },
+          context
+        ))
+      ) {
+        return problem(404, "not_recognized", "Identity not recognized.");
+      }
+
       return executePlatformIdempotent<PlatformAgentIdentity | AepProblemDetails>(
         "provision",
         request,
@@ -1046,15 +1156,6 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
         clock,
         options.idempotencyRetentionSeconds,
         async () => {
-          if (
-            !(await authorizer.authorize(
-              { operation: "provision-identity", request: structuredClone(request) },
-              context
-            ))
-          ) {
-            return problem(404, "not_recognized", "Identity not recognized.");
-          }
-
           if (!request.service_did.startsWith("did:")) {
             return problem(400, "invalid_request", "service_did must be a DID.");
           }
@@ -1104,7 +1205,34 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     },
 
     async sign(agentIdentityId, body, context = {}) {
-      const request = parsePlatformSignRequestBody(body);
+      let request: PlatformSignRequest;
+
+      try {
+        request = parsePlatformSignRequestBody(body);
+        if (
+          request.lifetime_seconds !== undefined &&
+          Number(request.lifetime_seconds) >
+            (options.maxLifetimeSeconds ?? maxAssertionLifetimeSeconds)
+        ) {
+          throw new RangeError(
+            `lifetime_seconds must not exceed ${options.maxLifetimeSeconds ?? maxAssertionLifetimeSeconds} seconds.`
+          );
+        }
+      } catch (cause) {
+        return invalidRequestBody(cause);
+      }
+
+      const identity = await authorizedIdentity(
+        agentIdentityId,
+        { operation: "sign", request },
+        authorizer,
+        options.identityStore,
+        context
+      );
+      if (identity === undefined || identity.serviceDid !== request.service_did) {
+        return problem(404, "not_recognized", "Identity not recognized.");
+      }
+
       return executePlatformIdempotent<PlatformSignResponse | AepProblemDetails>(
         "sign",
         { agent_identity_id: agentIdentityId, request },
@@ -1113,19 +1241,7 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
         clock,
         options.idempotencyRetentionSeconds,
         async () => {
-          const identity = await authorizedIdentity(
-            agentIdentityId,
-            { operation: "sign", request },
-            authorizer,
-            options.identityStore,
-            context
-          );
-
-          if (identity === undefined || identity.serviceDid !== request.service_did) {
-            return problem(404, "not_recognized", "Identity not recognized.");
-          }
-
-          if (!(await lifecyclePolicy.canSign(identity, context))) {
+          if (identity.status !== "active" || !(await lifecyclePolicy.canSign(identity, context))) {
             return problem(403, lifecycleProblemCode(identity.status), "Identity cannot sign.");
           }
 
@@ -1143,7 +1259,9 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
 
           const issuedAt = context.now ?? clock();
           const lifetimeSeconds =
-            request.lifetime_seconds === undefined ? undefined : Number(request.lifetime_seconds);
+            request.lifetime_seconds === undefined
+              ? defaultLifetimeSeconds
+              : Number(request.lifetime_seconds);
           const managedIdentity = managedIdentityFromRecord(identity);
           const claims = createPlatformClientAssertionClaims({
             command: request.op,
@@ -1154,8 +1272,8 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
             ...(options.maxLifetimeSeconds === undefined
               ? {}
               : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
-            serviceDid: request.service_did,
-            ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds })
+            lifetimeSeconds,
+            serviceDid: request.service_did
           });
           const clientAssertion = await options.keyStore.sign(identity, claims, context);
 
@@ -1169,8 +1287,8 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
               ...(options.maxLifetimeSeconds === undefined
                 ? {}
                 : { maxLifetimeSeconds: options.maxLifetimeSeconds }),
+              lifetimeSeconds,
               serviceDid: request.service_did,
-              ...(lifetimeSeconds === undefined ? {} : { lifetimeSeconds }),
               ...(request.platform_context === undefined
                 ? {}
                 : { platformContext: request.platform_context })
@@ -1181,7 +1299,14 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     },
 
     async updateIdentity(agentIdentityId, body, context = {}) {
-      const request = parsePlatformLifecycleRequestBody(body);
+      let request: PlatformLifecycleRequest;
+
+      try {
+        request = parsePlatformLifecycleRequestBody(body);
+      } catch (cause) {
+        return invalidRequestBody(cause);
+      }
+
       const identity = await authorizedIdentity(
         agentIdentityId,
         { operation: "update-identity", request },
@@ -1219,7 +1344,40 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
     },
 
     async verify(body, context = {}) {
-      const request = parsePlatformVerificationRequestBody(body);
+      let request: PlatformVerificationRequest;
+
+      try {
+        request = parsePlatformVerificationRequestBody(body);
+      } catch (cause) {
+        return invalidRequestBody(cause);
+      }
+
+      let identity: PlatformIdentityRecord;
+      try {
+        const decoded = decodeJwtUnverified(request.client_assertion);
+        const found = await options.identityStore.findByAgentDid(
+          requireString(decoded.payload, "iss"),
+          context
+        );
+        if (
+          found === undefined ||
+          found.serviceDid !== request.service_did ||
+          !(await authorizer.authorize(
+            {
+              identity: clonePlatformIdentityRecord(found),
+              operation: "verify",
+              request: structuredClone(request)
+            },
+            context
+          ))
+        ) {
+          return ok(200, unrecognizedVerification(request, "not_recognized"));
+        }
+        identity = clonePlatformIdentityRecord(found);
+      } catch {
+        return ok(200, unrecognizedVerification(request, "not_recognized"));
+      }
+
       return executePlatformIdempotent<PlatformVerificationResponse | AepProblemDetails>(
         "hosted_verification",
         request,
@@ -1235,38 +1393,29 @@ export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatfor
             const jti = requireString(decoded.payload, "jti");
             const expiresAt = requireNumber(decoded.payload, "exp");
 
-            if (agentDid !== subject) {
+            if (agentDid !== subject || decoded.header["kid"] !== agentDid) {
               return ok(200, unrecognizedVerification(request, "not_recognized"));
             }
 
-            const identity = await options.identityStore.findByAgentDid(agentDid, context);
-
             if (
-              identity === undefined ||
-              identity.serviceDid !== request.service_did ||
-              !(await authorizer.authorize(
-                {
-                  identity: clonePlatformIdentityRecord(identity),
-                  operation: "verify",
-                  request: structuredClone(request)
-                },
-                context
-              )) ||
+              identity.status !== "active" ||
               !(await lifecyclePolicy.canVerify(identity, context))
             ) {
               return ok(200, unrecognizedVerification(request, "not_recognized"));
             }
 
+            const verificationTime = context.now ?? clock();
             const claims = await verifyClientAssertionJwt(request.client_assertion, {
               algorithms: identity.signingAlgorithms,
               audience: request.service_did,
-              currentDate: context.now ?? clock(),
+              currentDate: verificationTime,
               issuer: agentDid,
               key: await options.keyStore.verificationKey(identity, context),
               subject: agentDid
             });
 
             if (
+              claims.iat > Math.floor(verificationTime.getTime() / 1000) + 30 ||
               claims.op !== request.op ||
               (request.op === "authenticate"
                 ? claims.resource !== request.resource
@@ -1344,37 +1493,31 @@ async function executePlatformIdempotent<TBody>(
       "A stable authorized principal is required."
     ) as PlatformHttpResponse<TBody>;
   }
-  if (!Number.isInteger(retentionSeconds) || retentionSeconds < 3600) {
-    throw new RangeError("idempotencyRetentionSeconds must be at least 3600.");
-  }
-
   const fingerprint = createHash("sha256").update(stableStringify(material)).digest("hex");
-  const now = clock();
-  const existing = await store.get(principal, idempotencyKey, context);
-  if (existing !== undefined && Date.parse(existing.expiresAt) > now.getTime()) {
-    if (existing.operation !== operation || existing.fingerprint !== fingerprint) {
-      return problem(
-        409,
-        "idempotency_conflict",
-        "Idempotency key already used."
-      ) as PlatformHttpResponse<TBody>;
-    }
-    return structuredClone(existing.response) as PlatformHttpResponse<TBody>;
-  }
-
-  const response = await execute();
-  await store.set(
-    {
-      expiresAt: new Date(now.getTime() + retentionSeconds * 1000).toISOString(),
-      fingerprint,
-      idempotencyKey,
-      operation,
-      principal,
-      response: structuredClone(response)
+  const result = await store.execute(
+    { principal, idempotencyKey, operation, fingerprint, now: clock().toISOString() },
+    async () => {
+      const response = await execute();
+      return {
+        expiresAt: new Date(clock().getTime() + retentionSeconds * 1000).toISOString(),
+        fingerprint,
+        idempotencyKey,
+        operation,
+        principal,
+        response: structuredClone(response)
+      };
     },
     context
   );
-  return response;
+  if (result.state === "conflict") {
+    return problem(
+      409,
+      "idempotency_conflict",
+      "Idempotency key already used."
+    ) as PlatformHttpResponse<TBody>;
+  }
+  // The store returns the result for this operation and fingerprint, preserving its body type.
+  return structuredClone(result.record.response) as PlatformHttpResponse<TBody>;
 }
 
 function ok<TBody>(status: number, body: TBody): PlatformHttpResponse<TBody> {
@@ -1388,17 +1531,33 @@ function ok<TBody>(status: number, body: TBody): PlatformHttpResponse<TBody> {
 function problem(
   status: number,
   code: AepProblemDetails["code"],
-  title: string
+  title: string,
+  detail?: string
 ): PlatformHttpResponse<AepProblemDetails> {
   return {
     body: createProblemDetails({
       code,
+      ...(detail === undefined ? {} : { detail }),
       status,
       title
     }),
     contentType: AEP_PROBLEM_MEDIA_TYPE,
     status
   };
+}
+
+/**
+ * A request body the Platform cannot parse is a client error. Returning it as Problem Details
+ * keeps every `AepPlatform` method to its declared contract instead of throwing past the caller,
+ * which an HTTP adapter would surface as a 500.
+ */
+function invalidRequestBody(cause: unknown): PlatformHttpResponse<AepProblemDetails> {
+  return problem(
+    400,
+    "invalid_request",
+    "Bad Request",
+    cause instanceof Error ? cause.message : "The request body is not a valid AEP Platform request."
+  );
 }
 
 async function authorizedIdentity(
@@ -1507,6 +1666,9 @@ function parsePlatformSignRequestBody(value: unknown): PlatformSignRequest {
 
   const lifetimeSeconds =
     body["lifetime_seconds"] === undefined ? undefined : requireString(body, "lifetime_seconds");
+  if (lifetimeSeconds !== undefined && !/^[1-9][0-9]*$/u.test(lifetimeSeconds)) {
+    throw new TypeError("lifetime_seconds must be a decimal positive integer string.");
+  }
 
   return createPlatformSignRequest({
     command,
@@ -1538,7 +1700,7 @@ function parsePlatformVerificationRequestBody(value: unknown): PlatformVerificat
 
 function unrecognizedVerification(
   request: PlatformVerificationRequest,
-  reason: string
+  reason: PlatformVerificationReason
 ): PlatformVerificationResponse {
   return createPlatformVerificationResponse({
     reason,
@@ -1552,7 +1714,7 @@ function renderDidUrlTemplate(template: string, agentDidId: string): string {
     throw new TypeError("didUrlTemplate must include {agent_did_id}.");
   }
 
-  return template.replace("{agent_did_id}", encodeURIComponent(agentDidId));
+  return template.replaceAll("{agent_did_id}", encodeURIComponent(agentDidId));
 }
 
 function lifecycleProblemCode(status: ManagedAgentStatus): AepProblemDetails["code"] {
@@ -1574,7 +1736,9 @@ function stableStringify(value: unknown): string {
 
   if (typeof value === "object" && value !== null) {
     return `{${Object.entries(value)
-      .sort(([left], [right]) => left.localeCompare(right))
+      // Code-unit ordering, not localeCompare: the fingerprint has to be identical across
+      // locales and ICU builds for idempotency replay to work in a cluster.
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
       .join(",")}}`;
   }
@@ -1653,8 +1817,21 @@ function assertNonEmpty(label: string, value: string): void {
   }
 }
 
+/**
+ * An origin-relative path. A leading `//` would name another authority, and a backslash is
+ * folded to `/` by WHATWG URL parsing, so both are refused along with anything outside the
+ * unreserved and sub-delimiter sets. Braces are allowed for `{agent_identity_id}` templates.
+ */
+const ENDPOINT_PATH_PATTERN = /^\/(?!\/)(?:[A-Za-z0-9\-._~!$&'()*+,;=:@%{}]|\/(?!\/))*$/;
+
 function assertEndpointPath(label: string, value: string): void {
   if (!value.startsWith("/")) throw new TypeError(`${label} must start with '/'.`);
+
+  if (!ENDPOINT_PATH_PATTERN.test(value)) {
+    throw new TypeError(
+      `${label} must be an origin-relative path with no authority, query, fragment, or control characters.`
+    );
+  }
 }
 
 function cloneManagedAgentIdentity(identity: ManagedAgentIdentity): ManagedAgentIdentity {
@@ -1694,8 +1871,11 @@ function validateLifetimeSeconds(
     throw new TypeError("maxLifetimeSeconds must be a positive integer.");
   }
 
-  if (lifetimeSeconds > maxLifetimeSeconds) {
-    throw new TypeError("lifetimeSeconds must not exceed maxLifetimeSeconds.");
+  // A configured maximum can only lower the ceiling the specification fixes, never raise it.
+  const effectiveMaximum = Math.min(maxLifetimeSeconds, maxAssertionLifetimeSeconds);
+
+  if (lifetimeSeconds > effectiveMaximum) {
+    throw new TypeError(`lifetimeSeconds must not exceed ${String(effectiveMaximum)} seconds.`);
   }
 
   return lifetimeSeconds;
@@ -1706,7 +1886,9 @@ function createDidVerificationMethod(
   method: ManagedAgentDidVerificationMethodOptions,
   index: number
 ): DidVerificationMethod {
-  const id = method.id ?? `${agentDid}#key-${index + 1}`;
+  // Platform Hosted Identity binds the JOSE `kid` to the Service-scoped Agent DID itself, with
+  // no verification-method fragment, so the primary method is published under that bare DID.
+  const id = method.id ?? (index === 0 ? agentDid : `${agentDid}#key-${index + 1}`);
   const controller = method.controller ?? agentDid;
   const methodBody = { ...method };
   delete methodBody.relationships;

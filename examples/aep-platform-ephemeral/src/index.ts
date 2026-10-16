@@ -7,6 +7,7 @@ import type { Request, Response } from "express";
 
 import {
   createAepPlatform,
+  createInMemoryPlatformIdempotencyStore,
   createJwtPlatformDelegatedSigner,
   createManagedAgentDidDocument,
   createManagedAgentIdentity
@@ -21,8 +22,6 @@ import type {
   PlatformIdentityRecord,
   PlatformIdentityStore,
   PlatformKeyStore,
-  PlatformIdempotencyRecord,
-  PlatformIdempotencyStore,
   PlatformReplayStore,
   PlatformRequestContext,
   PlatformSignResponse,
@@ -131,20 +130,6 @@ class ExampleIdentityStore implements PlatformIdentityStore {
   }
 }
 
-class ExampleIdempotencyStore implements PlatformIdempotencyStore {
-  readonly #records = new Map<string, PlatformIdempotencyRecord>();
-
-  get(principal: string, idempotencyKey: string): PlatformIdempotencyRecord | undefined {
-    const record = this.#records.get(`${principal}\u001f${idempotencyKey}`);
-
-    return record === undefined ? undefined : structuredClone(record);
-  }
-
-  set(record: PlatformIdempotencyRecord): void {
-    this.#records.set(`${record.principal}\u001f${record.idempotencyKey}`, structuredClone(record));
-  }
-}
-
 class ExampleReplayStore implements PlatformReplayStore {
   readonly #seen = new Map<string, number>();
 
@@ -244,7 +229,7 @@ const platform = createAepPlatform({
     platformName: "Ephemeral AEP Platform"
   },
   idGenerator: randomUUID,
-  idempotencyStore: new ExampleIdempotencyStore(),
+  idempotencyStore: createInMemoryPlatformIdempotencyStore(),
   identityStore,
   keyStore,
   replayStore: new ExampleReplayStore(),
@@ -299,7 +284,7 @@ app.get("/services/example-service/did.json", (_request, response) => {
     ])
   );
 });
-app.get("/agents/:agentDidId/did.json", (request, response, next) => {
+app.get("/agents/:agentDidId/did.json", async (request, response, next) => {
   try {
     const identity = identityStore.findByAgentDidId(request.params.agentDidId);
 
@@ -308,15 +293,7 @@ app.get("/agents/:agentDidId/did.json", (request, response, next) => {
       return;
     }
 
-    response.json(
-      createManagedAgentDidDocument({
-        identity: createManagedAgentIdentity({
-          agentDid: identity.agentDid,
-          status: identity.status
-        }),
-        verificationMethods: [keyStore.didVerificationMethod(identity)]
-      })
-    );
+    sendPlatform(response, await platform.getDidDocument(identity.agentIdentityId));
   } catch (error) {
     next(error);
   }
@@ -440,7 +417,7 @@ function contextFrom(request: Request): PlatformRequestContext {
   return {
     ...(authorization === undefined ? {} : { authorization }),
     ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
-    ...(authorization === undefined ? {} : { subject: "demo-owner" })
+    ...(authorization === demoAuthorization ? { subject: "demo-owner" } : {})
   };
 }
 

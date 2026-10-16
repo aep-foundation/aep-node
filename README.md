@@ -83,7 +83,7 @@ assertions directly without issuing a session credential.
 | [`@aep-foundation/service`](./packages/service/README.md)                          | [![npm](https://img.shields.io/npm/v/@aep-foundation/service)](https://www.npmjs.com/package/@aep-foundation/service)               | Service-side protocol handling, policy hooks, persistence interfaces, and authentication |
 | [`@aep-foundation/platform`](./packages/platform/README.md)                        | [![npm](https://img.shields.io/npm/v/@aep-foundation/platform)](https://www.npmjs.com/package/@aep-foundation/platform)             | Hosted Agent identity provisioning, delegated signing, and verification                  |
 | [`@aep-foundation/conformance`](./packages/conformance/README.md)                  | [![npm](https://img.shields.io/npm/v/@aep-foundation/conformance)](https://www.npmjs.com/package/@aep-foundation/conformance)       | Schema and test-vector helpers for implementers                                          |
-| [`@aep-foundation/service-policy`](./packages/extensions/service-policy/README.md) | [![npm](https://img.shields.io/npm/v/@aep-foundation/service-policy)](https://www.npmjs.com/package/@aep-foundation/service-policy) | Service Policy extension types and validation                                            |
+| [`@aep-foundation/service-policy`](./packages/extensions/service-policy/README.md) | [![npm](https://img.shields.io/npm/v/@aep-foundation/service-policy)](https://www.npmjs.com/package/@aep-foundation/service-policy) | Planned Service policy disclosure extension; no integration API                          |
 
 ### Framework adapters
 
