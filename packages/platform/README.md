@@ -166,6 +166,27 @@ complete record until `expiresAt`, at least one hour after completion.
 `createInMemoryPlatformIdempotencyStore()` implements this contract within one
 process for examples and tests; production requires durable shared storage.
 
+### Upgrading Platform storage from 0.3.0
+
+Replace a custom `get`/`set` idempotency adapter with `execute` before deploying.
+The TypeScript interface and construction-time check reject the old adapter contract.
+Implement the read, comparison, callback reservation, and write as one coordinated
+operation across workers; wrapping independent reads and writes is not sufficient.
+Keep existing completed records and responses until their original expiry. Clearing
+them can repeat identity provisioning or signing.
+
+Persist the complete record, including the optional `canonicalFingerprint`. Compare
+the operation first. If both the saved record and request have `canonicalFingerprint`,
+compare that field; otherwise compare `fingerprint`. The SDK supplies both fields for
+new requests. `fingerprint` retains the 0.3.0 calculation so existing records and stores
+can still recognize retries. Records without the optional field require no backfill.
+
+The 0.3.0 calculation uses the process's locale-dependent key ordering. Keep the same
+Node/ICU locale configuration while those records remain live; their original request
+and locale cannot be recovered from the hash alone. A store that keeps comparing only
+`fingerprint` preserves that limitation. Do not run old `get`/`set` workers concurrently
+with the new adapter unless both share the same transactional coordination.
+
 Low-level helpers remain available when an implementation needs to assemble
 individual protocol objects:
 
