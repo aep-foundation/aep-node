@@ -163,6 +163,8 @@ export interface InspectServiceResult {
 }
 
 export interface InspectOpenApiPolicyOptions {
+  /** Revalidate even a fresh cached document, retaining conditional request headers. */
+  revalidate?: boolean;
   fetch?: FetchLike;
   inspect: InspectServiceResult;
   method?: string;
@@ -188,6 +190,7 @@ export async function inspectOpenApiPolicy(
       ? {}
       : { maxResponseBytes: options.maxResponseBytes }),
     namespace: "openapi",
+    ...(options.revalidate === undefined ? {} : { revalidate: options.revalidate }),
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     parse: (value) => value,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -509,6 +512,8 @@ export interface AepServiceSession {
   identity(): Promise<AgentServiceIdentity>;
   inspect(): Promise<InspectServiceResult>;
   openApiPolicy(options: {
+    /** Revalidate even a fresh cached document, retaining conditional request headers. */
+    revalidate?: boolean;
     method?: string;
     signal?: AbortSignal;
     url: string | URL;
@@ -1046,6 +1051,7 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
     inspect: inspectOnce,
     async openApiPolicy(options) {
       return inspectOpenApiPolicy({
+        ...(options.revalidate === undefined ? {} : { revalidate: options.revalidate }),
         ...(readFetch === undefined ? {} : { fetch: readFetch }),
         inspect: await inspectOnce(),
         ...(options.method === undefined ? {} : { method: options.method }),
@@ -2020,6 +2026,19 @@ export async function fetchProtectedResource(
           "AEP challenge Service DID did not match Inspect.",
           "validation_failed"
         );
+      }
+      if (policy?.state === "public" && anonymous?.challenge !== undefined) {
+        try {
+          await session.openApiPolicy({
+            ...(options.method === undefined ? {} : { method: options.method }),
+            revalidate: true,
+            signal,
+            url: target
+          });
+        } catch {
+          // Document refresh failure does not override the validated live challenge.
+        }
+        signal.throwIfAborted();
       }
       const methods =
         policy?.state === "required"
