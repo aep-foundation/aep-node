@@ -43,6 +43,8 @@ export function createInMemoryPublicDocumentCache(
 }
 
 export interface FetchAepPublicDocumentOptions<T> {
+  /** Bypass freshness while retaining validators for a conditional request. */
+  revalidate?: boolean;
   namespace: AepPublicDocumentNamespace;
   url: string | URL;
   cache?: AepPublicDocumentCache;
@@ -87,7 +89,7 @@ export async function fetchAepPublicDocument<T>(
   options: FetchAepPublicDocumentOptions<T>
 ): Promise<AepPublicDocumentResult<T>> {
   const requestedUrl = safePublicUrl(new URL(options.url));
-  const key = cacheKey(options.namespace, String(requestedUrl));
+  const key = `${cacheKey(options.namespace, String(requestedUrl))}:${options.revalidate === true}`;
   const cache = options.cache;
   if (cache !== undefined) {
     const map = flights.get(cache) ?? new Map<string, Promise<AepPublicDocumentResult<unknown>>>();
@@ -107,7 +109,7 @@ async function fetchDocument<T>(
 ): Promise<AepPublicDocumentResult<T>> {
   const now = (options.clock ?? (() => new Date()))();
   const cached = await options.cache?.get(options.namespace, String(requestedUrl));
-  if (cached !== undefined && isFresh(cached, now))
+  if (options.revalidate !== true && cached !== undefined && isFresh(cached, now))
     return resultFromRecord(options, requestedUrl, cached, "fresh");
   let current = new URL(cached?.finalUrl ?? requestedUrl);
   if (options.sameOriginRedirects === true && current.origin !== requestedUrl.origin) {

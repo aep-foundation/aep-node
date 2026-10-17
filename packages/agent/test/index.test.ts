@@ -1595,6 +1595,36 @@ describe("@aep-foundation/agent public documents and OpenAPI", () => {
     expect(calls).toBe(1);
   });
 
+  it("coalesces forced revalidation separately from a concurrent fresh-cache read", async () => {
+    const cache = createInMemoryPublicDocumentCache();
+    let calls = 0;
+    const options = {
+      accept: "application/json",
+      cache,
+      namespace: "openapi" as const,
+      parse: (value: unknown) => value,
+      url: "https://api.example.com/openapi.json",
+      fetch: () => {
+        calls += 1;
+        return Promise.resolve(
+          new Response(JSON.stringify({ revision: calls }), {
+            headers: { "content-type": "application/json", "cache-control": "max-age=3600" }
+          })
+        );
+      }
+    };
+    await fetchAepPublicDocument(options);
+    const [cached, first, second] = await Promise.all([
+      fetchAepPublicDocument(options),
+      fetchAepPublicDocument({ ...options, revalidate: true }),
+      fetchAepPublicDocument({ ...options, revalidate: true })
+    ]);
+    expect(cached.value).toEqual({ revision: 1 });
+    expect(first.value).toEqual({ revision: 2 });
+    expect(second.value).toEqual(first.value);
+    expect(calls).toBe(2);
+  });
+
   it("follows redirects, persists aliases, and conditionally revalidates public documents", async () => {
     const cache = createInMemoryPublicDocumentCache();
     const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
@@ -1873,6 +1903,118 @@ describe("@aep-foundation/agent public documents and OpenAPI", () => {
     ]);
     expect(classifications[3]?.challenge).toMatchObject({ reason: "expired" });
   });
+
+  it.each(["updated", "unchanged", "failed", "cancelled", "wrong-did", "unrelated", "denied"])(
+    "revalidates a contradicted public policy without extra resource attempts: %s",
+    async (outcome) => {
+      const controller = new AbortController();
+      const metadata: Headers[] = [];
+      const resources: Headers[] = [];
+      const publicDocument = { openapi: "3.1.0", security: [], paths: { "/items": { get: {} } } };
+      const document: InspectDocument = {
+        ...minimalInspectDocument,
+        authentication: { methods: ["aep-jwt"] },
+        http: {
+          openapi: {
+            url: "https://docs.example.com/openapi.json",
+            path_matching: { trailing_slash: "strict" }
+          }
+        }
+      };
+      const agent = createAepAgent({
+        credentialStore: createInMemorySessionCredentialStore(),
+        identityProvider: {
+          getOrCreateIdentity: () => ({
+            agentDid: "did:web:agent.example.com:agents:123",
+            identityKind: "sovereign",
+            serviceDid: "did:web:api.example.com",
+            signingAlgorithms: ["ES256"]
+          }),
+          signerFor: () => () => "jwt.authenticate"
+        },
+        readFetch: (input, init) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          if (url.endsWith("/.well-known/aep"))
+            return fetchJsonResponse(document, { headers: { "cache-control": "max-age=3600" } });
+          expect(url).toBe("https://docs.example.com/openapi.json");
+          metadata.push(new Headers(init?.headers));
+          if (metadata.length === 1)
+            return fetchJsonResponse(publicDocument, {
+              headers: {
+                "content-type": "application/json",
+                "cache-control": "max-age=3600",
+                etag: '"v1"'
+              }
+            });
+          if (outcome === "cancelled") {
+            controller.abort();
+            return Promise.reject(new Error("cancelled"));
+          }
+          if (outcome === "failed") return Promise.reject(new Error("offline"));
+          if (outcome === "unchanged") return Promise.resolve(new Response(null, { status: 304 }));
+          return fetchJsonResponse(
+            {
+              ...publicDocument,
+              security: [{ jwt: [] }],
+              components: { securitySchemes: { jwt: { "x-aep-authentication-method": "aep-jwt" } } }
+            },
+            { headers: { "content-type": "application/json" } }
+          );
+        }
+      });
+      const session = agent.serviceSession({ serviceUrl: "https://api.example.com" });
+      await expect(
+        session.openApiPolicy({ url: "https://api.example.com/items" })
+      ).resolves.toMatchObject({ state: "public" });
+      const result = fetchProtectedResource({
+        agent,
+        signal: controller.signal,
+        url: "https://api.example.com/items",
+        headers: { Cookie: "secret", Authorization: "Bearer secret", "X-Caller": "private" },
+        fetch: (_input, init) => {
+          resources.push(new Headers(init?.headers));
+          return Promise.resolve(
+            resources.length === 1 || outcome === "denied"
+              ? new Response(null, {
+                  status: 401,
+                  headers: {
+                    "www-authenticate":
+                      outcome === "unrelated"
+                        ? "Bearer"
+                        : `AEP service_did="${outcome === "wrong-did" ? "did:web:wrong.example" : "did:web:api.example.com"}", inspect="https://api.example.com/.well-known/aep"`
+                  }
+                })
+              : new Response("ok")
+          );
+        }
+      });
+      if (outcome === "cancelled" || outcome === "wrong-did")
+        await expect(result).rejects.toThrow();
+      else
+        await expect(result).resolves.toMatchObject({
+          status: outcome === "unrelated" || outcome === "denied" ? 401 : 200
+        });
+      const rejected = outcome === "wrong-did" || outcome === "unrelated";
+      expect(metadata).toHaveLength(rejected ? 1 : 2);
+      expect(Object.fromEntries(metadata[0] ?? [])).toEqual({
+        accept: "application/vnd.oai.openapi+json;version=3.1, application/json"
+      });
+      if (!rejected)
+        expect(Object.fromEntries(metadata[1] ?? [])).toEqual({
+          accept: "application/vnd.oai.openapi+json;version=3.1, application/json",
+          "if-none-match": '"v1"'
+        });
+      expect(resources).toHaveLength(rejected || outcome === "cancelled" ? 1 : 2);
+      expect(resources[0]?.has("Authorization")).toBe(false);
+      if (resources.length === 2)
+        expect(resources[1]?.get("Authorization")).toBe("AEP jwt.authenticate");
+      if (outcome === "updated")
+        await expect(
+          session.openApiPolicy({ url: "https://api.example.com/items" })
+        ).resolves.toMatchObject({ state: "required" });
+    }
+  );
 
   it("uses the caller transport for each anonymous and authenticated request attempt", async () => {
     const calls: Array<{ headers: Headers; url: string }> = [];
@@ -2657,9 +2799,12 @@ function jsonResponse(
   };
 }
 
-function fetchJsonResponse(body: unknown): Promise<Response> {
+function fetchJsonResponse(body: unknown, options: ResponseInit = {}): Promise<Response> {
   return Promise.resolve(
-    new Response(JSON.stringify(body), { headers: { "content-type": AEP_MEDIA_TYPE } })
+    new Response(JSON.stringify(body), {
+      ...options,
+      headers: { "content-type": AEP_MEDIA_TYPE, ...options.headers }
+    })
   );
 }
 

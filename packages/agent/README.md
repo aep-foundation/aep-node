@@ -271,6 +271,13 @@ matched operation, policy source, public/required/fallback state, supported AEP
 methods, freshness, and strict-slash suggestion. `fetchProtectedResource()`
 uses a fresh definitive policy before challenge probing and retains live AEP
 challenges as the fallback for stale, absent, unsupported, or contradictory
-policy. Grant requires a previously stored or recoverable identity and a signed
+policy. A validated challenge that contradicts a public policy triggers one
+anonymous OpenAPI revalidation, without an additional resource request. If
+revalidation fails, authentication continues using the live challenge and Inspect
+metadata. Call `session.openApiPolicy({ url, revalidate: true })` or pass
+`revalidate: true` to `inspectOpenApiPolicy()` to revalidate a fresh cached document
+explicitly; cached HTTP validators are retained.
+
+Grant requires a previously stored or recoverable identity and a signed
 active Status result before signing unless the same session has authoritative
 active enrollment evidence.
