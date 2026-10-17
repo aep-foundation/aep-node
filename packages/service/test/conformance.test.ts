@@ -450,8 +450,14 @@ describe("stored credential verifiers", () => {
       header: "X-API-Key",
       scopes: ["read"]
     });
-    expect(record?.credential.verifier.salt).toMatch(/^[a-f0-9]{32}$/u);
-    expect(record?.credential.verifier.digest).toMatch(/^[a-f0-9]{64}$/u);
+    expect(record?.credential.verifier).toHaveProperty(
+      "salt",
+      expect.stringMatching(/^[a-f0-9]{32}$/u)
+    );
+    expect(record?.credential.verifier).toHaveProperty(
+      "digest",
+      expect.stringMatching(/^[a-f0-9]{64}$/u)
+    );
     expect(JSON.stringify(record)).not.toContain(issued.api_key);
     expect(JSON.stringify(record)).not.toContain(issued.private_extension);
     await expect(
@@ -463,8 +469,7 @@ describe("stored credential verifiers", () => {
     issued.credential_id = "hashed-2";
     await definition.handler?.grant({ grant_type: "api-key" }, context);
     const records = await store.listCredentials();
-    expect(records[0]?.credential.verifier.salt).not.toBe(records[1]?.credential.verifier.salt);
-    expect(records[0]?.credential.verifier.digest).not.toBe(records[1]?.credential.verifier.digest);
+    expect(records[0]?.credential.verifier).not.toEqual(records[1]?.credential.verifier);
   });
 });
 
@@ -2052,6 +2057,7 @@ describe("defaults and response shaping", () => {
 
   it("refuses a Basic credential record with no usable username and password", async () => {
     const store: AepServiceCredentialStore = {
+      credentialFormat: "salted-verifier",
       listCredentials: () =>
         Promise.resolve([
           {
@@ -2094,7 +2100,7 @@ describe("defaults and response shaping", () => {
         method: "GET",
         url: RESOURCE
       })
-    ).resolves.toMatchObject({ authenticated: false });
+    ).rejects.toThrow("Unsupported or invalid stored AEP credential format");
   });
 
   it("omits the authentication block when no methods are advertised", () => {

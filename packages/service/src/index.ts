@@ -131,16 +131,25 @@ export interface AepServiceCredentialRecord {
   revokedAt?: string;
 }
 
+export interface AepLegacyServiceCredentialRecord extends Omit<
+  AepServiceCredentialRecord,
+  "credential"
+> {
+  credential: AepBuiltInGrantResponse;
+}
+
 export interface AepServiceCredentialStore {
+  /** Confirms that writes preserve salted verifiers rather than expecting issued secrets. */
+  readonly credentialFormat: "salted-verifier";
   findCredential(
     agentDid: string,
     grantType: AepBuiltInGrantType,
     credentialId: string
-  ): Awaitable<AepServiceCredentialRecord | undefined>;
+  ): Awaitable<AepServiceCredentialRecord | AepLegacyServiceCredentialRecord | undefined>;
   listCredentials(
     agentDid?: string,
     grantType?: AepBuiltInGrantType
-  ): Awaitable<AepServiceCredentialRecord[]>;
+  ): Awaitable<(AepServiceCredentialRecord | AepLegacyServiceCredentialRecord)[]>;
   revokeCredential(
     agentDid: string,
     grantType: AepBuiltInGrantType,
@@ -908,6 +917,7 @@ export function createInMemoryServiceCredentialStore(
   );
 
   return {
+    credentialFormat: "salted-verifier",
     findCredential(agentDid, grantTypeName, credentialId) {
       const record = credentials.get(credentialId);
 
@@ -1528,6 +1538,12 @@ function storedBuiltInGrantType<TCredential extends AepBuiltInGrantResponse>(
   grantTypeName: AepBuiltInGrantType,
   options: AepStoredCredentialGrantTypeOptions<TCredential>
 ): AepGrantTypeDefinition {
+  const storeContract: unknown = options.store;
+  if (!isRecord(storeContract) || storeContract["credentialFormat"] !== "salted-verifier") {
+    throw new TypeError(
+      'AEP credential store must declare credentialFormat: "salted-verifier" and preserve verifier records on writes. Existing raw-secret records can be read or converted with migrateServiceCredentialRecord; do not delete or reissue them.'
+    );
+  }
   const config: AepGrantTypeConfig = {
     ...structuredClone(options.config),
     supports_per_credential_revoke: "true"
@@ -1581,7 +1597,10 @@ function storedBuiltInGrantType<TCredential extends AepBuiltInGrantResponse>(
     async authenticate(input) {
       const records = await options.store.listCredentials(undefined, grantTypeName);
       const matches: AepServiceCredentialRecord[] = [];
-      for (const record of records) {
+      for (const stored of records) {
+        if (stored.revokedAt !== undefined || Date.parse(stored.expiresAt) <= input.now.getTime())
+          continue;
+        const record = await migrateServiceCredentialRecord(stored);
         if (
           record.revokedAt === undefined &&
           Date.parse(record.expiresAt) > input.now.getTime() &&
@@ -2011,6 +2030,7 @@ function credentialRecordWithParsedCredential(
   const credential = record.credential;
 
   if (
+    !isRecord(credential.verifier) ||
     !/^[a-f0-9]{32}$/.test(credential.verifier.salt) ||
     !/^[a-f0-9]{64}$/.test(credential.verifier.digest) ||
     !Array.isArray(credential.scopes) ||
@@ -2034,6 +2054,42 @@ function credentialRecordWithParsedCredential(
     ...record,
     credential
   };
+}
+
+/** Converts a credential record without changing its identity, expiry, scopes, or revocation. */
+export async function migrateServiceCredentialRecord(
+  record: AepServiceCredentialRecord | AepLegacyServiceCredentialRecord
+): Promise<AepServiceCredentialRecord> {
+  if (!isRecord(record.credential)) {
+    throw new TypeError(
+      "Invalid stored AEP credential body. Check the credential-store upgrade instructions."
+    );
+  }
+  const secretField =
+    record.grantType === "api-key"
+      ? "api_key"
+      : record.grantType === "basic"
+        ? "password"
+        : "access_token";
+  if ("verifier" in record.credential && !(secretField in record.credential)) {
+    return cloneCredential(
+      credentialRecordWithParsedCredential(record as AepServiceCredentialRecord)
+    );
+  }
+  let credential: AepBuiltInGrantResponse;
+  try {
+    credential = parseBuiltInGrantResponse(record.grantType, record.credential);
+  } catch {
+    throw new TypeError(
+      "Unsupported or invalid stored AEP credential format. Check the credential-store upgrade instructions."
+    );
+  }
+  return cloneCredential(
+    credentialRecordWithParsedCredential({
+      ...record,
+      credential: await storedCredential(record.grantType, credential)
+    })
+  );
 }
 
 function hashRequest(request: unknown): string {

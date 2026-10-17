@@ -396,6 +396,7 @@ export interface PlatformIdentityStore {
 export type PlatformIdempotentOperation = "hosted_verification" | "provision" | "sign";
 
 export interface PlatformIdempotencyRecord {
+  canonicalFingerprint?: string;
   expiresAt: string;
   fingerprint: string;
   idempotencyKey: string;
@@ -409,7 +410,7 @@ export interface PlatformIdempotencyStore {
   execute(
     input: Pick<
       PlatformIdempotencyRecord,
-      "principal" | "idempotencyKey" | "operation" | "fingerprint"
+      "principal" | "idempotencyKey" | "operation" | "fingerprint" | "canonicalFingerprint"
     > & { now: string },
     execute: () => Awaitable<PlatformIdempotencyRecord>,
     context: PlatformRequestContext
@@ -437,7 +438,11 @@ export function createInMemoryPlatformIdempotencyStore(
       }
       const existing = records.get(key);
       if (existing !== undefined && Date.parse(existing.expiresAt) > Date.parse(input.now)) {
-        return existing.operation !== input.operation || existing.fingerprint !== input.fingerprint
+        const sameRequest =
+          existing.canonicalFingerprint !== undefined && input.canonicalFingerprint !== undefined
+            ? existing.canonicalFingerprint === input.canonicalFingerprint
+            : existing.fingerprint === input.fingerprint;
+        return existing.operation !== input.operation || !sameRequest
           ? { state: "conflict" }
           : { state: "completed", record: structuredClone(existing) };
       }
@@ -1016,6 +1021,11 @@ export function createPlatformVerificationResponse(
 }
 
 export function createAepPlatform(options: CreateAepPlatformOptions): AepPlatform {
+  if (typeof options.idempotencyStore.execute !== "function") {
+    throw new TypeError(
+      "AEP Platform idempotency store requires atomic execute(). Adapt get/set under shared transactional coordination and retain existing records; do not clear completed results."
+    );
+  }
   assertNonEmpty("didHost", options.didHost);
   assertNonEmpty("didUrlTemplate", options.didUrlTemplate);
   const sampleDidId = "aep-configuration-check";
@@ -1493,14 +1503,24 @@ async function executePlatformIdempotent<TBody>(
       "A stable authorized principal is required."
     ) as PlatformHttpResponse<TBody>;
   }
-  const fingerprint = createHash("sha256").update(stableStringify(material)).digest("hex");
+  // Keep the published fingerprint usable by existing stores and rolling deployments.
+  const fingerprint = createHash("sha256").update(stableStringify(material, true)).digest("hex");
+  const canonicalFingerprint = createHash("sha256").update(stableStringify(material)).digest("hex");
   const result = await store.execute(
-    { principal, idempotencyKey, operation, fingerprint, now: clock().toISOString() },
+    {
+      principal,
+      idempotencyKey,
+      operation,
+      fingerprint,
+      canonicalFingerprint,
+      now: clock().toISOString()
+    },
     async () => {
       const response = await execute();
       return {
         expiresAt: new Date(clock().getTime() + retentionSeconds * 1000).toISOString(),
         fingerprint,
+        canonicalFingerprint,
         idempotencyKey,
         operation,
         principal,
@@ -1729,17 +1749,17 @@ function lifecycleProblemCode(status: ManagedAgentStatus): AepProblemDetails["co
   return "identity_unavailable";
 }
 
-function stableStringify(value: unknown): string {
+function stableStringify(value: unknown, legacy = false): string {
   if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(",")}]`;
+    return `[${value.map((item) => stableStringify(item, legacy)).join(",")}]`;
   }
 
   if (typeof value === "object" && value !== null) {
-    return `{${Object.entries(value)
-      // Code-unit ordering, not localeCompare: the fingerprint has to be identical across
-      // locales and ICU builds for idempotency replay to work in a cluster.
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      // Canonical hashes use code-unit ordering; compatibility hashes retain locale ordering.
+      .sort(legacy ? (left, right) => left.localeCompare(right) : undefined)
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key], legacy)}`)
       .join(",")}}`;
   }
 

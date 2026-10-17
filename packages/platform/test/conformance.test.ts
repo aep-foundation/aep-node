@@ -485,6 +485,85 @@ describe("PLT-ERR-001/002 — an unparseable body is Problem Details, not a thro
 });
 
 describe("PLT-IDP — idempotency scoping, fingerprinting, and retention", () => {
+  it("replays a completed Sign record written by Platform 0.3.0", async () => {
+    // Captured through the published package's Sign path, including mixed-case context keys.
+    const record: PlatformIdempotencyRecord = {
+      expiresAt: "2026-10-17T01:00:00.000Z",
+      fingerprint: "15eaae41fa738011421b6ab56e1a04cb566d364ccfef143b6c4d575f111dbfb1",
+      idempotencyKey: "sign",
+      operation: "sign",
+      principal: "owner",
+      response: { status: 200, contentType: "application/aep+json", body: { saved: true } }
+    };
+    const identities = memoryIdentityStore();
+    await identities.create(
+      identityRecord({ agentIdentityId: "pai_fixed", serviceDid: "did:web:service.example" }),
+      {}
+    );
+    const sign = vi.fn(() => {
+      throw new Error("must not sign again");
+    });
+    let allowed = true;
+    const platform = createAepPlatform(
+      platformOptions({
+        clock: () => new Date("2026-10-17T00:00:00Z"),
+        identityStore: identities,
+        authorizer: { authorize: () => allowed },
+        idempotencyStore: createInMemoryPlatformIdempotencyStore([record]),
+        keyStore: { ...stubKeyStore(), sign }
+      })
+    );
+    const request = {
+      service_did: "did:web:service.example",
+      op: "enroll",
+      jti: "upgrade-sign",
+      platform_context: { Z: 1, a: 2 }
+    };
+    const context = { subject: "owner", idempotencyKey: "sign" };
+    expect(await platform.sign("pai_fixed", request, context)).toEqual(record.response);
+    expect(
+      await platform.sign("pai_fixed", { ...request, jti: "different" }, context)
+    ).toMatchObject({ status: 409 });
+    allowed = false;
+    expect(await platform.sign("pai_fixed", request, context)).toMatchObject({ status: 404 });
+    expect(sign).not.toHaveBeenCalled();
+  });
+
+  it("uses canonical fingerprints only when both records include them", async () => {
+    const record: PlatformIdempotencyRecord = {
+      expiresAt: "2999-01-01T00:00:00Z",
+      fingerprint: "legacy",
+      canonicalFingerprint: "canonical",
+      idempotencyKey: "key",
+      operation: "provision",
+      principal: "owner",
+      response: { status: 200, contentType: "application/aep+json", body: {} }
+    };
+    const store = createInMemoryPlatformIdempotencyStore([record]);
+    const execute = vi.fn(() => Promise.resolve(record));
+    const input = { ...record, now: "2026-10-17T00:00:00Z" };
+    expect(
+      (await store.execute({ ...input, fingerprint: "different-locale" }, execute, {})).state
+    ).toBe("completed");
+    expect(
+      (await store.execute({ ...input, canonicalFingerprint: "changed" }, execute, {})).state
+    ).toBe("conflict");
+    const { canonicalFingerprint: _canonical, ...legacy } = input;
+    expect((await store.execute(legacy, execute, {})).state).toBe("completed");
+    expect((await store.execute({ ...legacy, fingerprint: "changed" }, execute, {})).state).toBe(
+      "conflict"
+    );
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("rejects a get/set adapter before accepting requests", () => {
+    const store = createInMemoryPlatformIdempotencyStore();
+    Reflect.deleteProperty(store, "execute");
+    expect(() => createAepPlatform(platformOptions({ idempotencyStore: store }))).toThrow(
+      "atomic execute()"
+    );
+  });
+
   it("refuses an advertised default above the signing maximum at construction", () => {
     expect(() => createAepPlatform(platformOptions({ maxLifetimeSeconds: 60 }))).toThrow(
       /must not exceed 60 seconds/u

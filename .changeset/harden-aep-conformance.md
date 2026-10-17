@@ -20,8 +20,11 @@ code and assertion headers use `JWT`. Platform verification reasons are restrict
 `verified` and `not_recognized`, consistent with the verification result.
 
 Service credential stores persist metadata and salted verifiers instead of issued
-secrets. Custom stores must adopt `AepStoredServiceCredential`; existing raw-secret
-records require conversion or revocation and reissuance. Grant responses retain
+secrets. Custom stores must adopt `AepStoredServiceCredential` and acknowledge verifier
+writes with `credentialFormat`. Existing raw-secret records remain readable and can be
+converted with `migrateServiceCredentialRecord` without reissuance. Drain old Service
+workers before writing verifier-only records; see the Service storage upgrade guide.
+Grant responses retain
 their wire format. Enforce advertised identity methods, honor Inspect freshness
 within sessions, validate Platform assertion issuance time, and accept valid
 authentication-scheme spacing.
@@ -46,6 +49,9 @@ and Inspect and Platform discovery caching through the conformance adapter.
 
 Replace Platform idempotency store `get`/`set` with atomic `execute`; custom stores
 must coordinate matching concurrent requests and persist the callback result.
+Retain existing results and compare the optional canonical fingerprint when both
+records contain it, falling back to the compatible fingerprint otherwise. See the
+Platform storage upgrade guide for coordination and locale requirements.
 Reauthorize cached retries, reject invalid lifetime strings and local-limit violations,
 enforce active identity state and bare-DID hosted verification, and validate DID URL
 configuration. Correct the Platform example and integration documentation.

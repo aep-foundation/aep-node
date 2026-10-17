@@ -225,6 +225,37 @@ those cached responses as secrets, including encryption at rest, restricted
 access, and retention controls. Do not log either issued credentials or cached
 Grant responses.
 
+## Upgrading credential storage from Service 0.3.4
+
+Service 0.3.4 writes issued secrets into credential records. The stored grant handlers
+accept those records as well as salted-verifier records, so existing credentials remain
+usable with the same identifier, Agent, scopes, expiry, and revocation state. They do
+not automatically rewrite your database during authentication.
+
+Before deploying:
+
+1. Update your `AepServiceCredentialStore` adapter to persist every field of
+   `AepStoredServiceCredential`. A schema with mandatory `api_key`, `access_token`, or
+   `password` columns must also allow records containing `verifier.salt` and
+   `verifier.digest`. Keep existing records readable. Reads may return
+   `AepLegacyServiceCredentialRecord` or `AepServiceCredentialRecord`.
+2. Declare `readonly credentialFormat = "salted-verifier" as const` on the adapter
+   only after implementing those writes. Missing this property causes a TypeScript
+   error and a construction-time error in JavaScript, rather than an authentication
+   failure for your customers.
+3. Drain old Service workers before allowing the upgraded handlers to issue credentials
+   or converting stored records. Service 0.3.4 cannot authenticate a verifier-only record;
+   sharing new records with old workers is not a supported rolling deployment.
+4. Optionally convert existing records with `await migrateServiceCredentialRecord(record)`.
+   Write the result transactionally, preserving any concurrent revocation or other
+   update. The helper returns a separate record and does not modify your database.
+   Conversion avoids repeatedly deriving a verifier when an old record is authenticated.
+
+Do not delete enrollment, credential, or command-idempotency records. Conversion does
+not require the Agent to obtain a replacement credential. A rollback to 0.3.4 cannot
+recover issued secrets from verifier records: retain a protected backup and plan the
+deployment accordingly. This affects Service storage, not the Agent's wire credentials.
+
 ## Minimum Integration
 
 A Service integration needs to:
