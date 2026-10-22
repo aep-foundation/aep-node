@@ -12,7 +12,7 @@
     "@aep-foundation/core": "workspace:^",
     "@aep-foundation/hono": "workspace:^",
     "@aep-foundation/service": "workspace:^",
-    "hono": "^4.13.7"
+    "hono": "^4.13.11"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
