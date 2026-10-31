@@ -486,7 +486,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
     expect(requestHash).toMatch(/^sha256:[0-9a-f]{64}$/u);
   });
 
-  it("returns an existing enrollment without reevaluating policy or replacing it", async () => {
+  it("lets policy return an existing enrollment without replacing it", async () => {
     const existing = {
       ...activeEnrollment("did:web:agent.example.com:agents:123"),
       status: "suspended" as const
@@ -505,7 +505,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
         policy: {
           decideEnrollment: () => {
             policyCalls += 1;
-            return { status: "rejected" };
+            return { updateExisting: false };
           }
         },
         store
@@ -517,7 +517,7 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
       contentType: "application/aep+json",
       status: 200
     });
-    expect(policyCalls).toBe(0);
+    expect(policyCalls).toBe(1);
     expect(await store.findEnrollment(existing.agentDid)).toEqual(storedBefore);
   });
 
@@ -895,6 +895,91 @@ describe("@aep-foundation/service Enroll and Status handlers", () => {
         status: "active"
       },
       status: 200
+    });
+  });
+
+  it("enforces document requirements through signed Enroll and Grant without resetting identity", async () => {
+    const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+    const clock = () => new Date("2026-05-28T12:00:00.000Z");
+    const store = createInMemoryEnrollmentStore();
+    let issued = 0;
+    const service = createAepService({
+      clientAssertion: { clock },
+      clock,
+      clientAssertionVerifier: createJwtClientAssertionVerifier({
+        algorithms: ["ES256"],
+        currentDate: clock(),
+        key: publicKey
+      }),
+      identityMethods: [didWebIdentityMethod()],
+      serviceDid: "did:web:api.example.com",
+      enrollmentStore: store,
+      claims: { required: ["contact.email"] },
+      serviceDocuments: [
+        {
+          id: "terms",
+          type: "terms_of_service",
+          title: "Terms",
+          enrollment: "required",
+          representations: [{ media_type: "text/html", url: "https://api.example.com/terms" }]
+        }
+      ],
+      grantTypes: [
+        grantType("api-key", undefined, {
+          grant: () => {
+            issued++;
+            return { api_key: "test-secret" };
+          },
+          revoke: () => undefined
+        })
+      ]
+    });
+    const options = async (command: AepAuthenticatedCommand, key: string) => ({
+      clientAssertion: await signClientAssertionJwt(clientAssertionClaims(command, key), {
+        alg: "ES256",
+        key: privateKey
+      }),
+      idempotencyKey: key
+    });
+    const request = {
+      agent_did: "did:web:agent.example.com:agents:123",
+      claims: { "contact.email": "owner@example.com" }
+    };
+    expect(
+      (await service.enroll(request, await options("enroll", "missing-documents"))).status
+    ).toBe(422);
+    expect(await store.findEnrollment(request.agent_did)).toBeUndefined();
+    expect(
+      (
+        await service.enroll(
+          { ...request, acknowledged_document_ids: [] },
+          await options("enroll", "empty-declaration")
+        )
+      ).status
+    ).toBe(200);
+    const original = await store.findEnrollment(request.agent_did);
+    expect(
+      (await service.grant({ grant_type: "api-key" }, await options("grant", "blocked-grant"))).body
+    ).toMatchObject({ required_document_ids: ["terms"] });
+    expect(issued).toBe(0);
+    expect(
+      (
+        await service.enroll(
+          { agent_did: request.agent_did, acknowledged_document_ids: ["terms"] },
+          await options("enroll", "accept-documents")
+        )
+      ).body
+    ).toEqual({ status: "active", acknowledged_document_ids: ["terms"] });
+    expect(
+      (await service.grant({ grant_type: "api-key" }, await options("grant", "accepted-grant")))
+        .status
+    ).toBe(200);
+    expect(issued).toBe(1);
+    expect(await store.findEnrollment(request.agent_did)).toMatchObject({
+      createdAt: original?.createdAt,
+      since: original?.since,
+      claims: request.claims,
+      acknowledgedDocumentIds: ["terms"]
     });
   });
 });

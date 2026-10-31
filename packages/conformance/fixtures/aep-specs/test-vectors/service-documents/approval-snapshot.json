@@ -1,0 +1,84 @@
+{
+  "id": "approval-snapshot",
+  "title": "Approval uses only the captured required identifiers",
+  "description": "Approval uses only the captured required identifiers.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "category": "service-documents",
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "service-documents"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
+  "input": {
+    "service": "did:example:service",
+    "captured_ids": ["terms", "privacy"],
+    "cases": [
+      {
+        "name": "new-document",
+        "current_ids": ["terms", "privacy", "product-terms"]
+      },
+      {
+        "name": "missing-document",
+        "current_ids": ["terms"]
+      },
+      {
+        "name": "document-unavailable",
+        "current_ids": ["terms", "privacy"],
+        "unavailable_ids": ["privacy"]
+      },
+      {
+        "name": "web-fallback",
+        "current_ids": ["terms", "privacy"],
+        "portable_unavailable_ids": ["privacy"]
+      },
+      {
+        "name": "different-service",
+        "current_ids": ["terms", "privacy"],
+        "service": "did:example:other"
+      },
+      {
+        "name": "no-required-documents",
+        "captured_ids": [],
+        "current_ids": ["product-terms"]
+      }
+    ]
+  },
+  "expected": {
+    "cases": [
+      {
+        "name": "new-document",
+        "approval_allowed": true,
+        "acknowledged_document_ids": ["terms", "privacy"]
+      },
+      {
+        "name": "missing-document",
+        "approval_allowed": false
+      },
+      {
+        "name": "document-unavailable",
+        "approval_allowed": false
+      },
+      {
+        "name": "web-fallback",
+        "approval_allowed": true,
+        "acknowledged_document_ids": ["terms", "privacy"]
+      },
+      {
+        "name": "different-service",
+        "approval_allowed": false
+      },
+      {
+        "name": "no-required-documents",
+        "approval_allowed": true,
+        "acknowledged_document_ids": []
+      }
+    ]
+  }
+}

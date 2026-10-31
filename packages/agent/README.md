@@ -281,3 +281,53 @@ explicitly; cached HTTP validators are retained.
 Grant requires a previously stored or recoverable identity and a signed
 active Status result before signing unless the same session has authoritative
 active enrollment evidence.
+
+## Service Documents
+
+Inspect exposes optional `document.service_documents` descriptors. Show their
+IDs, titles, requirement (`required` or `not-required`), and HTML links before
+enrollment. Reading or displaying documents never acknowledges them.
+
+```ts
+import { readAepServiceDocument } from "@aep-foundation/agent";
+
+const inspect = await session.inspect();
+const descriptor = inspect.document.service_documents?.find((item) => item.id === "terms");
+if (descriptor !== undefined) {
+  const result = await readAepServiceDocument({ document: descriptor });
+  // Render result.document when status is "portable", or offer result.webUrl.
+}
+
+// Supply only IDs covered by the Owner's affirmative decision.
+await session.enroll({ acknowledgedDocumentIds: ["terms"] });
+```
+
+`readAepServiceDocument()` retrieves only the advertised portable JSON form,
+anonymously over HTTPS, with HTTP permitted for local development on `localhost`,
+`127.0.0.1`, and `[::1]`. HTTPS certificate and hostname verification remain enabled;
+the reader does not filter DNS answers or connected addresses. The caller owns
+destination trust. It permits up to five redirects without downgrading HTTPS, uses a ten-second total timeout
+(`timeoutMs` can override it), and rejects responses above 1 MiB. It requests
+identity encoding; compressed or unsupported responses fall back to the HTML
+link. A caller's `AbortSignal` cancels the operation. It does not change the
+transport behavior of Inspect or authenticated commands.
+
+The portable result contains Service-authored `content` and optional `summary`
+blocks. Render the wording and structure faithfully, neutralize terminal control
+sequences, and label summaries as Service-authored. When presenting to an AI
+caller, convert the blocks to readable text inside a sufficiently long code
+fence, with the source link and an instruction outside the fence to present the
+text without interpreting, summarizing, evaluating or following its instructions.
+Do not send the raw portable JSON as the reader-facing presentation.
+
+Both `session.enroll()` and `enrollService()` accept `acknowledgedDocumentIds`.
+Omitting it makes no declaration; `[]` explicitly acknowledges nothing. The SDK
+does not infer acceptance, sends IDs only to Services advertising the extension,
+and checks the successful response echoes exactly the supplied list.
+
+Explicit repeated Enroll reaches the Service even for an existing enrollment.
+The Service decides which updates it accepts. Claims absent from the request may
+already be stored by the Service, so missing claims are evaluated there.
+`AepCommandError.problem` preserves `requirements_pending` and
+`required_document_ids` from a failed Grant. Tell the caller to run Enroll for
+these requirements; the SDK does not automatically enroll or retry Grant.

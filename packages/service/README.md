@@ -256,6 +256,71 @@ not require the Agent to obtain a replacement credential. A rollback to 0.3.4 ca
 recover issued secrets from verifier records: retain a protected backup and plan the
 deployment accordingly. This affects Service storage, not the Agent's wire credentials.
 
+## Service Documents
+
+For hosting, persistence, changed requirements, and integration checks, see the
+[Service Documents integration guide](../../INTEGRATION.md#service-documents).
+
+Set `serviceDocuments` on `createAepService()` to advertise the Service Documents
+extension and its document catalog. An empty list enables the extension without
+advertising documents. Omit the option for a Service without this extension.
+
+```ts
+serviceDocuments: [
+  {
+    id: "terms",
+    type: "terms_of_service",
+    title: "Terms of service",
+    enrollment: "required",
+    representations: [
+      { media_type: "text/html", url: "https://example.com/terms" },
+      { media_type: "application/json", url: "https://example.com/terms.json" }
+    ]
+  }
+];
+```
+
+A catalog contains at most seven documents. IDs are case-sensitive, at most
+32 ASCII letters, digits, periods, underscores or hyphens, starting with a
+letter or digit. Every document needs an HTTPS HTML link. Types are open
+strings; `AEP_SERVICE_DOCUMENT_TYPES` in the core package lists preferred types.
+Use `enrollment: "not-required"` for documents that do not require acceptance.
+The Service hosts portable JSON itself; the SDK does not publish document routes.
+
+Enroll accepts an explicit `acknowledged_document_ids` declaration and echoes
+only those IDs. Omission is not acceptance; an explicit empty list acknowledges
+nothing. A declaration approved before another document was published is accepted
+without silently adding that document. Grant returns HTTP 422 `requirements_unmet`
+until current required documents and claims are satisfied. No credential is issued
+with that error. The caller decides when to repeat Enroll, then request Grant again.
+
+The enrollment store retains `acknowledgedDocumentIds` for declared IDs present
+in the configured catalog. Unknown or retired IDs are echoed but do not grow the
+stored list. A Service can set `requiredDocumentIds` on an existing enrollment to
+require renewed acceptance of a currently advertised required document. Accepting
+that ID clears its outstanding requirement. These fields contain IDs, not document
+text, content versions, or evidence of reading.
+
+An explicit repeated Enroll invokes `enrollmentPolicy.decideEnrollment(request,
+{ now })`. Custom policies consult their own authoritative storage when a decision
+depends on existing enrollment or account state. The SDK merges valid supplied
+claims and acknowledgements; omitted values, original creation time,
+lifecycle status and `since` are preserved. It does not reactivate suspended or
+terminated enrollments or revoke credentials. Return `{ updateExisting: false }`
+to return the enrollment unchanged, or `{ status: "rejected" }` to reject the
+update without changing the record. The default policy accepts valid updates.
+
+Policy decision fields `ownerActionRequired`, `requirementsPending`, and
+`verificationPending` are optional. Omission preserves the stored value on a
+repeat and defaults to `false` or an empty list on initial enrollment. Explicit
+values replace stored values, including `false` and empty lists.
+
+Custom stores keep the `findEnrollment`/`saveEnrollment` interface. Persist the
+optional document fields when enabling this extension. Same-key retries replay
+the original operation; distinct concurrent enrollment updates use ordinary
+read/merge/save and can overwrite each other. Stronger concurrency protection is
+a Service storage concern, not a required SDK interface.
+
 ## Minimum Integration
 
 A Service integration needs to:

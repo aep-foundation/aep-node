@@ -23,6 +23,9 @@ registry/
     person.username.json
   extensions/
     openapi-authentication.json
+    service-documents.json
+  service-document-types/
+    terms_of_service.json
   http-fields/
     aep-authorization.json
   grant-types/
@@ -45,3 +48,8 @@ The checker validates each entry against `registry-entry.schema.json` and
 performs repository-specific consistency checks. Claim Name checks also ensure
 that the registry, Claims draft, and Claim Values schema contain the same
 catalog and agree on every JSON value type.
+
+Service document types use the existing `other` registry-entry kind. Their
+alphabetized catalog must match the Service Documents draft. They are preferred
+values, not a closed enumeration: schemas accept other syntactically valid
+types, and several document IDs can share a type.

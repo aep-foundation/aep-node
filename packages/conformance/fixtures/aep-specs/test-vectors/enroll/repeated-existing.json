@@ -1,7 +1,7 @@
 {
   "id": "repeated-existing",
   "title": "Enroll for an existing identity",
-  "description": "A new Enroll command for an already-enrolled Agent returns the existing lifecycle state without replacing the enrollment.",
+  "description": "With an unchanged-enrollment policy, an explicit Enroll returns the existing lifecycle state without replacing the enrollment.",
   "drafts": [
     "draft-kavian-agent-enrollment-protocol-04",
     "draft-kavian-aep-did-web-identity-method-00"
@@ -20,6 +20,7 @@
     }
   },
   "input": {
+    "policy": "return-existing-unchanged",
     "existing": {
       "agent_did": "did:web:agent.example.com:agents:123",
       "since": "2026-05-28T12:00:00Z",
@@ -31,7 +32,7 @@
     }
   },
   "expected": {
-    "policy_evaluated": false,
+    "policy_evaluated": true,
     "record_replaced": false,
     "response": {
       "body": {

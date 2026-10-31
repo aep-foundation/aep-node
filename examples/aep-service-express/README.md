@@ -13,9 +13,14 @@ Values.
 
 This example has no required Claims so it remains usable with generic AEP
 clients. To exercise required-Claim enforcement, configure a name under
-`claims.required`. An Agent SDK client that cannot supply it fails locally with
-`AepClaimRequirementsError`; a direct client that sends an incomplete Enroll
-request receives `422 requirements_unmet` with `requirements_pending`.
+`claims.required`. The Service evaluates supplied claims together with those
+stored for an existing enrollment. Missing required values produce
+`422 requirements_unmet` with `requirements_pending`. The paired Agent example
+also checks its available claims before sending its initial Enroll.
+
+For document advertisement, acknowledgement storage, and requirements recovery,
+see the [Service Documents integration guide](../../INTEGRATION.md#service-documents).
+This example does not configure a document catalog or host document pages.
 
 ## Run
 

@@ -13,8 +13,9 @@ The example Agent has locally available values for `contact.email` and
 4. prints only the submitted Claim Names, not their personal values.
 
 If the Service advertises an unavailable required Claim Name, the script stops
-before Enroll and identifies the unsupported names. The Agent SDK independently
-enforces the same preflight rule with `AepClaimRequirementsError`.
+before Enroll and identifies the unsupported names. This is the example script's
+initial-enrollment check. The Agent SDK permits omitted claims because the
+Service may already hold them; the Service evaluates the effective requirements.
 
 ## Run
 

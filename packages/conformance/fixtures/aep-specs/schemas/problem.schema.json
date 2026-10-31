@@ -6,6 +6,7 @@
   "required": ["type", "title", "status", "code"],
   "additionalProperties": true,
   "allOf": [
+    { "$ref": "service-documents.schema.json" },
     {
       "if": {
         "required": ["code"],

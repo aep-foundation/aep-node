@@ -92,6 +92,13 @@
     "protected-resource/operation-substitution-rejected.json",
     "protected-resource/redirect-safety.json",
     "protected-resource/unadvertised-authentication-method.json",
+    "service-documents/approval-snapshot.json",
+    "service-documents/enrollment-lifecycle.json",
+    "service-documents/grant-guidance.json",
+    "service-documents/portable-presentation.json",
+    "service-documents/retrieval-safety.json",
+    "service-documents/structural-limits.json",
+    "service-documents/wire-shapes.json",
     "status/response-active.json",
     "status/response-pending-requirements.json"
   ]

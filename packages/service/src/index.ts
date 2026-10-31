@@ -10,6 +10,7 @@ import {
   AEP_PROBLEM_MEDIA_TYPE,
   AEP_SIGNING_ALGORITHMS,
   AEP_VERSION,
+  AEP_SERVICE_DOCUMENTS_EXTENSION,
   DEFAULT_HTTP_ENDPOINT_BASE,
   createProblemDetails,
   decodeJwtUnverified,
@@ -42,6 +43,7 @@ import type {
   AepProblemDetails,
   AepSigningAlgorithm,
   AepImportableJoseKey,
+  AepServiceDocument,
   DidWebFetchLike,
   ApiKeyGrantResponse,
   BasicGrantResponse,
@@ -199,6 +201,7 @@ export const DEFAULT_AEP_SERVICE_CLAIM_VALUE_LIMITS: Readonly<AepServiceClaimVal
   });
 
 export interface AepServiceOptions {
+  serviceDocuments?: AepServiceDocument[];
   clock?: () => Date;
   clientAssertion?: AepClientAssertionConfig;
   commandIdempotencyStore?: AepCommandIdempotencyStore;
@@ -222,6 +225,8 @@ export interface AepServiceOptions {
 }
 
 export interface AepEnrollmentDecision {
+  /** False returns an existing enrollment without persisting the supplied updates. */
+  updateExisting?: boolean;
   ownerActionRequired?: boolean;
   verificationPending?: string[];
   requirementsPending?: string[];
@@ -315,6 +320,9 @@ export interface AepClientAssertionReplayStore {
 }
 
 export interface AepEnrollmentRecord {
+  acknowledgedDocumentIds?: string[];
+  /** Service-owned requirements needing acceptance, including previously accepted IDs. */
+  requiredDocumentIds?: string[];
   agentDid: string;
   claims: AepClaimValues;
   createdAt: string;
@@ -469,6 +477,9 @@ export function createAepService(options: AepServiceOptions): AepService {
         claimValueLimits,
         commandIdempotencyStore,
         requiredClaims: inspectDocument.claims?.required ?? [],
+        ...(options.serviceDocuments === undefined
+          ? {}
+          : { serviceDocuments: inspectDocument.service_documents ?? [] }),
         store: enrollmentStore,
         ...(options.clock === undefined ? {} : { clock: options.clock }),
         policy: enrollmentPolicy,
@@ -491,6 +502,10 @@ export function createAepService(options: AepServiceOptions): AepService {
         commandIdempotencyStore,
         handlers: grantHandlers,
         idempotencyKey: commandOptions.idempotencyKey,
+        requiredClaims: inspectDocument.claims?.required ?? [],
+        ...(options.serviceDocuments === undefined
+          ? {}
+          : { serviceDocuments: inspectDocument.service_documents ?? [] }),
         store: enrollmentStore
       });
     },
@@ -583,8 +598,16 @@ export function buildInspectDocument(options: AepServiceOptions): InspectDocumen
       signing_algorithms: [...(options.signingAlgorithms ?? AEP_SIGNING_ALGORITHMS)]
     },
     extensions: {
-      supported: [...(options.extensions ?? [])]
+      supported: [
+        ...new Set([
+          ...(options.extensions ?? []),
+          ...(options.serviceDocuments === undefined ? [] : [AEP_SERVICE_DOCUMENTS_EXTENSION])
+        ])
+      ]
     },
+    ...((options.serviceDocuments?.length ?? 0) === 0
+      ? {}
+      : { service_documents: structuredClone(options.serviceDocuments ?? []) }),
     http: {
       endpoint_base: options.endpointBase ?? DEFAULT_HTTP_ENDPOINT_BASE,
       ...(options.openapi === undefined
@@ -778,9 +801,13 @@ export function createStaticEnrollmentPolicy(
 ): AepEnrollmentPolicy {
   return {
     decideEnrollment: () => ({
-      ownerActionRequired: decision.ownerActionRequired ?? false,
-      requirementsPending: [...(decision.requirementsPending ?? [])],
-      verificationPending: [...(decision.verificationPending ?? [])],
+      ...decision,
+      ...(decision.requirementsPending === undefined
+        ? {}
+        : { requirementsPending: [...decision.requirementsPending] }),
+      ...(decision.verificationPending === undefined
+        ? {}
+        : { verificationPending: [...decision.verificationPending] }),
       status: decision.status ?? "active"
     })
   };
@@ -965,6 +992,7 @@ export function createInMemoryServiceCredentialStore(
 }
 
 export interface HandleEnrollRequestOptions {
+  serviceDocuments?: readonly AepServiceDocument[];
   claimValueLimits?: Partial<AepServiceClaimValueLimits>;
   clock?: () => Date;
   commandIdempotencyStore?: AepCommandIdempotencyStore;
@@ -1006,35 +1034,79 @@ export async function handleEnrollRequest(
     options.commandIdempotencyStore,
     async () => {
       const existing = await options.store.findEnrollment(parsed.agent_did);
-      if (existing !== undefined) {
-        return aepResponse(200, enrollmentResponseFromRecord(existing));
-      }
-
+      const supportsDocuments = options.serviceDocuments !== undefined;
+      const declaredIds = supportsDocuments ? parsed.acknowledged_document_ids : undefined;
+      const claims = {
+        ...structuredClone(existing?.claims ?? {}),
+        ...structuredClone(parsed.claims ?? {})
+      };
       const missingRequiredClaims = missingAepRequiredClaimNames(
         options.requiredClaims ?? [],
-        parsed.claims
+        claims
       );
-      if (missingRequiredClaims.length > 0) {
-        return requirementsUnmet(missingRequiredClaims);
-      }
-
-      const now = options.clock ?? (() => new Date());
-      const nowDate = now();
+      const missingIds = missingDocumentIds(options.serviceDocuments, existing);
+      if (
+        existing === undefined &&
+        (missingRequiredClaims.length > 0 || (declaredIds === undefined && missingIds.length > 0))
+      )
+        return requirementsUnmet(
+          missingRequiredClaims,
+          declaredIds === undefined ? missingIds : []
+        );
+      const nowDate = (options.clock ?? (() => new Date()))();
       const nowIso = nowDate.toISOString();
-      const decision = await options.policy.decideEnrollment(parsed, { now: nowDate });
+      const decision = await options.policy.decideEnrollment(parsed, {
+        now: nowDate
+      });
+      if (existing !== undefined && decision.status === "rejected")
+        return problem("enrollment_failed", "Enrollment failed", 403);
+      if (existing !== undefined && decision.updateExisting === false)
+        return aepResponse(200, {
+          ...enrollmentResponseFromRecord(existing),
+          ...(declaredIds === undefined ? {} : { acknowledged_document_ids: [...declaredIds] })
+        });
+      if (missingRequiredClaims.length > 0 || (declaredIds === undefined && missingIds.length > 0))
+        return requirementsUnmet(
+          missingRequiredClaims,
+          declaredIds === undefined ? missingIds : []
+        );
       const record = await options.store.saveEnrollment({
+        ...existing,
         agentDid: parsed.agent_did,
-        claims: structuredClone(parsed.claims ?? {}),
-        createdAt: nowIso,
-        ownerActionRequired: decision.ownerActionRequired ?? false,
-        requirementsPending: [...(decision.requirementsPending ?? [])],
-        verificationPending: [...(decision.verificationPending ?? [])],
-        since: nowIso,
-        status: decision.status ?? "active",
+        claims,
+        createdAt: existing?.createdAt ?? nowIso,
+        ownerActionRequired: decision.ownerActionRequired ?? existing?.ownerActionRequired ?? false,
+        requirementsPending: [
+          ...(decision.requirementsPending ?? existing?.requirementsPending ?? [])
+        ],
+        verificationPending: [
+          ...(decision.verificationPending ?? existing?.verificationPending ?? [])
+        ],
+        since: existing?.since ?? nowIso,
+        status: existing?.status ?? decision.status ?? "active",
+        ...(declaredIds === undefined || decision.status === "rejected"
+          ? {}
+          : {
+              acknowledgedDocumentIds: [
+                ...new Set([
+                  ...(existing?.acknowledgedDocumentIds ?? []),
+                  ...declaredIds.filter((id) =>
+                    options.serviceDocuments?.some((document) => document.id === id)
+                  )
+                ])
+              ],
+              requiredDocumentIds: (existing?.requiredDocumentIds ?? []).filter(
+                (id) => !declaredIds.includes(id)
+              )
+            }),
         updatedAt: nowIso
       });
-
-      return aepResponse(200, enrollmentResponseFromRecord(record));
+      return aepResponse(200, {
+        ...enrollmentResponseFromRecord(record),
+        ...(declaredIds === undefined || decision.status === "rejected"
+          ? {}
+          : { acknowledged_document_ids: [...declaredIds] })
+      });
     }
   );
 }
@@ -1065,6 +1137,8 @@ export async function handleStatusRequest(
 }
 
 export interface HandleGrantRequestOptions {
+  serviceDocuments?: readonly AepServiceDocument[];
+  requiredClaims?: readonly AepClaimName[];
   agentDid: string;
   commandIdempotencyStore?: AepCommandIdempotencyStore;
   handlers: ReadonlyMap<AepGrantType, AepGrantTypeHandler>;
@@ -1117,15 +1191,23 @@ export async function handleGrantRequest(
     options.idempotencyKey,
     parsed,
     options.commandIdempotencyStore,
-    async () =>
-      aepResponse(
+    async () => {
+      const missingClaims = missingAepRequiredClaimNames(
+        options.requiredClaims ?? [],
+        enrollment.claims
+      );
+      const missingIds = missingDocumentIds(options.serviceDocuments, enrollment);
+      if (missingClaims.length > 0 || missingIds.length > 0)
+        return requirementsUnmet(missingClaims, missingIds);
+      return aepResponse(
         200,
         await handler.grant(parsed, {
           agentDid: options.agentDid,
           enrollment,
           grantType: parsed.grant_type
         })
-      )
+      );
+    }
   );
 }
 
@@ -1832,11 +1914,31 @@ function quotedAuthParam(value: string): string {
 }
 
 function requirementsUnmet(
-  requirementsPending: readonly AepClaimName[]
+  requirementsPending: readonly AepClaimName[],
+  documentIds: string[] = []
 ): AepServiceResponse<AepProblemDetails> {
   const response = problem("requirements_unmet", "Requirements unmet", 422);
   response.body.requirements_pending = [...requirementsPending];
+  if (documentIds.length > 0) {
+    response.body.requirements_pending.push("service_documents");
+    response.body.required_document_ids = documentIds;
+    response.body.owner_action_required = "true";
+  }
   return response;
+}
+
+function missingDocumentIds(
+  documents: readonly AepServiceDocument[] | undefined,
+  record?: AepEnrollmentRecord
+): string[] {
+  return (documents ?? [])
+    .filter(
+      (document) =>
+        document.enrollment === "required" &&
+        (!(record?.acknowledgedDocumentIds ?? []).includes(document.id) ||
+          (record?.requiredDocumentIds ?? []).includes(document.id))
+    )
+    .map((document) => document.id);
 }
 
 function verificationPending(
@@ -1993,7 +2095,13 @@ function cloneEnrollmentRecord(record: AepEnrollmentRecord): AepEnrollmentRecord
     ...record,
     claims: structuredClone(record.claims),
     requirementsPending: [...record.requirementsPending],
-    verificationPending: [...(record.verificationPending ?? [])]
+    verificationPending: [...(record.verificationPending ?? [])],
+    ...(record.acknowledgedDocumentIds === undefined
+      ? {}
+      : { acknowledgedDocumentIds: [...record.acknowledgedDocumentIds] }),
+    ...(record.requiredDocumentIds === undefined
+      ? {}
+      : { requiredDocumentIds: [...record.requiredDocumentIds] })
   };
 }
 

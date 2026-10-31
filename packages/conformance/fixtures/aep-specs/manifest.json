@@ -1,9 +1,9 @@
 {
-  "source": "https://github.com/aep-foundation/aep-specs/tree/1f9cbf8e7b43e7c651a64b03365d9d49014a1ac8/ietf",
+  "source": "https://github.com/aep-foundation/aep-specs/tree/757e5d81c965ab310492f1063bafb322e1f54efc/ietf",
   "source_repository": "https://github.com/aep-foundation/aep-specs",
-  "source_revision": "1f9cbf8e7b43e7c651a64b03365d9d49014a1ac8",
+  "source_revision": "757e5d81c965ab310492f1063bafb322e1f54efc",
   "source_directory": "ietf",
-  "artifact_revision": "sha256:b20295f7a92b79808bb6c9ac9c0d5e24e5cf78bee904354e3d1b596f111df333",
+  "artifact_revision": "sha256:e51b41075d8784c1556bbf248f7c597bce32a39bbed01610542c3cfe343bcf4a",
   "generated_by": "scripts/sync-aep-spec-artifacts.mjs",
   "artifacts": {
     "examples": [
@@ -17,6 +17,7 @@
       "openapi-authentication.md",
       "pending-enroll-status.md",
       "protected-resource-authentication.md",
+      "service-documents.md",
       "status-states.md"
     ],
     "registry": [
@@ -30,12 +31,26 @@
       "claim-names/person.last_name.json",
       "claim-names/person.username.json",
       "extensions/openapi-authentication.json",
+      "extensions/service-documents.json",
       "grant-types/api-key.json",
       "grant-types/basic.json",
       "grant-types/oauth-bearer.json",
       "http-fields/aep-authorization.json",
       "identity-methods/did-web.json",
-      "registry-entry.schema.json"
+      "registry-entry.schema.json",
+      "service-document-types/acceptable_use_policy.json",
+      "service-document-types/age_or_parental_consent.json",
+      "service-document-types/ai_data_use_policy.json",
+      "service-document-types/community_guidelines.json",
+      "service-document-types/cookie_policy.json",
+      "service-document-types/data_processing_agreement.json",
+      "service-document-types/data_retention_notice.json",
+      "service-document-types/electronic_signature_consent.json",
+      "service-document-types/privacy_policy.json",
+      "service-document-types/security_policy.json",
+      "service-document-types/subscription_terms.json",
+      "service-document-types/supplemental_terms.json",
+      "service-document-types/terms_of_service.json"
     ],
     "schemas": [
       "README.md",
@@ -60,10 +75,12 @@
       "platform-sign-response.schema.json",
       "platform-verification-request.schema.json",
       "platform-verification-response.schema.json",
+      "portable-service-document.schema.json",
       "problem.schema.json",
       "protected-resource-authorization.schema.json",
       "revoke-request.schema.json",
       "revoke-response.schema.json",
+      "service-documents.schema.json",
       "status-response.schema.json"
     ],
     "test-vectors": [
@@ -160,6 +177,13 @@
       "protected-resource/operation-substitution-rejected.json",
       "protected-resource/redirect-safety.json",
       "protected-resource/unadvertised-authentication-method.json",
+      "service-documents/approval-snapshot.json",
+      "service-documents/enrollment-lifecycle.json",
+      "service-documents/grant-guidance.json",
+      "service-documents/portable-presentation.json",
+      "service-documents/retrieval-safety.json",
+      "service-documents/structural-limits.json",
+      "service-documents/wire-shapes.json",
       "status/response-active.json",
       "status/response-pending-requirements.json"
     ]

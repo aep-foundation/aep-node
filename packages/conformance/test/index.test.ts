@@ -4,6 +4,7 @@ import {
   evaluateAepClaimSupport,
   inspectDocumentSchema,
   isAepVersionCompatible,
+  serviceDocumentsSchema,
   validateAepClaimValues
 } from "@aep-foundation/core";
 import type { InspectDocument } from "@aep-foundation/core";
@@ -614,6 +615,17 @@ describe("@aep-foundation/conformance Grant, Revoke, and credential checks", () 
 });
 
 describe("@aep-foundation/conformance Inspect checks", () => {
+  it("exports the synchronized schema referenced by Inspect", async () => {
+    await expect(loadSchemaArtifact("service-documents.schema.json")).resolves.toEqual(
+      serviceDocumentsSchema
+    );
+    const reference = inspectDocumentSchema.allOf.find((entry) => "$ref" in entry)?.$ref;
+    expect(reference).toBe("service-documents.schema.json");
+    expect(new URL(reference ?? "", inspectDocumentSchema.$id).href).toBe(
+      serviceDocumentsSchema.$id
+    );
+  });
+
   it("keeps runtime Inspect schema metadata identical to the synced schema", async () => {
     await expect(loadSchemaArtifact("inspect-document.schema.json")).resolves.toEqual(
       inspectDocumentSchema

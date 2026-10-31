@@ -1,0 +1,30 @@
+{
+  "id": "urn:aep:ext:aep-foundation:service-documents#v=1.0.0",
+  "kind": "extension",
+  "name": "Service Documents",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "service-documents",
+  "specification": {
+    "draft": "draft-kavian-aep-service-documents-00",
+    "path": "ietf/specs/extensions/draft-kavian-aep-service-documents-00.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-service-documents/"
+  },
+  "summary": "Document discovery, portable presentation, and identifier-only enrollment acknowledgements.",
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/service-documents.md"],
+    "schemas": [
+      "ietf/schemas/service-documents.schema.json",
+      "ietf/schemas/portable-service-document.schema.json"
+    ],
+    "test_vectors": [
+      "ietf/test-vectors/service-documents/wire-shapes.json",
+      "ietf/test-vectors/service-documents/enrollment-lifecycle.json",
+      "ietf/test-vectors/service-documents/approval-snapshot.json"
+    ]
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/portable-service-document.schema.json",
+  "title": "AEP Portable Service Document",
+  "$comment": "Full support also requires matching the selected descriptor ID, decoded response <= 1 MiB, <= 1024 total blocks and <= eight section levels. Unsupported block types require HTML fallback, not partial rendering.",
+  "type": "object",
+  "required": ["format", "version", "id", "content"],
+  "additionalProperties": true,
+  "properties": {
+    "format": {
+      "const": "aep-service-document"
+    },
+    "version": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "not": {
+        "pattern": "[^A-Za-z0-9._-]"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/blocks"
+    },
+    "content": {
+      "$ref": "#/$defs/blocks"
+    }
+  },
+  "$defs": {
+    "blocks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": {
+        "$ref": "#/$defs/block"
+      }
+    },
+    "block": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "enum": ["paragraph", "section", "bulleted_list", "numbered_list"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "paragraph"
+              }
+            }
+          },
+          "then": {
+            "required": ["text"],
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16384
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "section"
+              }
+            }
+          },
+          "then": {
+            "required": ["title", "blocks"],
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "blocks": {
+                "$ref": "#/$defs/blocks"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": ["bulleted_list", "numbered_list"]
+              }
+            }
+          },
+          "then": {
+            "required": ["items"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 128,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16384
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

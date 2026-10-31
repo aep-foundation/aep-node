@@ -1,6 +1,6 @@
 # AEP Test Vectors
 
-This directory contains deterministic test vectors for the currently published
+This directory contains deterministic test vectors for the
 AEP Internet-Draft set.
 
 The vector set covers:
@@ -8,6 +8,7 @@ The vector set covers:
 | Category                | Purpose                                                                                                                                                             | Draft Coverage                |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | Claim values            | Validate person and contact values, malformed values, negotiation behavior, and forward-compatible Claim Names and object shapes.                                   | Claims                        |
+| Service documents       | Validate bounded identifiers, portable content, anonymous retrieval, fixed approval lists, repeated enrollment, and explicit Grant recovery.                        | Service Documents             |
 | Inspect document        | Validate required fields, command advertisement, grant type advertisement, `did:web`, HTTP binding configuration, transport trust, and extension discovery shape.   | Core                          |
 | Client assertion JWT    | Validate JOSE header fields, JWT claim fields, `aud`, `op`, `iat`, `exp`, and `jti` requirements.                                                                   | Core                          |
 | Error response          | Validate AEP Problem Details shape and stable error codes.                                                                                                          | Core                          |
@@ -45,6 +46,7 @@ test-vectors/
   openapi/
   platform/
   protected-resource/
+  service-documents/
   status/
 ```
 
@@ -115,7 +117,7 @@ A vector validator should check at least:
 - JSON parseability.
 - File path matches `category` and `id`.
 - `id` uses lowercase hyphenated syntax.
-- `drafts` contains only published AEP draft identifiers.
+- `drafts` contains only supported AEP draft identifiers.
 - `category` is one of the known vector categories.
 - `applicability` classifies Agent, Platform, and Service exactly once.
 - Executable classifications use a known profile and unsupported

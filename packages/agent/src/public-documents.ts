@@ -2,6 +2,13 @@ import type { AepAuthenticationMethod, AepOpenApiTrailingSlashMode } from "@aep-
 
 export type AepPublicDocumentNamespace = "inspect" | "platform-discovery" | "openapi";
 
+export class AepPublicDocumentHttpError extends TypeError {
+  constructor(readonly status: number) {
+    super(`AEP public document failed with HTTP ${status}.`);
+    this.name = "AepPublicDocumentHttpError";
+  }
+}
+
 export interface AepPublicDocumentCacheRecord<T = unknown> {
   namespace: AepPublicDocumentNamespace;
   url: string;
@@ -156,7 +163,7 @@ async function fetchDocument<T>(
     await persist(options.cache, record, requestedUrl);
     return resultFromRecord(options, requestedUrl, record, "revalidated");
   }
-  if (!response.ok) throw new TypeError(`AEP public document failed with HTTP ${response.status}.`);
+  if (!response.ok) throw new AepPublicDocumentHttpError(response.status);
   if (options.acceptedMediaTypes !== undefined) {
     const mediaType = response.headers.get("content-type");
     if (mediaType === null || !isAcceptedMediaType(mediaType, options.acceptedMediaTypes))

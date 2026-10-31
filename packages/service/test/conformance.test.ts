@@ -1479,7 +1479,7 @@ describe("command handlers outside the engine", () => {
       {
         store,
         idempotencyKey: "existing",
-        policy: createStaticEnrollmentPolicy()
+        policy: createStaticEnrollmentPolicy({ updateExisting: false })
       }
     );
     const status = await handleStatusRequest(AGENT_DID, { store });
