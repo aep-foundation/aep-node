@@ -86,6 +86,57 @@ request body must return an idempotency conflict.
 `AepClientAssertionReplayStore.consumeReplay()` must also be atomic. Two
 concurrent requests with the same Agent DID and `jti` must not both succeed.
 
+## Service Documents
+
+The Service owns its document catalog, acceptance records, and decisions about
+changed requirements. The Agent presents documents and submits only the IDs
+covered by the Owner's affirmative decision. A Platform can mediate that decision;
+it does not decide whether a Service must notify users or require acceptance again.
+
+1. Configure `createAepService({ serviceDocuments: [...] })` using the
+   [Service package example](packages/service/README.md#service-documents).
+   Each descriptor needs a stable ID, title, open document type, `required` or
+   `not-required`, and an HTML reading link. The catalog allows seven documents
+   with IDs of at most 32 characters.
+2. Host the HTML anonymously. Portable JSON is optional and must contain the full
+   document; its Service-authored summary is optional. Follow the
+   [portable document schema](https://github.com/aep-foundation/aep-specs/blob/main/ietf/schemas/portable-service-document.schema.json).
+   The SDK advertises representations but does not host them.
+3. Persist `acknowledgedDocumentIds` and `requiredDocumentIds` in the Service's
+   enrollment store. The SDK merges accepted IDs and supplied claims during an
+   accepted repeated Enroll. Omitted claims remain; supplied values replace the
+   corresponding stored values. The response echoes this operation's declaration,
+   not the cumulative stored list.
+4. Decide how changes affect existing users. Editing text under an existing ID
+   does not itself require another acceptance. To require it, put that advertised
+   required ID in the enrollment's `requiredDocumentIds`. A newly advertised
+   required ID that has not been accepted also blocks Grant. The Service owns any
+   notification and updates to its authoritative records.
+
+Grant returns HTTP 422 `requirements_unmet` before issuing a credential when
+required claims or documents remain unmet. `requirements_pending` names missing
+claims and includes `service_documents` for documents; `required_document_ids`
+lists the missing document IDs. Agents present those requirements and direct the
+Owner through an explicit Enroll. A later Grant is a separate caller decision.
+Use a new idempotency key for each explicit update; retry the same operation with
+its original key. See [Agent presentation and acknowledgement](packages/agent/README.md#service-documents).
+
+Grant enforcement does not revoke existing credentials or replace application
+authorization on protected resources. Services that allow direct AEP client
+assertion access, or require immediate enforcement for existing credentials,
+must apply their requirements policy in that application authorization layer.
+
+Validate the integration with these cases:
+
+- No documents: omit `serviceDocuments`; ordinary enrollment remains available.
+- Only `not-required` documents: show reading links without requiring acceptance.
+- Required documents on initial enrollment: absent acknowledgement fails; an approved declaration is
+  echoed and stored without adding IDs the Owner did not accept.
+- Requirements change during approval: accept the valid earlier declaration;
+  a later Grant reports the remaining requirement without issuing a credential.
+- Explicit recovery: Enroll with the approved IDs and missing claims, preserving
+  identity and prior accepted information; request Grant separately afterward.
+
 ## Platform Integration
 
 Production Platforms should pass explicit implementations for all Platform

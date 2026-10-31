@@ -7,6 +7,10 @@ import {
 } from "./constants.js";
 import { didWebDocumentUrl } from "./did-web.js";
 import { AepValidationError } from "./errors.js";
+import {
+  AEP_SERVICE_DOCUMENTS_EXTENSION,
+  validateAepServiceDocuments
+} from "./service-documents.js";
 import type { InspectDocument, ValidationIssue, ValidationResult } from "./types.js";
 
 const VERSION_PATTERN = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/;
@@ -39,6 +43,26 @@ export function validateInspectDocument(value: unknown): ValidationResult<Inspec
   validateIdentity(value["identity"], issues);
   validateCommandIdentityRelationship(value, issues);
   validateService(value["service"], issues);
+  if (value["service_documents"] !== undefined) {
+    const documents = validateAepServiceDocuments(value["service_documents"]);
+    if (!documents.ok)
+      issues.push(
+        ...documents.issues.map((issue) => ({
+          ...issue,
+          path: `$.service_documents${issue.path.slice(1)}`
+        }))
+      );
+    const extensions = value["extensions"];
+    if (
+      !isRecord(extensions) ||
+      !Array.isArray(extensions["supported"]) ||
+      !extensions["supported"].includes(AEP_SERVICE_DOCUMENTS_EXTENSION)
+    )
+      issues.push({
+        path: "$.extensions.supported",
+        message: "Service Documents extension must be advertised."
+      });
+  }
 
   if (issues.length > 0) {
     return { ok: false, issues };

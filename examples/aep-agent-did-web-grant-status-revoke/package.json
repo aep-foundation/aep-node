@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@aep-foundation/agent": "workspace:^",
-    "@aep-foundation/core": "workspace:^"
+    "@aep-foundation/core": "workspace:^",
+    "@aep-foundation/service": "workspace:^"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

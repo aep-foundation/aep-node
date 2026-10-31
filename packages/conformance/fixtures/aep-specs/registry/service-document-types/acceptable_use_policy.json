@@ -1,0 +1,23 @@
+{
+  "id": "urn:aep:other:aep-foundation:service-document-type:acceptable-use-policy#v=1.0.0",
+  "kind": "other",
+  "name": "acceptable use policy",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "acceptable_use_policy",
+  "specification": {
+    "draft": "draft-kavian-aep-service-documents-00",
+    "path": "ietf/specs/extensions/draft-kavian-aep-service-documents-00.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-service-documents/"
+  },
+  "summary": "Permitted and prohibited use.",
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/service-documents.md"],
+    "schemas": ["ietf/schemas/service-documents.schema.json"],
+    "test_vectors": ["ietf/test-vectors/service-documents/wire-shapes.json"]
+  }
+}

@@ -13,3 +13,4 @@ document set.
 - `openapi-authentication.md`: OpenAPI operation matching and AEP security mapping.
 - `claims-negotiation.md`: required, preferred, optional, and forward-compatible Claim Value handling.
 - `authorization-composition.md`: standard and dedicated AEP carriers composed with payment credentials.
+- `service-documents.md`: document discovery, portable presentation, enrollment acknowledgement, and unmet-requirement guidance.

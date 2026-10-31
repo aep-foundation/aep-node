@@ -1,0 +1,127 @@
+{
+  "id": "retrieval-safety",
+  "title": "Document retrieval is bounded and anonymous at every hop",
+  "description": "Document retrieval is bounded and anonymous at every hop. fetch_allowed expresses permission under the stated destination policy; a client may refuse redirects and offer the HTML link instead.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "category": "service-documents",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "service-documents"
+    },
+    "platform": {
+      "expectation": "required",
+      "profile": "service-documents"
+    },
+    "service": {
+      "expectation": "unsupported"
+    }
+  },
+  "input": {
+    "url": "https://example.com/terms.json",
+    "available_credentials": {
+      "authorization": "AEP example-not-a-real-token",
+      "cookie": "session=example",
+      "platform": "example-platform-secret",
+      "payment": "example-payment-secret"
+    },
+    "cases": [
+      {
+        "name": "public-cross-origin",
+        "destination_policy": "caller-approved",
+        "redirects": ["https://legal.example.net/terms.json"]
+      },
+      {
+        "name": "unapproved-cross-origin",
+        "destination_policy": "initial-origin-only",
+        "redirects": ["https://unapproved.example.net/terms.json"]
+      },
+      {
+        "name": "http-redirect",
+        "redirects": ["http://example.com/terms.json"]
+      },
+      {
+        "name": "userinfo-redirect",
+        "redirects": ["https://user@example.com/terms.json"]
+      },
+      {
+        "name": "too-many-redirects",
+        "redirect_count": "6"
+      },
+      {
+        "name": "large-decoded-response",
+        "decoded_bytes": "1048577"
+      },
+      {
+        "name": "wrong-media-type",
+        "content_type": "text/html"
+      },
+      {
+        "name": "timeout",
+        "response": "timeout"
+      },
+      {
+        "name": "portable-unavailable",
+        "http_status": 404
+      },
+      {
+        "name": "loopback-development",
+        "url": "http://127.0.0.1:8080/terms.json"
+      },
+      {
+        "name": "loopback-https-downgrade",
+        "redirects": ["http://127.0.0.1/terms.json"]
+      }
+    ]
+  },
+  "expected": {
+    "all_requests_anonymous": true,
+    "automatic_cookie_handling": false,
+    "cases": [
+      {
+        "name": "public-cross-origin",
+        "fetch_allowed": true
+      },
+      {
+        "name": "unapproved-cross-origin",
+        "fetch_allowed": false
+      },
+      {
+        "name": "http-redirect",
+        "fetch_allowed": false
+      },
+      {
+        "name": "userinfo-redirect",
+        "fetch_allowed": false
+      },
+      {
+        "name": "too-many-redirects",
+        "fetch_allowed": false
+      },
+      {
+        "name": "large-decoded-response",
+        "complete_document": false
+      },
+      {
+        "name": "wrong-media-type",
+        "complete_document": false
+      },
+      {
+        "name": "timeout",
+        "complete_document": false
+      },
+      {
+        "name": "portable-unavailable",
+        "action": "html-fallback"
+      },
+      {
+        "name": "loopback-development",
+        "fetch_allowed": true
+      },
+      {
+        "name": "loopback-https-downgrade",
+        "fetch_allowed": false
+      }
+    ]
+  }
+}

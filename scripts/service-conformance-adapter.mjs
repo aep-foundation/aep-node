@@ -3,6 +3,7 @@
 import { generateKeyPairSync, sign as signBytes } from "node:crypto";
 import { createInterface } from "node:readline";
 import { isDeepStrictEqual } from "node:util";
+import { evaluateServiceDocuments } from "./service-document-conformance.mjs";
 
 import {
   AEP_VERSION,
@@ -97,6 +98,7 @@ async function evaluate(request) {
 }
 
 async function evaluateCase(vector, testCase) {
+  if (vector.category === "service-documents") return evaluateServiceDocuments(vector.id, testCase);
   const id = vector.id;
   if (CLAIM_VALUE_VECTOR_IDS.has(id)) return evaluateClaimValue(testCase);
   if (INSPECT_DOCUMENT_VECTOR_IDS.has(id)) return evaluateInspectDocument(testCase);
@@ -490,13 +492,13 @@ async function evaluateRepeatedEnrollment(testCase) {
     policy: {
       decideEnrollment: () => {
         policyEvaluated = true;
-        return { status: "rejected" };
+        return { updateExisting: false };
       }
     },
     store
   });
   return (
-    !policyEvaluated &&
+    policyEvaluated &&
     isDeepStrictEqual(await store.findEnrollment(record.agentDid), before) &&
     responseMatches(response, testCase.expected.response)
   );

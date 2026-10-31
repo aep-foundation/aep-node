@@ -6,6 +6,7 @@ import type {
   AEP_COMMANDS,
   AEP_SIGNING_ALGORITHMS
 } from "./constants.js";
+import type { AepServiceDocument } from "./service-documents.js";
 
 export type AepCommand = (typeof AEP_COMMANDS)[number];
 export type AepBinding = (typeof AEP_BINDINGS)[number];
@@ -75,6 +76,7 @@ export type AepEnrollmentDecisionStatus = Extract<
 export type AepEnrollmentStatus = AepEnrollmentDecisionStatus;
 
 export interface InspectDocument {
+  service_documents?: AepServiceDocument[];
   aep_version: string;
   authentication?: { methods: AepAuthenticationMethod[] };
   bindings: {
@@ -116,6 +118,7 @@ export interface InspectDocument {
 }
 
 export interface AepProblemDetails {
+  required_document_ids?: string[];
   type: string;
   title: string;
   status: number;
@@ -146,6 +149,7 @@ export type AepErrorCode =
   | "insufficient_scope";
 
 export interface EnrollRequest {
+  acknowledged_document_ids?: string[];
   agent_did: string;
   claims?: AepClaimValues;
   idempotency_key?: string;
@@ -153,6 +157,7 @@ export interface EnrollRequest {
 }
 
 export interface EnrollResponse {
+  acknowledged_document_ids?: string[];
   status: AepAgentStatus;
   owner_action_required?: "true" | "false";
   verification_pending?: string[];

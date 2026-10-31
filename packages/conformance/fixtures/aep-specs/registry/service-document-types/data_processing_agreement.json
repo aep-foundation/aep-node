@@ -1,0 +1,23 @@
+{
+  "id": "urn:aep:other:aep-foundation:service-document-type:data-processing-agreement#v=1.0.0",
+  "kind": "other",
+  "name": "data processing agreement",
+  "status": "active",
+  "version": "1.0.0",
+  "wire_identifier": "data_processing_agreement",
+  "specification": {
+    "draft": "draft-kavian-aep-service-documents-00",
+    "path": "ietf/specs/extensions/draft-kavian-aep-service-documents-00.md",
+    "datatracker": "https://datatracker.ietf.org/doc/draft-kavian-aep-service-documents/"
+  },
+  "summary": "Processing of data on another party's behalf.",
+  "compatibility": {
+    "core_version": "1.0",
+    "additive": "true"
+  },
+  "artifacts": {
+    "examples": ["ietf/examples/service-documents.md"],
+    "schemas": ["ietf/schemas/service-documents.schema.json"],
+    "test_vectors": ["ietf/test-vectors/service-documents/wire-shapes.json"]
+  }
+}

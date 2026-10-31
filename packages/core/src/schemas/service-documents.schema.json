@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.aep.foundation/schemas/service-documents.schema.json",
+  "title": "AEP Service Documents Extension Members",
+  "$comment": "Compose with the relevant core wire schema. Descriptor ID and representation media-type uniqueness require semantic validation.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "service_documents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 7,
+      "items": {
+        "$ref": "#/$defs/descriptor"
+      }
+    },
+    "acknowledged_document_ids": {
+      "$ref": "#/$defs/ids"
+    },
+    "required_document_ids": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ids"
+        },
+        {
+          "minItems": 1
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["service_documents"]
+      },
+      "then": {
+        "required": ["extensions"],
+        "properties": {
+          "extensions": {
+            "type": "object",
+            "required": ["supported"],
+            "properties": {
+              "supported": {
+                "type": "array",
+                "contains": {
+                  "const": "urn:aep:ext:aep-foundation:service-documents#v=1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["required_document_ids"]
+      },
+      "then": {
+        "required": ["code", "status", "requirements_pending"],
+        "properties": {
+          "code": {
+            "const": "requirements_unmet"
+          },
+          "status": {
+            "const": 422
+          },
+          "requirements_pending": {
+            "type": "array",
+            "contains": {
+              "const": "service_documents"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["code", "requirements_pending"],
+        "properties": {
+          "code": {
+            "const": "requirements_unmet"
+          },
+          "requirements_pending": {
+            "type": "array",
+            "contains": {
+              "const": "service_documents"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": ["required_document_ids"]
+      }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "not": {
+        "pattern": "[^A-Za-z0-9._-]"
+      }
+    },
+    "ids": {
+      "type": "array",
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/id"
+      }
+    },
+    "representation": {
+      "type": "object",
+      "required": ["media_type", "url"],
+      "additionalProperties": true,
+      "properties": {
+        "media_type": {
+          "type": "string",
+          "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$",
+          "not": {
+            "pattern": "\\s"
+          }
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri",
+          "pattern": "^(?:https:\\/\\/[^/@?#\\\\\\s]+|http:\\/\\/(?:localhost|127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]+)?)(?:[/?#][^\\\\\\s]*)?$"
+        }
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "required": ["id", "type", "title", "enrollment", "representations"],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "not": {
+            "pattern": "[^a-z0-9_]"
+          }
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "enrollment": {
+          "enum": ["required", "not-required"]
+        },
+        "representations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/representation"
+          },
+          "contains": {
+            "type": "object",
+            "required": ["media_type"],
+            "properties": {
+              "media_type": {
+                "const": "text/html"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      }
+    }
+  }
+}

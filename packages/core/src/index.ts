@@ -8,4 +8,5 @@ export * from "./jwt.js";
 export * from "./platform.js";
 export * from "./protocol.js";
 export * from "./schemas.js";
+export * from "./service-documents.js";
 export type * from "./types.js";

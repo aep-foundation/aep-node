@@ -5,6 +5,7 @@
   "type": "object",
   "required": ["status"],
   "additionalProperties": true,
+  "allOf": [{ "$ref": "service-documents.schema.json" }],
   "properties": {
     "status": {
       "type": "string",

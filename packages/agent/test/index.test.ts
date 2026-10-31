@@ -34,7 +34,6 @@ import {
   AepPendingSignError,
   AepPendingSignResolverError,
   AepClaimValuesError,
-  AepClaimRequirementsError,
   protectedResourceAuthenticationHeaders,
   statusService
 } from "../src/index.js";
@@ -303,7 +302,12 @@ describe("@aep-foundation/agent Inspect client", () => {
     ).rejects.toMatchObject({ code: "service_identity_mismatch" });
   });
 
-  it("throws AepInspectError on non-2xx responses", async () => {
+  it.each([
+    { cached: false, status: 404 },
+    { cached: true, status: 404 },
+    { cached: false, status: 503 },
+    { cached: true, status: 503 }
+  ])("preserves HTTP $status inspection errors with cached=$cached", async ({ cached, status }) => {
     await expect(
       withFetch(
         () =>
@@ -313,18 +317,21 @@ describe("@aep-foundation/agent Inspect client", () => {
             },
             {
               ok: false,
-              status: 404,
+              status,
               statusText: "Not Found"
             }
           ),
         () =>
           inspectService({
-            serviceUrl: "https://api.example.com"
+            serviceUrl: "https://api.example.com",
+            ...(cached ? { publicDocumentCache: createInMemoryPublicDocumentCache() } : {})
           })
       )
     ).rejects.toMatchObject({
       name: "AepInspectError",
-      status: 404
+      code: "http_error",
+      message: `AEP Inspect failed at https://api.example.com/.well-known/aep (HTTP ${status}).`,
+      status
     } satisfies Partial<AepInspectError>);
   });
 
@@ -769,7 +776,7 @@ describe("@aep-foundation/agent command clients", () => {
     });
   });
 
-  it("rejects malformed and missing required Claim Values before sending Enroll", async () => {
+  it("rejects malformed claims but lets the Service resolve existing required claims", async () => {
     const calls: Array<{ input: URL | string; init?: RequestInit }> = [];
     const fetch = (input: URL | string, init?: RequestInit) => {
       calls.push(fetchCall(input, init));
@@ -810,15 +817,8 @@ describe("@aep-foundation/agent command clients", () => {
         serviceUrl: "https://api.example.com"
       })
     );
-    await expect(missingRequiredEnrollment).rejects.toBeInstanceOf(AepClaimRequirementsError);
-    await expect(missingRequiredEnrollment).rejects.toEqual(
-      expect.objectContaining({
-        missingRequiredClaimNames: ["contact.email"],
-        name: "AepClaimRequirementsError"
-      })
-    );
-
-    expect(calls).toEqual([]);
+    await expect(missingRequiredEnrollment).resolves.toMatchObject({ body: { status: "active" } });
+    expect(calls).toHaveLength(1);
   });
 
   it("gets Status requests without a body", async () => {
@@ -1312,6 +1312,33 @@ describe("@aep-foundation/agent command clients", () => {
       },
       status: 401
     });
+  });
+
+  it("preserves document and claim requirements from a failed Grant without making another request", async () => {
+    let calls = 0;
+    const problem = {
+      code: "requirements_unmet",
+      status: 422,
+      title: "Requirements unmet",
+      type: "urn:aep:error:requirements_unmet",
+      owner_action_required: "true",
+      requirements_pending: ["contact.email", "service_documents"],
+      required_document_ids: ["terms"]
+    };
+    await expect(
+      grantService({
+        clientAssertion: "jwt.grant",
+        grantType: "oauth-bearer",
+        idempotencyKey: "requirements",
+        inspect: inspectResult(),
+        serviceUrl: "https://api.example.com",
+        fetch: () => {
+          calls += 1;
+          return Promise.resolve(Response.json(problem, { status: 422 }));
+        }
+      })
+    ).rejects.toMatchObject({ name: "AepCommandError", status: 422, problem });
+    expect(calls).toBe(1);
   });
 
   it("rejects commands not advertised by Inspect", async () => {

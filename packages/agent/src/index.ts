@@ -6,13 +6,14 @@ import {
   AEP_MEDIA_TYPE,
   AEP_SIGNING_ALGORITHMS,
   AEP_WELL_KNOWN_PATH,
+  AEP_SERVICE_DOCUMENTS_EXTENSION,
   AepAuthorizationCarrierError,
   AepValidationError,
   commandPathFromInspect,
   didWebDocumentUrl,
   isAepVersionCompatible,
-  missingAepRequiredClaimNames,
   parseAepClaimValues,
+  parseAepDocumentIds,
   parseBuiltInGrantResponse,
   parseClientAssertionClaims,
   parseEnrollResponse,
@@ -56,6 +57,7 @@ import type {
   ValidationIssue
 } from "@aep-foundation/core";
 import {
+  AepPublicDocumentHttpError,
   createInMemoryPublicDocumentCache,
   fetchAepPublicDocument,
   interpretAepOpenApiOperation
@@ -282,6 +284,7 @@ export interface AepCommandOptions {
 }
 
 export interface EnrollServiceOptions extends AepCommandOptions {
+  acknowledgedDocumentIds?: string[];
   agentDid: string;
   claims?: AepClaimValues;
   idempotencyKey: string;
@@ -473,6 +476,7 @@ export interface AgentServiceSessionOptions {
 }
 
 export interface AgentEnrollSessionOptions {
+  acknowledgedDocumentIds?: string[];
   claims?: AepClaimValues;
   idempotencyKey?: string;
 }
@@ -953,6 +957,9 @@ function createAepServiceSession(state: AepServiceSessionState): AepServiceSessi
         ...(await commandOptions()),
         ...assertionOptions(),
         ...(options.claims === undefined ? {} : { claims: options.claims }),
+        ...(options.acknowledgedDocumentIds === undefined
+          ? {}
+          : { acknowledgedDocumentIds: options.acknowledgedDocumentIds }),
         idempotencyKey: options.idempotencyKey ?? (await idempotencyKey({ command: "enroll" }))
       });
       authoritativeActiveEnrollment = result.body.status === "active";
@@ -2276,6 +2283,13 @@ export async function inspectService(
         ...(fetched.lastModified === undefined ? {} : { lastModified: fetched.lastModified })
       });
     } catch (error) {
+      if (error instanceof AepPublicDocumentHttpError) {
+        throw new AepInspectError(
+          `AEP Inspect failed at ${String(inspectUrl)} (HTTP ${error.status}).`,
+          "http_error",
+          error.status
+        );
+      }
       if (error instanceof AepInspectError) {
         await options.publicDocumentCache.delete("inspect", String(inspectUrl));
         if (finalUrl !== undefined && String(finalUrl) !== String(inspectUrl)) {
@@ -2424,7 +2438,7 @@ async function fetchInspectService(
 
   if (!response.ok) {
     throw new AepInspectError(
-      `AEP Inspect failed with HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}.`,
+      `AEP Inspect failed at ${String(current)} (HTTP ${response.status}).`,
       "http_error",
       response.status
     );
@@ -2519,17 +2533,20 @@ export async function enrollService(options: EnrollServiceOptions): Promise<Enro
     if (error instanceof AepValidationError) throw new AepClaimValuesError(error.issues);
     throw error;
   }
-  const missingRequiredClaimNames = missingAepRequiredClaimNames(
-    inspect.document.claims?.required ?? [],
-    claimValues
-  );
-  if (missingRequiredClaimNames.length > 0) {
-    throw new AepClaimRequirementsError(missingRequiredClaimNames);
-  }
+  const acknowledgedIds =
+    options.acknowledgedDocumentIds === undefined
+      ? undefined
+      : [...parseAepDocumentIds(options.acknowledgedDocumentIds)];
+  if (
+    acknowledgedIds !== undefined &&
+    !inspect.document.extensions?.supported?.includes(AEP_SERVICE_DOCUMENTS_EXTENSION)
+  )
+    throw new TypeError("The Service does not advertise Service Documents.");
 
   const clientAssertion = await resolveClientAssertion(options, inspect, "enroll");
   const body = {
     agent_did: options.agentDid,
+    ...(acknowledgedIds === undefined ? {} : { acknowledged_document_ids: acknowledgedIds }),
     ...(claimValues === undefined ? {} : { claims: structuredClone(claimValues) }),
     idempotency_key: options.idempotencyKey
   };
@@ -2547,8 +2564,19 @@ export async function enrollService(options: EnrollServiceOptions): Promise<Enro
 
   await throwCommandError(response, "Enroll");
 
+  const responseBody = parseEnrollResponse(await response.json());
+  const echoedIds = responseBody.acknowledged_document_ids;
+  if (
+    responseBody.status !== "rejected" &&
+    (acknowledgedIds === undefined
+      ? echoedIds !== undefined
+      : echoedIds === undefined ||
+        echoedIds.length !== acknowledgedIds.length ||
+        echoedIds.some((id) => !acknowledgedIds.includes(id)))
+  )
+    throw new TypeError("The Service returned a different document acknowledgement list.");
   return {
-    body: parseEnrollResponse(await response.json()),
+    body: responseBody,
     commandUrl,
     status: response.status
   };
@@ -3213,3 +3241,5 @@ async function readProblemDetails(response: ResponseLike): Promise<AepProblemDet
     return undefined;
   }
 }
+export { readAepServiceDocument } from "./service-documents.js";
+export type { AepDocumentReadResult, ReadAepServiceDocumentOptions } from "./service-documents.js";

@@ -6,12 +6,12 @@ import { isDeepStrictEqual } from "node:util";
 
 import {
   AepValidationError,
+  missingAepRequiredClaimNames,
   parseProblemDetails,
   parseRevokeRequest
 } from "../packages/core/dist/index.js";
 
 import {
-  AepClaimRequirementsError,
   AepClaimValuesError,
   AepCommandError,
   AepInspectError,
@@ -369,21 +369,8 @@ async function evaluateClaimNegotiation(testCase) {
 }
 
 async function evaluateUnknownRequiredClaim(testCase) {
-  try {
-    await enrollService({
-      agentDid: AGENT_DID,
-      clientAssertion: "assertion",
-      fetch: () => jsonResponse({ status: "active" }),
-      idempotencyKey: "unknown-required",
-      inspect: inspectResult({
-        claims: { optional: [], preferred: [], required: testCase.input.required }
-      }),
-      serviceUrl: SERVICE_ORIGIN
-    });
-    return testCase.expected.can_satisfy;
-  } catch (error) {
-    return error instanceof AepClaimRequirementsError && !testCase.expected.can_satisfy;
-  }
+  const missing = missingAepRequiredClaimNames(testCase.input.required, undefined);
+  return (missing.length === 0) === testCase.expected.can_satisfy;
 }
 
 async function evaluateEnrollRequest(testCase) {

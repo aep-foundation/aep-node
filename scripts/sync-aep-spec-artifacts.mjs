@@ -25,7 +25,11 @@ const sourceRoot = await resolveSpecSource();
 const source = await describeSpecSource(sourceRoot);
 const targetRoot = path.join(repoRoot, "packages/conformance/fixtures/aep-specs");
 const coreSchemaRoot = path.join(repoRoot, "packages/core/src/schemas");
-const coreSchemaNames = ["claim-values.schema.json", "inspect-document.schema.json"];
+const coreSchemaNames = [
+  "claim-values.schema.json",
+  "inspect-document.schema.json",
+  "service-documents.schema.json"
+];
 const temporaryRoot = await mkdtemp(path.join(repoRoot, ".spec-artifacts-"));
 const generatedRoot = path.join(temporaryRoot, "aep-specs");
 const generatedCoreSchemaRoot = path.join(temporaryRoot, "core-schemas");

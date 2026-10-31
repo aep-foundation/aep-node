@@ -1,0 +1,1221 @@
+{
+  "id": "wire-shapes",
+  "title": "Service document wire shapes and bounds",
+  "description": "Service document wire shapes and bounds.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "category": "service-documents",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "service-documents"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "service-documents"
+    }
+  },
+  "input": {
+    "cases": [
+      {
+        "name": "html-baseline",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "same-type-distinct-ids",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            },
+            {
+              "id": "product-terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "not-required-document",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "privacy",
+              "type": "privacy_policy",
+              "title": "Privacy policy",
+              "enrollment": "not-required",
+              "representations": [
+                { "media_type": "text/html", "url": "https://example.com/privacy" }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "invalid-enrollment-value",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "privacy",
+              "type": "privacy_policy",
+              "title": "Privacy policy",
+              "enrollment": "optional",
+              "representations": [
+                { "media_type": "text/html", "url": "https://example.com/privacy" }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "unknown-type-and-members",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "example_custom_notice",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ],
+              "future": {
+                "hint": "ignored"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "no-documents",
+        "schema": "service-documents.schema.json",
+        "value": {}
+      },
+      {
+        "name": "empty-catalog",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": []
+        }
+      },
+      {
+        "name": "missing-advertisement",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "empty-id",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "long-id",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "newline-id",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms\n",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "non-ascii-id",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "térms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "unknown-enrollment",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "optional",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "missing-html",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "application/json",
+                  "url": "https://example.com/terms.json"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "duplicate-html",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                },
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "http-url",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "http://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "userinfo-url",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://user:pass@example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "relative-url",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "backslash-url",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com\\@localhost/"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "cross-origin-public-url",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://legal.example.net/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "empty-ack",
+        "schema": "enroll-request.schema.json",
+        "value": {
+          "agent_did": "did:example:agent",
+          "acknowledged_document_ids": []
+        }
+      },
+      {
+        "name": "seven-max-ids",
+        "schema": "enroll-request.schema.json",
+        "value": {
+          "agent_did": "did:example:agent",
+          "acknowledged_document_ids": [
+            "0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "3aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "4aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "5aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "6aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      },
+      {
+        "name": "eight-ids",
+        "schema": "enroll-request.schema.json",
+        "value": {
+          "agent_did": "did:example:agent",
+          "acknowledged_document_ids": [
+            "doc0",
+            "doc1",
+            "doc2",
+            "doc3",
+            "doc4",
+            "doc5",
+            "doc6",
+            "doc7"
+          ]
+        }
+      },
+      {
+        "name": "duplicate-ids",
+        "schema": "enroll-request.schema.json",
+        "value": {
+          "agent_did": "did:example:agent",
+          "acknowledged_document_ids": ["terms", "terms"]
+        }
+      },
+      {
+        "name": "case-preserved",
+        "schema": "enroll-request.schema.json",
+        "value": {
+          "agent_did": "did:example:agent",
+          "acknowledged_document_ids": ["Terms", "terms"]
+        }
+      },
+      {
+        "name": "null-ack",
+        "schema": "enroll-request.schema.json",
+        "value": {
+          "agent_did": "did:example:agent",
+          "acknowledged_document_ids": null
+        }
+      },
+      {
+        "name": "omitted-ack",
+        "schema": "enroll-request.schema.json",
+        "value": {
+          "agent_did": "did:example:agent"
+        }
+      },
+      {
+        "name": "echo-empty",
+        "schema": "enroll-response.schema.json",
+        "value": {
+          "status": "active",
+          "acknowledged_document_ids": []
+        }
+      },
+      {
+        "name": "document-error",
+        "schema": "problem.schema.json",
+        "value": {
+          "type": "urn:aep:error:requirements_unmet",
+          "title": "Enrollment requirements unmet",
+          "code": "requirements_unmet",
+          "status": 422,
+          "requirements_pending": ["service_documents"],
+          "required_document_ids": ["terms"]
+        }
+      },
+      {
+        "name": "missing-error-ids",
+        "schema": "problem.schema.json",
+        "value": {
+          "type": "urn:aep:error:requirements_unmet",
+          "title": "Enrollment requirements unmet",
+          "code": "requirements_unmet",
+          "status": 422,
+          "requirements_pending": ["service_documents"]
+        }
+      },
+      {
+        "name": "empty-error-ids",
+        "schema": "problem.schema.json",
+        "value": {
+          "type": "urn:aep:error:requirements_unmet",
+          "title": "Enrollment requirements unmet",
+          "code": "requirements_unmet",
+          "status": 422,
+          "requirements_pending": ["service_documents"],
+          "required_document_ids": []
+        }
+      },
+      {
+        "name": "non-disclosing-error",
+        "schema": "problem.schema.json",
+        "value": {
+          "type": "urn:aep:error:not_recognized",
+          "title": "Enrollment requirements unmet",
+          "code": "not_recognized",
+          "status": 401,
+          "required_document_ids": ["terms"]
+        }
+      },
+      {
+        "name": "portable-full",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "section",
+              "title": "Use",
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "text": "Use the service lawfully."
+                },
+                {
+                  "type": "numbered_list",
+                  "items": ["Keep access private.", "Respect other users."]
+                },
+                {
+                  "type": "bulleted_list",
+                  "items": ["No impersonation."]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "portable-summary",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "section",
+              "title": "Use",
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "text": "Use the service lawfully."
+                },
+                {
+                  "type": "numbered_list",
+                  "items": ["Keep access private.", "Respect other users."]
+                },
+                {
+                  "type": "bulleted_list",
+                  "items": ["No impersonation."]
+                }
+              ]
+            }
+          ],
+          "summary": [
+            {
+              "type": "paragraph",
+              "text": "Service-authored summary."
+            }
+          ],
+          "future": true
+        }
+      },
+      {
+        "name": "portable-summary-only",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "summary": [
+            {
+              "type": "paragraph",
+              "text": "Summary"
+            }
+          ]
+        }
+      },
+      {
+        "name": "portable-empty-content",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": []
+        }
+      },
+      {
+        "name": "portable-empty-summary",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "section",
+              "title": "Use",
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "text": "Use the service lawfully."
+                },
+                {
+                  "type": "numbered_list",
+                  "items": ["Keep access private.", "Respect other users."]
+                },
+                {
+                  "type": "bulleted_list",
+                  "items": ["No impersonation."]
+                }
+              ]
+            }
+          ],
+          "summary": []
+        }
+      },
+      {
+        "name": "portable-unknown-block",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "future_table",
+              "rows": []
+            }
+          ]
+        }
+      },
+      {
+        "name": "portable-wrong-version",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "2.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "section",
+              "title": "Use",
+              "blocks": [
+                {
+                  "type": "paragraph",
+                  "text": "Use the service lawfully."
+                },
+                {
+                  "type": "numbered_list",
+                  "items": ["Keep access private.", "Respect other users."]
+                },
+                {
+                  "type": "bulleted_list",
+                  "items": ["No impersonation."]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "portable-empty-section",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "section",
+              "title": "Empty",
+              "blocks": []
+            }
+          ]
+        }
+      },
+      {
+        "name": "portable-empty-list",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "bulleted_list",
+              "items": []
+            }
+          ]
+        }
+      },
+      {
+        "name": "portable-numeric-text",
+        "schema": "portable-service-document.schema.json",
+        "value": {
+          "format": "aep-service-document",
+          "version": "1.0",
+          "id": "terms",
+          "content": [
+            {
+              "type": "paragraph",
+              "text": 10
+            }
+          ]
+        }
+      },
+      {
+        "name": "core-inspect-with-documents",
+        "schema": "inspect-document.schema.json",
+        "value": {
+          "aep_version": "1.0",
+          "bindings": {
+            "supported": ["http"]
+          },
+          "commands": {
+            "supported": ["inspect"]
+          },
+          "core": {
+            "signing_algorithms": ["EdDSA", "ES256"]
+          },
+          "http": {},
+          "identity": {
+            "methods": []
+          },
+          "service": {
+            "did": "did:example:service"
+          },
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "core-inspect-invalid-document",
+        "schema": "inspect-document.schema.json",
+        "value": {
+          "aep_version": "1.0",
+          "bindings": {
+            "supported": ["http"]
+          },
+          "commands": {
+            "supported": ["inspect"]
+          },
+          "core": {
+            "signing_algorithms": ["EdDSA", "ES256"]
+          },
+          "http": {},
+          "identity": {
+            "methods": []
+          },
+          "service": {
+            "did": "did:example:service"
+          },
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "loopback-localhost",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "http://localhost:8080/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "loopback-ipv4",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "http://127.0.0.1/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "loopback-ipv6",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "http://[::1]/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "https-private-host",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "https://192.168.1.10/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "http-private-host",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "http://192.168.1.10/terms"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "http-loopback-lookalike",
+        "schema": "service-documents.schema.json",
+        "value": {
+          "extensions": {
+            "supported": ["urn:aep:ext:aep-foundation:service-documents#v=1.0.0"]
+          },
+          "service_documents": [
+            {
+              "id": "terms",
+              "type": "terms_of_service",
+              "title": "Terms of service",
+              "enrollment": "required",
+              "representations": [
+                {
+                  "media_type": "text/html",
+                  "url": "http://localhost.example.com/terms"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "cases": [
+      {
+        "name": "html-baseline",
+        "valid": true
+      },
+      {
+        "name": "same-type-distinct-ids",
+        "valid": true
+      },
+      {
+        "name": "not-required-document",
+        "valid": true
+      },
+      {
+        "name": "invalid-enrollment-value",
+        "valid": false
+      },
+      {
+        "name": "unknown-type-and-members",
+        "valid": true
+      },
+      {
+        "name": "no-documents",
+        "valid": true
+      },
+      {
+        "name": "empty-catalog",
+        "valid": false
+      },
+      {
+        "name": "missing-advertisement",
+        "valid": false
+      },
+      {
+        "name": "empty-id",
+        "valid": false
+      },
+      {
+        "name": "long-id",
+        "valid": false
+      },
+      {
+        "name": "newline-id",
+        "valid": false
+      },
+      {
+        "name": "non-ascii-id",
+        "valid": false
+      },
+      {
+        "name": "unknown-enrollment",
+        "valid": false
+      },
+      {
+        "name": "missing-html",
+        "valid": false
+      },
+      {
+        "name": "duplicate-html",
+        "valid": false
+      },
+      {
+        "name": "http-url",
+        "valid": false
+      },
+      {
+        "name": "userinfo-url",
+        "valid": false
+      },
+      {
+        "name": "relative-url",
+        "valid": false
+      },
+      {
+        "name": "backslash-url",
+        "valid": false
+      },
+      {
+        "name": "cross-origin-public-url",
+        "valid": true
+      },
+      {
+        "name": "empty-ack",
+        "valid": true
+      },
+      {
+        "name": "seven-max-ids",
+        "valid": true
+      },
+      {
+        "name": "eight-ids",
+        "valid": false
+      },
+      {
+        "name": "duplicate-ids",
+        "valid": false
+      },
+      {
+        "name": "case-preserved",
+        "valid": true
+      },
+      {
+        "name": "null-ack",
+        "valid": false
+      },
+      {
+        "name": "omitted-ack",
+        "valid": true
+      },
+      {
+        "name": "echo-empty",
+        "valid": true
+      },
+      {
+        "name": "document-error",
+        "valid": true
+      },
+      {
+        "name": "missing-error-ids",
+        "valid": false
+      },
+      {
+        "name": "empty-error-ids",
+        "valid": false
+      },
+      {
+        "name": "non-disclosing-error",
+        "valid": false
+      },
+      {
+        "name": "portable-full",
+        "valid": true
+      },
+      {
+        "name": "portable-summary",
+        "valid": true
+      },
+      {
+        "name": "portable-summary-only",
+        "valid": false
+      },
+      {
+        "name": "portable-empty-content",
+        "valid": false
+      },
+      {
+        "name": "portable-empty-summary",
+        "valid": false
+      },
+      {
+        "name": "portable-unknown-block",
+        "valid": false
+      },
+      {
+        "name": "portable-wrong-version",
+        "valid": false
+      },
+      {
+        "name": "portable-empty-section",
+        "valid": false
+      },
+      {
+        "name": "portable-empty-list",
+        "valid": false
+      },
+      {
+        "name": "portable-numeric-text",
+        "valid": false
+      },
+      {
+        "name": "core-inspect-with-documents",
+        "valid": true
+      },
+      {
+        "name": "core-inspect-invalid-document",
+        "valid": false
+      },
+      {
+        "name": "loopback-localhost",
+        "valid": true
+      },
+      {
+        "name": "loopback-ipv4",
+        "valid": true
+      },
+      {
+        "name": "loopback-ipv6",
+        "valid": true
+      },
+      {
+        "name": "https-private-host",
+        "valid": true
+      },
+      {
+        "name": "http-private-host",
+        "valid": false
+      },
+      {
+        "name": "http-loopback-lookalike",
+        "valid": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "id": "grant-guidance",
+  "title": "Grant reports unmet requirements without chaining commands",
+  "description": "Grant reports unmet requirements without chaining commands.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "category": "service-documents",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "service-documents"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "service-documents"
+    }
+  },
+  "input": {
+    "required_document_ids": ["product-terms"],
+    "missing_claims": ["contact.email"],
+    "recognized": true,
+    "problem": {
+      "type": "urn:aep:error:requirements_unmet",
+      "title": "Enrollment requirements unmet",
+      "status": 422,
+      "code": "requirements_unmet",
+      "owner_action_required": "true",
+      "requirements_pending": ["contact.email", "service_documents"],
+      "required_document_ids": ["product-terms"]
+    },
+    "unrecognized": {
+      "recognized": false
+    },
+    "enroll_requests": [
+      {
+        "name": "omitted",
+        "claims": { "contact.email": "owner@example.com" },
+        "agent_did": "did:example:agent"
+      },
+      {
+        "name": "empty",
+        "claims": { "contact.email": "owner@example.com" },
+        "agent_did": "did:example:agent",
+        "acknowledged_document_ids": []
+      }
+    ]
+  },
+  "expected": {
+    "grant_status": 422,
+    "credential_issued": false,
+    "agent": {
+      "preferred_next_action": "enroll",
+      "automatic_enroll_calls": 0,
+      "automatic_grant_retries": 0,
+      "persisted_error": false,
+      "required_document_ids": ["product-terms"],
+      "missing_claims": ["contact.email"]
+    },
+    "unrecognized": {
+      "http_status": 401,
+      "code": "not_recognized",
+      "requirements_disclosed": false
+    },
+    "enroll_requests": [
+      {
+        "name": "omitted",
+        "http_status": 422,
+        "code": "requirements_unmet"
+      },
+      {
+        "name": "empty",
+        "http_status": 200,
+        "acknowledged_document_ids": [],
+        "missing_documents_accepted": false
+      }
+    ]
+  }
+}

@@ -29,6 +29,14 @@ The package is ESM-first, includes a CommonJS entry point, and requires Node.js
   contracts
 - Platform provisioning and delegated-signing request builders
 - AEP Claim Value catalog types, schema metadata, and validation helpers
+- Service Document descriptors, portable blocks, preferred document types, and
+  validation of acknowledgement IDs and document requirement errors
+
+`parseAepServiceDocuments()`, `parseAepPortableDocument()`, and
+`parseAepDocumentIds()` validate the Service Documents extension. Their
+`validate*` equivalents return issues instead of throwing. Document types are
+open strings; unknown enrollment semantics and portable block types are rejected
+so a renderer cannot silently weaken acceptance or omit full-document text.
 
 Protected-resource helpers parse and render standard `Authorization` and
 dedicated `AEP-Authorization` carriers while preserving the `AEP`, `Bearer`,
@@ -65,7 +73,7 @@ The package exports:
 - `AEP_VERSION`, `AEP_MEDIA_TYPE`, `AEP_AUTH_SCHEME`, and command/grant type
   constants
 - `InspectDocument` and related wire types
-- `inspectDocumentSchema` and `claimValuesSchema`
+- `inspectDocumentSchema`, `serviceDocumentsSchema`, and `claimValuesSchema`
 - `validateInspectDocument`, `parseInspectDocument`, and `isInspectDocument`
 - `AEP_CLAIM_NAMES`, `AEP_CLAIM_NAME_*`, `validateAepClaimValues`,
   `parseAepClaimValues`, and `isAepClaimValues`
@@ -89,6 +97,10 @@ The package exports:
   commands
 - `isAssertionOperationAllowed` and `assertAssertionOperationAllowed` for
   binding an assertion operation to its valid target
+
+When using a JSON Schema validator, register `serviceDocumentsSchema` by its
+`$id` before compiling `inspectDocumentSchema`, which references it. The
+runtime `parseInspectDocument()` validator needs no schema registration.
 
 Verification defaults to the AEP core signing algorithms. `none` and symmetric
 JOSE algorithms are rejected for Agent identity assertions, so a presented

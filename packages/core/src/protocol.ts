@@ -7,6 +7,7 @@ import {
 } from "./constants.js";
 import { validateAepClaimValues } from "./claims.js";
 import { AepValidationError } from "./errors.js";
+import { validateAepDocumentIds } from "./service-documents.js";
 import type {
   AepAssertionOperation,
   AepAuthenticatedCommand,
@@ -50,6 +51,7 @@ export function validateEnrollRequest(value: unknown): ValidationResult<EnrollRe
   requireString(value, "agent_did", issues, { minLength: 1 });
   optionalClaimValues(value["claims"], issues);
   optionalString(value["idempotency_key"], "$.idempotency_key", issues, { minLength: 1 });
+  optionalDocumentIds(value["acknowledged_document_ids"], "$.acknowledged_document_ids", issues);
   return result(value as EnrollRequest, issues);
 }
 
@@ -71,6 +73,7 @@ export function validateEnrollResponse(value: unknown): ValidationResult<EnrollR
   });
   optionalNonEmptyStringArray(value["verification_pending"], "$.verification_pending", issues);
   optionalNonEmptyStringArray(value["requirements_pending"], "$.requirements_pending", issues);
+  optionalDocumentIds(value["acknowledged_document_ids"], "$.acknowledged_document_ids", issues);
   return result(value as EnrollResponse, issues);
 }
 
@@ -335,14 +338,41 @@ export function validateProblemDetails(value: unknown): ValidationResult<AepProb
     value["code"] === "not_recognized" &&
     (value["owner_action_required"] !== undefined ||
       value["verification_pending"] !== undefined ||
-      value["requirements_pending"] !== undefined)
+      value["requirements_pending"] !== undefined ||
+      value["required_document_ids"] !== undefined)
   ) {
     issues.push({
       path: "$",
       message: "not_recognized must not expose pending or owner-action metadata."
     });
   }
+  const requiredIds = value["required_document_ids"];
+  const hasDocumentRequirement =
+    Array.isArray(value["requirements_pending"]) &&
+    value["requirements_pending"].includes("service_documents");
+  if (requiredIds !== undefined || hasDocumentRequirement) {
+    optionalDocumentIds(requiredIds, "$.required_document_ids", issues);
+    if (
+      !Array.isArray(requiredIds) ||
+      requiredIds.length === 0 ||
+      !hasDocumentRequirement ||
+      value["code"] !== "requirements_unmet" ||
+      value["status"] !== 422
+    )
+      issues.push({
+        path: "$.required_document_ids",
+        message:
+          "Document requirements need non-empty IDs, requirements_unmet, HTTP 422, and service_documents in requirements_pending."
+      });
+  }
   return result(value as AepProblemDetails, issues);
+}
+
+function optionalDocumentIds(value: unknown, path: string, issues: ValidationIssue[]): void {
+  if (value === undefined) return;
+  const result = validateAepDocumentIds(value);
+  if (!result.ok)
+    issues.push(...result.issues.map((issue) => ({ ...issue, path: path + issue.path.slice(1) })));
 }
 
 export function parseProblemDetails(value: unknown): AepProblemDetails {

@@ -99,7 +99,8 @@ export const AEP_CONFORMANCE_PROFILES = [
   "claims",
   "core-http",
   "oauth-bearer",
-  "platform-hosted-identity"
+  "platform-hosted-identity",
+  "service-documents"
 ] as const;
 
 export type AepConformanceProfile = (typeof AEP_CONFORMANCE_PROFILES)[number];
@@ -118,6 +119,7 @@ const VECTOR_CATEGORIES = new Set([
   "idempotency",
   "enroll",
   "status",
+  "service-documents",
   "grant-revoke",
   "platform",
   "protected-resource",
@@ -132,7 +134,8 @@ const VECTOR_DRAFTS = new Set([
   "draft-kavian-aep-api-key-session-credential-04",
   "draft-kavian-aep-basic-session-credential-04",
   "draft-kavian-aep-did-web-identity-method-00",
-  "draft-kavian-aep-platform-hosted-identity-01"
+  "draft-kavian-aep-platform-hosted-identity-01",
+  "draft-kavian-aep-service-documents-00"
 ]);
 
 export class AepConformanceError extends Error {

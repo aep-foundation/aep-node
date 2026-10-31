@@ -1,0 +1,115 @@
+{
+  "id": "enrollment-lifecycle",
+  "title": "Repeated enrollment preserves identity and applies only declared acknowledgements",
+  "description": "Repeated enrollment preserves identity and applies only declared acknowledgements.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "category": "service-documents",
+  "applicability": {
+    "agent": {
+      "expectation": "unsupported"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "service-documents"
+    }
+  },
+  "input": {
+    "policy": "apply-valid-claim-and-document-updates-without-changing-lifecycle",
+    "existing": {
+      "agent_did": "did:example:agent",
+      "enrollment_id": "enrollment-1",
+      "created": "2026-10-01T10:00:00Z",
+      "since": "2026-10-01T10:00:00Z",
+      "status": "active",
+      "claims": {
+        "contact.email": "owner@example.com",
+        "person.first_name": "Alice"
+      },
+      "acknowledged_document_ids": ["terms"],
+      "credential_ids": ["credential-1"]
+    },
+    "current_required_ids": ["terms", "product-terms", "new-notice"],
+    "operations": [
+      {
+        "name": "update",
+        "key": "update-1",
+        "claims": {
+          "contact.email": "updated@example.com"
+        },
+        "acknowledged_document_ids": ["product-terms"]
+      },
+      {
+        "name": "retry",
+        "key": "update-1",
+        "claims": {
+          "contact.email": "updated@example.com"
+        },
+        "acknowledged_document_ids": ["product-terms"]
+      },
+      {
+        "name": "conflicting-key",
+        "key": "update-1",
+        "acknowledged_document_ids": ["new-notice"]
+      },
+      {
+        "name": "empty-declaration",
+        "key": "update-2",
+        "acknowledged_document_ids": []
+      },
+      {
+        "name": "renew-acceptance",
+        "key": "update-3",
+        "mark_required": ["terms"],
+        "acknowledged_document_ids": ["terms"]
+      }
+    ],
+    "lifecycle_states": ["suspended", "terminated", "unavailable"]
+  },
+  "expected": {
+    "identity_preserved": true,
+    "creation_preserved": true,
+    "unchanged_state_timestamp_preserved": true,
+    "credential_ids": ["credential-1"],
+    "claims": {
+      "contact.email": "updated@example.com",
+      "person.first_name": "Alice"
+    },
+    "operations": [
+      {
+        "name": "update",
+        "http_status": 200,
+        "acknowledged_document_ids": ["product-terms"],
+        "stored_ids": ["terms", "product-terms"]
+      },
+      {
+        "name": "retry",
+        "http_status": 200,
+        "acknowledged_document_ids": ["product-terms"],
+        "policy_effects_repeated": false
+      },
+      {
+        "name": "conflicting-key",
+        "http_status": 409,
+        "code": "idempotency_conflict",
+        "mutated": false
+      },
+      {
+        "name": "empty-declaration",
+        "http_status": 200,
+        "acknowledged_document_ids": [],
+        "stored_ids": ["terms", "product-terms"]
+      },
+      {
+        "name": "renew-acceptance",
+        "http_status": 200,
+        "acknowledged_document_ids": ["terms"],
+        "requirement_satisfied": true
+      }
+    ],
+    "outstanding_ids_after_update": ["new-notice"],
+    "unrelated_lifecycle_states_preserved": true
+  }
+}

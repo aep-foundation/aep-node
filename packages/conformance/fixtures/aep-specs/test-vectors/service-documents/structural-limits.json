@@ -1,0 +1,195 @@
+{
+  "id": "structural-limits",
+  "title": "Generated document structural boundary cases",
+  "description": "Generated document structural boundary cases.",
+  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "category": "service-documents",
+  "applicability": {
+    "agent": {
+      "expectation": "required",
+      "profile": "service-documents"
+    },
+    "platform": {
+      "expectation": "unsupported"
+    },
+    "service": {
+      "expectation": "required",
+      "profile": "service-documents"
+    }
+  },
+  "input": {
+    "descriptor": {
+      "id": "terms",
+      "type": "terms_of_service",
+      "title": "Terms of service",
+      "enrollment": "required",
+      "representations": [
+        {
+          "media_type": "text/html",
+          "url": "https://example.com/terms"
+        }
+      ]
+    },
+    "document": {
+      "format": "aep-service-document",
+      "version": "1.0",
+      "id": "terms",
+      "content": [
+        {
+          "type": "paragraph",
+          "text": "Text."
+        }
+      ]
+    },
+    "cases": [
+      {
+        "name": "seven-documents",
+        "kind": "catalog",
+        "count": 7
+      },
+      {
+        "name": "eight-documents",
+        "kind": "catalog",
+        "count": 8
+      },
+      {
+        "name": "duplicate-document-ids",
+        "kind": "duplicate-ids"
+      },
+      {
+        "name": "duplicate-media-types",
+        "kind": "duplicate-media"
+      },
+      {
+        "name": "full-block-budget",
+        "kind": "blocks",
+        "content_count": 1023,
+        "summary_count": 1
+      },
+      {
+        "name": "excess-total-blocks",
+        "kind": "blocks",
+        "content_count": 1024,
+        "summary_count": 1
+      },
+      {
+        "name": "eight-section-levels",
+        "kind": "sections",
+        "depth": 8
+      },
+      {
+        "name": "nine-section-levels",
+        "kind": "sections",
+        "depth": 9
+      },
+      {
+        "name": "maximum-paragraph",
+        "kind": "text",
+        "length": 16384
+      },
+      {
+        "name": "oversized-paragraph",
+        "kind": "text",
+        "length": 16385
+      },
+      {
+        "name": "maximum-list",
+        "kind": "list",
+        "count": 128
+      },
+      {
+        "name": "oversized-list",
+        "kind": "list",
+        "count": 129
+      },
+      {
+        "name": "maximum-title",
+        "kind": "title",
+        "length": 256
+      },
+      {
+        "name": "oversized-title",
+        "kind": "title",
+        "length": 257
+      },
+      {
+        "name": "maximum-url",
+        "kind": "url",
+        "length": 2048
+      },
+      {
+        "name": "oversized-url",
+        "kind": "url",
+        "length": 2049
+      }
+    ]
+  },
+  "expected": {
+    "cases": [
+      {
+        "name": "seven-documents",
+        "valid": true
+      },
+      {
+        "name": "eight-documents",
+        "valid": false
+      },
+      {
+        "name": "duplicate-document-ids",
+        "valid": false
+      },
+      {
+        "name": "duplicate-media-types",
+        "valid": false
+      },
+      {
+        "name": "full-block-budget",
+        "valid": true
+      },
+      {
+        "name": "excess-total-blocks",
+        "valid": false
+      },
+      {
+        "name": "eight-section-levels",
+        "valid": true
+      },
+      {
+        "name": "nine-section-levels",
+        "valid": false
+      },
+      {
+        "name": "maximum-paragraph",
+        "valid": true
+      },
+      {
+        "name": "oversized-paragraph",
+        "valid": false
+      },
+      {
+        "name": "maximum-list",
+        "valid": true
+      },
+      {
+        "name": "oversized-list",
+        "valid": false
+      },
+      {
+        "name": "maximum-title",
+        "valid": true
+      },
+      {
+        "name": "oversized-title",
+        "valid": false
+      },
+      {
+        "name": "maximum-url",
+        "valid": true
+      },
+      {
+        "name": "oversized-url",
+        "valid": false
+      }
+    ]
+  }
+}
