@@ -1,5 +1,23 @@
 # @aep-foundation/agent
 
+## 0.7.0
+
+### Minor Changes
+
+- [#65](https://github.com/aep-foundation/aep-node/pull/65) [`c26fae0`](https://github.com/aep-foundation/aep-node/commit/c26fae0b494ae39a04ec3bb16d8df960331ea751) Thanks [@nkavian](https://github.com/nkavian)! - Use required and not-required for Service Document enrollment requirements.
+
+- [#65](https://github.com/aep-foundation/aep-node/pull/65) [`c26fae0`](https://github.com/aep-foundation/aep-node/commit/c26fae0b494ae39a04ec3bb16d8df960331ea751) Thanks [@nkavian](https://github.com/nkavian)! - Support Service Document discovery, bounded anonymous portable-document retrieval,
+  and explicit document acknowledgements during enrollment. Allow Services to apply
+  repeated enrollment updates while preserving identity and lifecycle state, and
+  report unmet document or claim requirements before issuing credentials.
+
+### Patch Changes
+
+- [#65](https://github.com/aep-foundation/aep-node/pull/65) [`c26fae0`](https://github.com/aep-foundation/aep-node/commit/c26fae0b494ae39a04ec3bb16d8df960331ea751) Thanks [@nkavian](https://github.com/nkavian)! - Preserve HTTP status codes when cached AEP discovery fails and identify the failed discovery URL in HTTP errors.
+
+- Updated dependencies [[`c26fae0`](https://github.com/aep-foundation/aep-node/commit/c26fae0b494ae39a04ec3bb16d8df960331ea751), [`c26fae0`](https://github.com/aep-foundation/aep-node/commit/c26fae0b494ae39a04ec3bb16d8df960331ea751)]:
+  - @aep-foundation/core@0.8.0
+
 ## 0.6.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @aep-foundation/platform
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`c26fae0`](https://github.com/aep-foundation/aep-node/commit/c26fae0b494ae39a04ec3bb16d8df960331ea751), [`c26fae0`](https://github.com/aep-foundation/aep-node/commit/c26fae0b494ae39a04ec3bb16d8df960331ea751)]:
+  - @aep-foundation/core@0.8.0
+
 ## 0.4.0
 
 ### Minor Changes
