@@ -1,5 +1,11 @@
 # @aep-foundation/conformance
 
+## 0.6.1
+
+### Patch Changes
+
+- [#67](https://github.com/aep-foundation/aep-node/pull/67) [`3181632`](https://github.com/aep-foundation/aep-node/commit/31816322988992f6dd6fefe49d7b59515b1a41b2) Thanks [@nkavian](https://github.com/nkavian)! - Synchronize bundled specification artifacts and test-vector validation with core draft 05, published documentation, and the Service Documents example link.
+
 ## 0.6.0
 
 ### Minor Changes
