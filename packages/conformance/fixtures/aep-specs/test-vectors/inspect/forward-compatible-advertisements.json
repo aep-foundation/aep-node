@@ -3,7 +3,7 @@
   "title": "Inspect document with future same-major advertisements",
   "description": "An Agent accepts syntactically valid unknown bindings, commands, and additive fields without inferring support.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "inspect",

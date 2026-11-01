@@ -1,6 +1,6 @@
 # Service Documents
 
-This example uses the [Service Documents extension](../specs/extensions/draft-kavian-aep-service-documents-00.md).
+This example uses the [Service Documents extension](https://datatracker.ietf.org/doc/draft-kavian-aep-service-documents/).
 Reading documents is anonymous and does not acknowledge them. One Owner decision can cover the complete required list.
 
 ## Inspect

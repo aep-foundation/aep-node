@@ -3,7 +3,7 @@
   "title": "Targeted OAuth Bearer Revoke request",
   "description": "A core Revoke request targeting one OAuth Bearer credential issued to the authenticated Agent.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-oauth-session-credential-04"
   ],
   "category": "grant-revoke",

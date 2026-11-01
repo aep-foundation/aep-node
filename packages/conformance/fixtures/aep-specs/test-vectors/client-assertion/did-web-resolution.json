@@ -3,7 +3,7 @@
   "title": "Client assertion did:web resolution",
   "description": "A Service resolves the assertion issuer over HTTPS and selects only the verification method referenced by the identity-bound kid header.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "client-assertion",

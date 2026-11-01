@@ -51,7 +51,7 @@ function vector(overrides: Record<string, unknown> = {}): Record<string, unknown
     id: "minimal-http",
     title: "Minimal HTTP Inspect document",
     description: "A Service advertising the baseline HTTP binding.",
-    drafts: ["draft-kavian-agent-enrollment-protocol-04"],
+    drafts: ["draft-kavian-agent-enrollment-protocol-05"],
     category: "inspect",
     applicability: {
       agent: { expectation: "required", profile: "core-http" },

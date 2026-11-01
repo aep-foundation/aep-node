@@ -128,7 +128,7 @@ const VECTOR_CATEGORIES = new Set([
   "credentials/basic"
 ]);
 const VECTOR_DRAFTS = new Set([
-  "draft-kavian-agent-enrollment-protocol-04",
+  "draft-kavian-agent-enrollment-protocol-05",
   "draft-kavian-aep-claims-01",
   "draft-kavian-aep-oauth-session-credential-04",
   "draft-kavian-aep-api-key-session-credential-04",

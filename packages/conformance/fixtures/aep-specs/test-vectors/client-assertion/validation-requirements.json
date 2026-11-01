@@ -3,7 +3,7 @@
   "title": "Client assertion validation requirements",
   "description": "Agents emit the mandatory JOSE header and bounded claims while Services reject identity, lifetime, and protected-resource binding failures.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "client-assertion",

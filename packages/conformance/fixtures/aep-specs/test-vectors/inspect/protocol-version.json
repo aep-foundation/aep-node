@@ -2,7 +2,7 @@
   "id": "protocol-version",
   "title": "AEP protocol version syntax and compatibility",
   "description": "AEP versions use major.minor syntax and compatibility is determined by the major version.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05"],
   "category": "inspect",
   "applicability": {
     "agent": {

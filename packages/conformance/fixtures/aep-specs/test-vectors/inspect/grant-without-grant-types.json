@@ -3,7 +3,7 @@
   "title": "Grant advertised without a concrete grant type",
   "description": "An Inspect document cannot advertise Grant when grant_types is absent or empty.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "inspect",

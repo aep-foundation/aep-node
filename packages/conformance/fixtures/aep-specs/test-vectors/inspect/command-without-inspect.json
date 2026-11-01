@@ -3,7 +3,7 @@
   "title": "Inspect document omitting the Inspect command",
   "description": "Every Inspect document advertises the Inspect command that exposed the document.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "inspect",

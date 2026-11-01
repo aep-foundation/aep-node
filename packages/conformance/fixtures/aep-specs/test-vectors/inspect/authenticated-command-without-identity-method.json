@@ -3,7 +3,7 @@
   "title": "Authenticated command without an identity method",
   "description": "A Service advertising an authenticated command also advertises at least one accepted identity method.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "inspect",
