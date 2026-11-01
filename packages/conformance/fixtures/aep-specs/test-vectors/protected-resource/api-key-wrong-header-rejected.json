@@ -3,7 +3,7 @@
   "title": "API key under wrong header is rejected",
   "description": "The Service-selected Grant response header is authoritative; a conventional alias is not accepted.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-api-key-session-credential-04"
   ],
   "category": "protected-resource",

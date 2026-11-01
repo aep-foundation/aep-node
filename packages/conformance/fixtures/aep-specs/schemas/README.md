@@ -63,14 +63,6 @@ behavior remain covered by the vector structure checker.
 
 ## Service Documents
 
-`service-documents.schema.json` describes the catalog entries advertised by
-Inspect (IDs, titles, requirements, and representation links), acknowledged IDs
-in Enroll, and unmet-document errors. It does not contain the document text.
-
-`portable-service-document.schema.json` describes the JSON retrieved from a
-portable representation link: the document ID, full content, and optional
-summary, expressed as sections, paragraphs, and lists.
-
 Inspect, Enroll request/response, and Problem Details compose the optional
 `service-documents.schema.json` members through relative schema references.
 Resolve references from the same schema directory; the repository checker uses
@@ -79,11 +71,4 @@ only local schema files, without fetching remote references.
 The checker also validates descriptor-ID uniqueness, representation-media-type
 uniqueness, the aggregate 1024-block limit, and eight-level section nesting.
 These constraints are not fully expressible by the published JSON Schemas;
-SDK parsers must enforce them as well. Fetch byte limits, HTTPS/loopback rules,
-redirect safety, matching portable IDs to descriptors, human approval, and
-enrollment lifecycle behavior require implementation tests, not schema validation.
-
-Unsupported portable blocks fail the portable schema; a reader offers the HTML
-link rather than showing an incomplete document. Unknown document types and
-additive object members remain valid. Empty acknowledgement arrays are allowed;
-empty advertised document lists and empty unmet-document lists are not.
+SDK parsers must enforce them as well.

@@ -2,7 +2,7 @@
   "id": "problem-details-validation",
   "title": "Problem Details semantic validation",
   "description": "AEP Problem Details require a title, bind type exactly to code, and do not disclose recognition metadata.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05"],
   "category": "errors",
   "applicability": {
     "agent": {

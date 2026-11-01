@@ -3,7 +3,7 @@
   "title": "Protected resource authenticate assertion",
   "description": "A short-lived one-time AEP assertion is bound to the Service DID and exact protected resource.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "protected-resource",

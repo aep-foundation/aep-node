@@ -2,7 +2,7 @@
   "id": "wire-shapes",
   "title": "Service document wire shapes and bounds",
   "description": "Service document wire shapes and bounds.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05", "draft-kavian-aep-service-documents-00"],
   "category": "service-documents",
   "applicability": {
     "agent": {

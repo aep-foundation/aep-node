@@ -3,7 +3,7 @@
   "title": "Minimal HTTP Inspect document",
   "description": "A Service advertising the baseline HTTP binding, did:web identity, and the three published credential profiles.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-oauth-session-credential-04",
     "draft-kavian-aep-api-key-session-credential-04",
     "draft-kavian-aep-basic-session-credential-04",

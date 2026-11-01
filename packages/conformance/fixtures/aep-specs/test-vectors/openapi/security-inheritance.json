@@ -2,7 +2,7 @@
   "id": "security-inheritance",
   "title": "OpenAPI security inheritance and alternatives",
   "description": "Root and operation security map public, required, optional-anonymous, alternative, and unsupported compound requirements.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05"],
   "category": "openapi",
   "applicability": {
     "agent": {

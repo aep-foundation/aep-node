@@ -3,7 +3,7 @@
   "title": "Inspect document exceeding the authentication-method limit",
   "description": "An authentication advertisement contains at most sixteen methods.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "inspect",

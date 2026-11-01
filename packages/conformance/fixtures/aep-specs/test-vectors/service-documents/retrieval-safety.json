@@ -2,7 +2,7 @@
   "id": "retrieval-safety",
   "title": "Document retrieval is bounded and anonymous at every hop",
   "description": "Document retrieval is bounded and anonymous at every hop. fetch_allowed expresses permission under the stated destination policy; a client may refuse redirects and offer the HTML link instead.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05", "draft-kavian-aep-service-documents-00"],
   "category": "service-documents",
   "applicability": {
     "agent": {

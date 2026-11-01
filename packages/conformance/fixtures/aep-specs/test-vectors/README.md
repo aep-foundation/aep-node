@@ -69,7 +69,7 @@ Each vector has this top-level shape:
   "title": "Minimal HTTP Inspect document",
   "description": "A Service advertising the baseline HTTP binding and current credential profiles.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "inspect",

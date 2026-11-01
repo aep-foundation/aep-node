@@ -2,7 +2,7 @@
   "id": "portable-presentation",
   "title": "Portable content is presented without interpretation or silent omission",
   "description": "Portable content is presented without interpretation or silent omission.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05", "draft-kavian-aep-service-documents-00"],
   "category": "service-documents",
   "applicability": {
     "agent": {

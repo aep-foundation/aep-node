@@ -3,7 +3,7 @@
   "title": "Core command idempotency replay and conflict",
   "description": "Core command idempotency uses one Agent-and-key scope, replays an exact request, and rejects reuse for another body or command.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "idempotency",

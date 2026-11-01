@@ -2,7 +2,7 @@
   "id": "approval-snapshot",
   "title": "Approval uses only the captured required identifiers",
   "description": "Approval uses only the captured required identifiers.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04", "draft-kavian-aep-service-documents-00"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05", "draft-kavian-aep-service-documents-00"],
   "category": "service-documents",
   "applicability": {
     "agent": {

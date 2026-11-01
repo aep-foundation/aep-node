@@ -3,7 +3,7 @@
   "title": "Enroll for an existing identity",
   "description": "With an unchanged-enrollment policy, an explicit Enroll returns the existing lifecycle state without replacing the enrollment.",
   "drafts": [
-    "draft-kavian-agent-enrollment-protocol-04",
+    "draft-kavian-agent-enrollment-protocol-05",
     "draft-kavian-aep-did-web-identity-method-00"
   ],
   "category": "enroll",

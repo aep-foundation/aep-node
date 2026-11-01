@@ -13,7 +13,7 @@
   },
   "category": "protected-resource",
   "description": "An Agent rejects protected-resource authentication methods that the Service did not advertise and does not infer AEP JWT support from an omitted authentication object.",
-  "drafts": ["draft-kavian-agent-enrollment-protocol-04"],
+  "drafts": ["draft-kavian-agent-enrollment-protocol-05"],
   "expected": {
     "explicit_unadvertised_credential": "reject",
     "explicit_unadvertised_grant_type": "reject",
