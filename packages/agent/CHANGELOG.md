@@ -1,5 +1,20 @@
 # @aep-foundation/agent
 
+## 0.7.1
+
+### Patch Changes
+
+- [#69](https://github.com/aep-foundation/aep-node/pull/69) [`86c6ae9`](https://github.com/aep-foundation/aep-node/commit/86c6ae91049439abe05278ce324c2bea98f2e679) Thanks [@nkavian](https://github.com/nkavian)! - Accept complete opaque API-key header values, including Service-supplied authentication prefixes and internal spaces. Preserve the issued value and header without adding or removing a prefix, while rejecting unsafe field values.
+
+  Accept case-insensitive OAuth Bearer token types without changing access tokens.
+
+  Allow empty Basic usernames, passwords, and realms while requiring username and password fields to be present strings.
+
+  Verify API-key values through the configured credential handlers instead of rejecting Bearer or Basic prefixes as unsupported grant types. Reject requests that match multiple session credentials.
+
+- Updated dependencies [[`86c6ae9`](https://github.com/aep-foundation/aep-node/commit/86c6ae91049439abe05278ce324c2bea98f2e679)]:
+  - @aep-foundation/core@0.8.1
+
 ## 0.7.0
 
 ### Minor Changes
