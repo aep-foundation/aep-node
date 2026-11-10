@@ -15,12 +15,10 @@
       "format": "date-time"
     },
     "password": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "realm": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     },
     "scopes": {
       "type": ["array", "null"],
@@ -29,8 +27,7 @@
       }
     },
     "username": {
-      "type": "string",
-      "minLength": 1
+      "type": "string"
     }
   }
 }

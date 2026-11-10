@@ -45,6 +45,17 @@ Host: api.example.com
 x-api-key: aep_live_7Jm5Example
 ```
 
+The `header` and `api_key` fields are used together without changing either value.
+A Service that selects `Authorization` can return `api_key` as
+`Bearer aep_live_7Jm5Example`. The Agent then sends exactly:
+
+```http
+Authorization: Bearer aep_live_7Jm5Example
+```
+
+The Agent does not add or remove a prefix. This is an `api-key` grant, not an
+`oauth-bearer` grant, even though the Service chose a Bearer-shaped header value.
+
 ## 3. Revoke One API-key Credential
 
 ```http

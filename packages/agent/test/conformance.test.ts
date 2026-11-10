@@ -122,7 +122,7 @@ function sessionCredentialRecord(
       credential_id: "cred-1",
       expires_at: "2999-05-28T12:00:00Z",
       scopes: [],
-      token_type: "Bearer"
+      token_type: "bEaReR"
     },
     credentialId: "cred-1",
     expiresAt: "2999-05-28T12:00:00Z",
@@ -298,7 +298,17 @@ describe("credential presentation", () => {
   });
 
   it("refuses an API-key value that could not be presented in a field", () => {
-    for (const api_key of ["key with space", "key\r\nX-Injected: 1", "key,with,comma", ""]) {
+    for (const api_key of [
+      " key",
+      "key ",
+      "key\n",
+      "key\r\nX-Injected: 1",
+      "key\tvalue",
+      "key\u0000",
+      "key\u007f",
+      "kéy",
+      ""
+    ]) {
       expect(() =>
         credentialPresentationHeaders({
           api_key,
@@ -308,6 +318,31 @@ describe("credential presentation", () => {
           scopes: []
         })
       ).toThrow(/not a valid API-key presentation|not a valid HTTP field name/);
+    }
+  });
+
+  it("preserves complete API-key field values without adding a scheme", () => {
+    for (const api_key of [
+      "k",
+      "Bearer secret",
+      "Basic dXNlcjpwYXNz",
+      "key  with spaces",
+      'key,";\\value'
+    ]) {
+      for (const header of ["Authorization", "X-Service-Key"]) {
+        expect(
+          credentialPresentationHeaders(
+            {
+              api_key,
+              header,
+              credential_id: "c1",
+              expires_at: "2999-01-01T00:00:00Z",
+              scopes: []
+            },
+            "dedicated"
+          )
+        ).toEqual({ [header]: api_key });
+      }
     }
   });
 

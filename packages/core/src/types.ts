@@ -221,7 +221,7 @@ export interface OAuthBearerGrantResponse {
   /** Normalized to an array. An omitted or null wire value means no scope-limited authorization. */
   scopes: string[];
   token_format?: string;
-  token_type: "Bearer";
+  token_type: string;
   [key: string]: unknown;
 }
 

@@ -226,6 +226,13 @@ PEM, JWK, `CryptoKey`, `KeyObject`, and raw key material supported by `jose`.
 `credentialPresentationHeaders()` turns built-in credentials into HTTP headers
 for OAuth Bearer, API-key, and HTTP Basic presentation.
 
+For an `api-key` credential, `api_key` is the complete HTTP header value. If a Service returns
+`header: "Authorization"` and `api_key: "Bearer secret"`, the Agent sends exactly
+`Authorization: Bearer secret`. The SDK does not add or remove a prefix, split the value, or trim it.
+Internal spaces and printable ASCII punctuation are allowed; empty values, leading or trailing
+spaces, control characters, and non-ASCII characters are rejected. The selected API-key header
+is also preserved when the caller selects the dedicated AEP carrier.
+
 Pass `carrier: "dedicated"` to the presentation helpers, session
 `authenticationHeaders()`, or `fetchProtectedResource()` to use
 `AEP-Authorization` while preserving the `AEP`, `Bearer`, or `Basic` scheme.

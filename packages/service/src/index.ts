@@ -119,7 +119,7 @@ export interface AepStoredServiceCredential {
   scopes: string[];
   header?: string;
   username?: string;
-  token_type?: "Bearer";
+  token_type?: string;
   verifier: { salt: string; digest: string };
 }
 
@@ -1331,16 +1331,25 @@ async function authenticateProtectedResourceRequest(
 
   const now = options.config?.clock?.() ?? new Date();
   let presented = authorization !== undefined;
+  let advertisedPresentation = false;
+  let matched: AepAuthenticatedPrincipal | undefined;
   for (const method of options.authenticationMethods) {
     if (method === "aep-jwt") continue;
     const handler = options.grantHandlers.get(method);
     if (handler?.authenticate === undefined) continue;
     const input = { headers, now };
-    presented ||= (await handler.hasCredentialPresentation?.(input)) ?? false;
+    const detected = (await handler.hasCredentialPresentation?.(input)) ?? false;
+    presented ||= detected;
+    advertisedPresentation ||= detected;
     const principal = await handler.authenticate(input);
-    if (principal !== undefined) return { authenticated: true, principal };
+    if (principal !== undefined) {
+      if (matched !== undefined)
+        return protectedResourceFailure("not_recognized", options, request.url);
+      matched = principal;
+    }
   }
-  if (authorization !== undefined) {
+  if (matched !== undefined) return { authenticated: true, principal: matched };
+  if (authorization !== undefined && !advertisedPresentation) {
     try {
       const parsed = parseProtectedResourceAuthorization(authorization);
       const method = parsed.scheme === "Bearer" ? "oauth-bearer" : "basic";
@@ -2145,8 +2154,10 @@ function credentialRecordWithParsedCredential(
     !credential.scopes.every((scope) => typeof scope === "string") ||
     !Number.isFinite(Date.parse(credential.expires_at)) ||
     (record.grantType === "api-key" && !credential.header) ||
-    (record.grantType === "basic" && !credential.username) ||
-    (record.grantType === "oauth-bearer" && credential.token_type !== "Bearer")
+    (record.grantType === "basic" && typeof credential.username !== "string") ||
+    (record.grantType === "oauth-bearer" &&
+      (typeof credential.token_type !== "string" ||
+        credential.token_type.toLowerCase() !== "bearer"))
   )
     throw new TypeError("Invalid stored AEP credential verifier or metadata.");
 
