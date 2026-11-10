@@ -295,6 +295,177 @@ describe("signed assertion authentication boundaries", () => {
 });
 
 describe("stored credential verifiers", () => {
+  it.each([
+    ["", "secret"],
+    ["user", ""],
+    ["", ""]
+  ])(
+    "issues, verifies, and revokes Basic credentials with username %j and password %j",
+    async (username, password) => {
+      const service = createAepService(
+        serviceOptions({
+          authenticationMethods: ["basic"],
+          grantTypes: [
+            storedBasicGrantType({
+              store: createInMemoryServiceCredentialStore(),
+              issue: () => ({
+                username,
+                password,
+                realm: "",
+                credential_id: "basic",
+                expires_at: FUTURE,
+                scopes: []
+              })
+            })
+          ],
+          clientAssertion: { clock: () => NOW },
+          clientAssertionVerifier: jsonVerifier()
+        })
+      );
+      await service.enroll(
+        { agent_did: AGENT_DID },
+        {
+          clientAssertion: encoded(claims()),
+          idempotencyKey: "enroll"
+        }
+      );
+      const granted = await service.grant(
+        { grant_type: "basic" },
+        {
+          clientAssertion: encoded(claims({ op: "grant", jti: "grant" })),
+          idempotencyKey: "grant"
+        }
+      );
+      expect(granted).toMatchObject({ status: 200, body: { username, password, realm: "" } });
+      const request = {
+        method: "GET",
+        url: RESOURCE,
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`
+        }
+      };
+      await expect(service.authenticateProtectedResource(request)).resolves.toMatchObject({
+        authenticated: true
+      });
+      await service.revoke(
+        { grant_type: "basic", credential_id: "basic" },
+        {
+          clientAssertion: encoded(claims({ op: "revoke", jti: "revoke" })),
+          idempotencyKey: "revoke"
+        }
+      );
+      await expect(service.authenticateProtectedResource(request)).resolves.toMatchObject({
+        authenticated: false
+      });
+    }
+  );
+
+  it("verifies a shared Authorization field before choosing a grant type and rejects two matches", async () => {
+    const store = createInMemoryServiceCredentialStore();
+    const service = createAepService(
+      serviceOptions({
+        authenticationMethods: ["oauth-bearer", "api-key"],
+        grantTypes: [
+          storedOAuthBearerGrantType({
+            store,
+            issue: () => ({
+              access_token: "secret",
+              token_type: "Bearer",
+              credential_id: "oauth",
+              expires_at: FUTURE,
+              scopes: []
+            })
+          }),
+          storedApiKeyGrantType({
+            store,
+            issue: () => ({
+              api_key: "Bearer secret",
+              header: "Authorization",
+              credential_id: "api",
+              expires_at: FUTURE,
+              scopes: []
+            })
+          })
+        ],
+        clientAssertion: { clock: () => NOW },
+        clientAssertionVerifier: jsonVerifier()
+      })
+    );
+    await service.enroll(
+      { agent_did: AGENT_DID },
+      { clientAssertion: encoded(claims()), idempotencyKey: "enroll" }
+    );
+    await service.grant(
+      { grant_type: "api-key" },
+      { clientAssertion: encoded(claims({ op: "grant", jti: "api" })), idempotencyKey: "api" }
+    );
+    const request = { method: "GET", url: RESOURCE, headers: { Authorization: "Bearer secret" } };
+    await expect(service.authenticateProtectedResource(request)).resolves.toMatchObject({
+      authenticated: true,
+      principal: { authenticationMethod: "api-key" }
+    });
+    await service.grant(
+      { grant_type: "oauth-bearer" },
+      { clientAssertion: encoded(claims({ op: "grant", jti: "oauth" })), idempotencyKey: "oauth" }
+    );
+    await expect(service.authenticateProtectedResource(request)).resolves.toMatchObject({
+      authenticated: false
+    });
+  });
+
+  it.each([
+    "Bearer secret",
+    "bearer secret",
+    "Basic secret",
+    "basic secret",
+    "Bearer two words",
+    'key,";\\value',
+    "key  with spaces"
+  ])("issues and verifies the complete API-key Authorization value %j", async (api_key) => {
+    const service = createAepService(
+      serviceOptions({
+        authenticationMethods: ["api-key"],
+        grantTypes: [
+          storedApiKeyGrantType({
+            store: createInMemoryServiceCredentialStore(),
+            issue: () => ({
+              api_key,
+              header: "Authorization",
+              credential_id: "opaque",
+              expires_at: FUTURE,
+              scopes: []
+            })
+          })
+        ],
+        clientAssertion: { clock: () => NOW },
+        clientAssertionVerifier: jsonVerifier()
+      })
+    );
+    await service.enroll(
+      { agent_did: AGENT_DID },
+      { clientAssertion: encoded(claims()), idempotencyKey: "enroll" }
+    );
+    const grant = await service.grant(
+      { grant_type: "api-key" },
+      { clientAssertion: encoded(claims({ op: "grant", jti: "grant" })), idempotencyKey: "grant" }
+    );
+    expect(grant).toMatchObject({ status: 200, body: { api_key, header: "Authorization" } });
+    await expect(
+      service.authenticateProtectedResource({
+        method: "GET",
+        url: RESOURCE,
+        headers: { Authorization: api_key }
+      })
+    ).resolves.toMatchObject({ authenticated: true });
+    await expect(
+      service.authenticateProtectedResource({
+        method: "GET",
+        url: RESOURCE,
+        headers: { Authorization: `Bearer ${api_key}` }
+      })
+    ).resolves.toMatchObject({ authenticated: false });
+  });
+
   it.each([undefined, ["X-API-Key"], ["x-other"], []])(
     "validates issued headers against advertised names %j before persistence",
     async (headerNames) => {

@@ -8,7 +8,9 @@
   "properties": {
     "api_key": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "pattern": "^[!-~](?:[ -~]*[!-~])?(?![\\s\\S])",
+      "description": "Complete opaque HTTP field value, sent unchanged in the selected header."
     },
     "credential_id": {
       "type": "string",

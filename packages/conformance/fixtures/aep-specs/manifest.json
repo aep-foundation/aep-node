@@ -1,9 +1,9 @@
 {
-  "source": "https://github.com/aep-foundation/aep-specs/tree/5c9813e2107fedb3861d8799d62292716820451a/ietf",
+  "source": "https://github.com/aep-foundation/aep-specs/tree/49d20f627d431371e21d3edf112755b18dde5b0e/ietf",
   "source_repository": "https://github.com/aep-foundation/aep-specs",
-  "source_revision": "5c9813e2107fedb3861d8799d62292716820451a",
+  "source_revision": "49d20f627d431371e21d3edf112755b18dde5b0e",
   "source_directory": "ietf",
-  "artifact_revision": "sha256:80344ea13b4087cc0ca82162d352a133f04c36acefe5b44f3d9afa0f112f5697",
+  "artifact_revision": "sha256:b5386052eaf3656c9f5b04fa46bce8556e1d90528d9d3f81b2c1fdb29aca13f4",
   "generated_by": "scripts/sync-aep-spec-artifacts.mjs",
   "artifacts": {
     "examples": [

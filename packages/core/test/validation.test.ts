@@ -34,6 +34,24 @@ import type { AepClaimValues, ValidationResult } from "../src/index.js";
 const AGENT_DID = "did:web:agent.example.com:agents:123";
 const SERVICE_DID = "did:web:api.example.com";
 
+describe("opaque API-key field values", () => {
+  for (const [valid, values] of [
+    [true, ["k", "Bearer secret", "key  with spaces", 'key,";\\value']],
+    [false, ["", " key", "key ", "key\n", "key\r", "key\tvalue", "key\u0000", "key\u007f", "kéy"]]
+  ] as const) {
+    it.each(values)(`valid=${valid} for %j`, (api_key) => {
+      const result = validateApiKeyGrantResponse({
+        api_key,
+        header: "Authorization",
+        credential_id: "key-1",
+        expires_at: "2027-01-01T00:00:00Z"
+      });
+      expect(result.ok).toBe(valid);
+      if (result.ok) expect(result.value.api_key).toBe(api_key);
+    });
+  }
+});
+
 function paths(result: ValidationResult<unknown>): string[] {
   return result.ok ? [] : result.issues.map((issue) => issue.path);
 }
@@ -470,7 +488,7 @@ describe("request and response field types", () => {
           credential_id: "c",
           expires_at: "2026-12-01T00:00:00Z",
           password: "p",
-          realm: "",
+          realm: null,
           username: "u"
         })
       )
@@ -830,6 +848,24 @@ describe("remaining validation branches", () => {
     };
 
     expect(paths(validateInspectDocument(document))).toContain("$.http.openapi.url");
+  });
+
+  it("accepts case-insensitive Bearer token types without changing the access token", () => {
+    const base = {
+      access_token: "CaseSensitiveToken",
+      credential_id: "c",
+      expires_at: "2027-01-01T00:00:00Z"
+    };
+    for (const token_type of ["Bearer", "bearer", "BEARER", "bEaReR"]) {
+      const result = validateOAuthBearerGrantResponse({ ...base, token_type });
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.access_token).toBe(base.access_token);
+    }
+    for (const token_type of ["Basic", " Bearer", "Bearer ", "Bearer\n", "", null, 1]) {
+      expect(paths(validateOAuthBearerGrantResponse({ ...base, token_type }))).toContain(
+        "$.token_type"
+      );
+    }
   });
 
   it("rejects an expiry whose month or day is out of range", () => {

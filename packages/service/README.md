@@ -363,6 +363,11 @@ URL; command assertions are rejected. Built-in OAuth Bearer, Service-selected
 API-key header, and Basic credentials are validated by their registered stored
 grant handlers without returning credential secrets.
 
+An API-key issuer returns the complete value to send in its selected header. For example,
+`header: "Authorization"` with `api_key: "Bearer secret"` is sent unchanged, with only one
+`Bearer ` prefix. Internal spaces and printable ASCII punctuation are allowed. Empty values,
+leading or trailing spaces, control characters, and non-ASCII characters are rejected.
+
 `storedOAuthBearerGrantType()`, `storedApiKeyGrantType()`, and
 `storedBasicGrantType()` wrap issuer callbacks with built-in credential response
 validation and persistence. Their Revoke handlers mark credentials revoked in

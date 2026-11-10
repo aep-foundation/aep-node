@@ -26,7 +26,7 @@
     },
     "token_type": {
       "type": "string",
-      "enum": ["Bearer"]
+      "pattern": "^[Bb][Ee][Aa][Rr][Ee][Rr](?![\\s\\S])"
     }
   }
 }

@@ -1824,10 +1824,9 @@ export function sessionCredentialRecordFromGrantResult(
 const FIELD_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 /**
- * The API-key value syntax: visible ASCII excluding whitespace, control characters, and the
- * characters that would make a field value ambiguous to parse.
+ * Complete API-key field values permit internal spaces, but not boundary whitespace or controls.
  */
-const API_KEY_VALUE_PATTERN = /^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]+$/;
+const API_KEY_VALUE_PATTERN = /^[!-~](?:[ -~]*[!-~])?(?![\s\S])/;
 
 export function credentialPresentationHeaders(
   credential: AepBuiltInGrantResponse,
@@ -3150,7 +3149,11 @@ function metadataString(metadata: Record<string, unknown>, key: string): string 
 function isOAuthBearerGrantResponse(
   credential: AepBuiltInGrantResponse
 ): credential is OAuthBearerGrantResponse {
-  return "access_token" in credential && credential.token_type === "Bearer";
+  return (
+    "access_token" in credential &&
+    typeof credential.token_type === "string" &&
+    credential.token_type.toLowerCase() === "bearer"
+  );
 }
 
 function isApiKeyGrantResponse(

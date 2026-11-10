@@ -392,7 +392,7 @@ export function validateOAuthBearerGrantResponse(
   requireString(value, "expires_at", issues, { minLength: 1 });
   requireDateTime(value["expires_at"], "$.expires_at", issues);
   optionalNullableStringArray(value["scopes"], "$.scopes", issues);
-  requireString(value, "token_type", issues, { allowedValues: new Set(["Bearer"]) });
+  requireString(value, "token_type", issues, { pattern: /^[Bb][Ee][Aa][Rr][Ee][Rr](?![\s\S])/ });
   return result(
     { ...(value as OAuthBearerGrantResponse), scopes: normalizedScopes(value["scopes"]) },
     issues
@@ -406,6 +406,16 @@ export function validateApiKeyGrantResponse(value: unknown): ValidationResult<Ap
 
   const issues: ValidationIssue[] = [];
   requireString(value, "api_key", issues, { minLength: 1 });
+  if (
+    typeof value["api_key"] === "string" &&
+    !/^[!-~](?:[ -~]*[!-~])?(?![\s\S])/.test(value["api_key"])
+  ) {
+    issues.push({
+      path: "$.api_key",
+      message:
+        "Expected an opaque HTTP field value without boundary whitespace or control characters."
+    });
+  }
   requireString(value, "credential_id", issues, { minLength: 1 });
   requireString(value, "expires_at", issues, { minLength: 1 });
   requireDateTime(value["expires_at"], "$.expires_at", issues);
@@ -426,10 +436,10 @@ export function validateBasicGrantResponse(value: unknown): ValidationResult<Bas
   requireString(value, "credential_id", issues, { minLength: 1 });
   requireString(value, "expires_at", issues, { minLength: 1 });
   requireDateTime(value["expires_at"], "$.expires_at", issues);
-  requireString(value, "password", issues, { minLength: 1 });
-  optionalString(value["realm"], "$.realm", issues, { minLength: 1 });
+  requireString(value, "password", issues);
+  optionalString(value["realm"], "$.realm", issues);
   optionalNullableStringArray(value["scopes"], "$.scopes", issues);
-  requireString(value, "username", issues, { minLength: 1 });
+  requireString(value, "username", issues);
   return result(
     { ...(value as BasicGrantResponse), scopes: normalizedScopes(value["scopes"]) },
     issues
